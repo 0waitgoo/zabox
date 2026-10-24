@@ -17,7 +17,6 @@ on:
       - 'src/components/v2/PlanTitleBar.tsx'
       - 'src/components/v2/PlanSettings.tsx'
       - 'src/components/v2/PlanAiView.tsx'
-      - 'src/components/v2/FloatWidget.tsx'
       - 'src/components/v2/planAiConfig.ts'
       - 'src/components/v2/MiniStickyNote.tsx'
       - 'src/components/v2/planWindow.ts'

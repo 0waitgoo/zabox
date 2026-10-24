@@ -3,31 +3,33 @@ import { safeClose } from './planWindow';
 import type { PlanTheme } from '../../plan-app';
 
 /**
- * 桌面计划应用的内置标题栏（第 4 轮）：替代系统白色标题栏，直角窗口。
- * 左侧 logo +「杂盒计划」、右侧设置 + 最小化 / 最大化 / 关闭。
+ * 桌面计划应用的内置标题栏（第 5 轮）：替代系统白色标题栏，直角窗口。
+ * 左侧 logo +「杂盒计划」、右侧设置 + 收起 / 最大化 / 关闭。
  * - 设置：打开设置页（外观与 AI 接口都聚合在里面），标题栏不再放透明度滑杆与白天切换；
- * - 最小化（—）：不是收进任务栏，而是变成悬浮小组件（用户定）；
+ * - 收起（V）：第 5 轮改——— 按钮不再是最小化变悬浮（该功能已删，之前一点就弹回
+ *   完整版），而是把窗口收成只留顶栏的细条（登录按钮 + 收起/最大化/关闭），再点展开；
  * - 最大化（□）：程序化最大化，是否由系统贴靠触发由 plan-app 的 expect 标记区分；
  * - 底色：透明 + 磨砂（窗口底色由 plan-app 根背景层统一承载，透明度滑杆只改底色、字体不透明）。
  * 拖动区：只放在非交互区——logo + 标题、中间空白；按钮不在拖动区内，点按不受影响。
  * 窗口仍出现在任务栏（tauri.conf skipTaskbar=false）。
+ * 图标尺寸（用户定，第 5 轮缩小）：按钮 24px、字号 xs。
  */
 export default function PlanTitleBar({
   theme,
   settingsOpen,
   onSettingsToggle,
-  onMinimizeToFloat,
+  onToggleHeaderOnly,
   onToggleMaximize,
 }: {
   theme: PlanTheme;
   settingsOpen: boolean;
   onSettingsToggle: () => void;
-  onMinimizeToFloat: () => void;
+  onToggleHeaderOnly: () => void;
   onToggleMaximize: () => void;
 }) {
   const light = theme === 'light';
   const btnBase =
-    'shrink-0 w-7 h-7 flex items-center justify-center rounded-md text-sm transition-colors';
+    'shrink-0 w-6 h-6 flex items-center justify-center rounded-md text-xs transition-colors';
   const btnCls = light
     ? `${btnBase} text-zinc-600 hover:bg-black/10 hover:text-zinc-900`
     : `${btnBase} text-white/70 hover:bg-white/10 hover:text-white`;
@@ -66,11 +68,11 @@ export default function PlanTitleBar({
       </button>
       <button
         type="button"
-        title="最小化到悬浮小组件"
-        onClick={onMinimizeToFloat}
+        title="收起，只留顶栏"
+        onClick={onToggleHeaderOnly}
         className={btnCls}
       >
-        —
+        ⌄
       </button>
       <button
         type="button"

@@ -48,6 +48,12 @@ function loadSha(): string | null {
   }
 }
 
+/** 把请求失败的原因缩成一句可读文案（scope 拒绝时 Tauri 会直接报原因，之前被 catch 吞了） */
+function errDetail(e: unknown): string {
+  const msg = e instanceof Error ? e.message : String(e);
+  return msg.replace(/\s+/g, ' ').slice(0, 60) || '未知错误';
+}
+
 type DeviceSession = {
   deviceCode: string;
   userCode: string;
@@ -60,11 +66,16 @@ export default function PlanSyncBar({
   theme,
   aiView,
   onAiToggle,
+  autoLogin = false,
+  onAutoLoginConsumed,
 }: {
   store: LocalStore;
   theme: PlanTheme;
   aiView: 'main' | 'ai';
   onAiToggle: () => void;
+  /** 顶栏收起条点「GitHub 登录」时用：展开回完整版后自动开始一次登录，免得再点一次 */
+  autoLogin?: boolean;
+  onAutoLoginConsumed?: () => void;
 }) {
   const [token, setToken] = useState(loadToken);
   const [busy, setBusy] = useState(false);
@@ -168,7 +179,9 @@ export default function PlanSyncBar({
     }
   };
 
-  /** 轮询换 token：authorization_pending 继续等，slow_down 放慢，过期/拒绝即停 */
+  /** 轮询换 token：authorization_pending 继续等，slow_down 放慢，过期/拒绝即停。
+      第 5 轮：响应先按文本读再 JSON 解析（非 200 或非 JSON 时给明确原因，不再一律
+      「网络异常」——之前 scope 未配时请求直接被插件拒绝，信息全丢在 catch 里）。 */
   const pollForToken = (session: DeviceSession, intervalSec: number) => {
     stopPolling();
     pollTimer.current = window.setTimeout(async () => {
@@ -178,10 +191,19 @@ export default function PlanSyncBar({
           headers: { Accept: 'application/json', 'Content-Type': 'application/x-www-form-urlencoded' },
           body: `client_id=${encodeURIComponent(CLIENT_ID)}&device_code=${encodeURIComponent(session.deviceCode)}&grant_type=${encodeURIComponent('urn:ietf:params:oauth:grant-type:device_code')}`,
         });
-        const json = (await res.json()) as {
-          access_token?: string;
-          error?: string;
-        };
+        if (!res.ok) {
+          setDevice(null);
+          setStatus(`GitHub 返回 ${res.status}，请重新点 GitHub 登录`);
+          return;
+        }
+        let json: { access_token?: string; error?: string };
+        try {
+          json = JSON.parse(await res.text()) as typeof json;
+        } catch {
+          setDevice(null);
+          setStatus('GitHub 返回格式异常，请重新点 GitHub 登录');
+          return;
+        }
         if (json.access_token) {
           saveToken(json.access_token);
           setDevice(null);
@@ -202,9 +224,9 @@ export default function PlanSyncBar({
             ? '确认码已过期，请重新点 GitHub 登录'
             : 'GitHub 确认未通过，请重新点 GitHub 登录',
         );
-      } catch {
+      } catch (e) {
         setDevice(null);
-        setStatus('网络异常，登录中断，请重新点 GitHub 登录');
+        setStatus(`网络异常，登录中断（${errDetail(e)}），请重新点 GitHub 登录`);
       }
     }, intervalSec * 1000);
   };
@@ -219,12 +241,22 @@ export default function PlanSyncBar({
         headers: { Accept: 'application/json', 'Content-Type': 'application/x-www-form-urlencoded' },
         body: `client_id=${encodeURIComponent(CLIENT_ID)}&scope=${encodeURIComponent('repo')}`,
       });
-      const json = (await res.json()) as {
+      if (!res.ok) {
+        setStatus(`GitHub 返回 ${res.status}，请稍后重试`);
+        return;
+      }
+      let json: {
         device_code?: string;
         user_code?: string;
         verification_uri?: string;
         interval?: number;
       };
+      try {
+        json = JSON.parse(await res.text()) as typeof json;
+      } catch {
+        setStatus('GitHub 返回格式异常，请稍后重试');
+        return;
+      }
       if (!json.device_code || !json.user_code || !json.verification_uri) {
         setStatus('GitHub 未返回确认码，请稍后重试');
         return;
@@ -238,10 +270,18 @@ export default function PlanSyncBar({
       setDevice(session);
       setStatus('请在 GitHub 确认一次，确认后自动连上');
       pollForToken(session, session.intervalSec);
-    } catch {
-      setStatus('网络异常，拿不到确认码，请稍后重试');
+    } catch (e) {
+      setStatus(`网络异常，拿不到确认码（${errDetail(e)}），请稍后重试`);
     }
   };
+
+  // 顶栏收起条点「GitHub 登录」后展开回完整版时自动开始一次登录（已有令牌则只消费标记）
+  useEffect(() => {
+    if (!autoLogin) return;
+    onAutoLoginConsumed?.();
+    if (!loadToken()) void startLogin();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [autoLogin]);
 
   const cancelLogin = () => {
     stopPolling();

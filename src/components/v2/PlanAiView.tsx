@@ -122,8 +122,9 @@ export default function PlanAiView({
       }
       setSteps(parsed);
       setStatus(`已生成 ${parsed.length} 个小步骤，确认后点应用到待办`);
-    } catch {
-      setStatus('网络异常或接口不通，请检查设置里的地址与口令');
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : String(e);
+      setStatus(`网络异常或接口不通，请检查设置里的地址与口令（${msg.replace(/\s+/g, ' ').slice(0, 60)}）`);
     } finally {
       setBusy(false);
     }

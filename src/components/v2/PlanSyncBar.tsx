@@ -326,7 +326,7 @@ export default function PlanSyncBar({
   return (
     <div
       className={`sticky top-10 z-40 backdrop-blur border-b px-3 py-2 ${
-        light ? 'bg-[#f2f2f5]/95 border-black/10' : 'bg-[#17171d]/95 border-white/10'
+        light ? 'border-black/10' : 'border-white/10'
       }`}
     >
       <div className="flex items-center gap-2">

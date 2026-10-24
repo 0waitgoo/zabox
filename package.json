@@ -19,6 +19,7 @@
   "dependencies": {
     "@tailwindcss/vite": "^4.1.14",
     "@tauri-apps/api": "^2.12.4",
+    "@tauri-apps/plugin-http": "^2.8.3",
     "@tauri-apps/plugin-opener": "^2.7.2",
     "@vitejs/plugin-react": "^5.0.4",
     "cors": "^2.8.5",

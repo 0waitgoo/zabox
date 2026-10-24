@@ -1,6 +1,6 @@
 use tauri::{
     menu::{Menu, MenuItem},
-    tray::{MouseButton, TrayIconBuilder, TrayIconEvent},
+    tray::{MouseButton, MouseButtonState, TrayIconBuilder, TrayIconEvent},
     Manager,
 };
 
@@ -8,6 +8,7 @@ use tauri::{
 pub fn run() {
     tauri::Builder::default()
         .plugin(tauri_plugin_opener::init())
+        .plugin(tauri_plugin_http::init())
         .setup(|app| {
             // 系统托盘（任务栏右下角）：点托盘图标收起/放出窗口，右键菜单可显示、
             // 隐藏、退出。窗口的最小化按钮仍是标准最小化到任务栏；托盘是另一条
@@ -37,8 +38,12 @@ pub fn run() {
                     _ => {}
                 })
                 .on_tray_icon_event(|tray, event| {
+                    // 只响应松开（Up）：Click 在按下和松开各发一次，不过滤会在一次
+                    // 点击里连续收起又弹出，看起来就是“很不自然的闪烁”。
+                    // 口径（用户定）：点一下收起（藏进托盘），再点一下弹出窗口。
                     if let TrayIconEvent::Click {
                         button: MouseButton::Left,
+                        button_state: MouseButtonState::Up,
                         ..
                     } = event
                     {

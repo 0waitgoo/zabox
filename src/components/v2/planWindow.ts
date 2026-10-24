@@ -27,7 +27,12 @@ export async function safeMinimize(): Promise<void> {
   try {
     await planWindow()?.minimize();
   } catch {
-    /* 非 Tauri 环境忽略 */
+    // 最小化失败时退到托盘隐藏（托盘图标点一下可恢复），避免窗口卡住不动
+    try {
+      await planWindow()?.hide();
+    } catch {
+      /* 非 Tauri 环境忽略 */
+    }
   }
 }
 

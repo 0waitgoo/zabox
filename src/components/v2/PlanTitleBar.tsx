@@ -2,11 +2,13 @@ import React from 'react';
 import { safeClose, safeMinimize, safeToggleMaximize } from './planWindow';
 
 /**
- * 桌面计划应用的内置标题栏（v2）：替代系统白色标题栏。
+ * 桌面计划应用的内置标题栏（v2，便签优化版）：替代系统白色标题栏。
  * 深色底（与应用 #17171d 一致，悬浮窗模式用浅一点的底），左侧 logo +「杂盒计划」、
  * 右侧透明度滑杆 + 悬浮窗切换 + 最小化 / 最大化 / 关闭。
- * 拖动区：logo 标题区与中间空白带 data-tauri-drag-region；滑杆与按钮不在拖动区内，
- * 保证可点。窗口仍出现在任务栏（tauri.conf skipTaskbar=false），最小化进任务栏。
+ * 拖动区：整条标题栏都是拖动区（Tauri 官方口径：拖动区内的按钮、滑杆等可交互控件
+ * 仍可正常点击），不再只有「杂盒计划」几个字能拖；悬浮窗模式下滑杆收窄，
+ * 保证空白拖动带够宽。窗口仍出现在任务栏（tauri.conf skipTaskbar=false），
+ * 最小化进任务栏。
  */
 export default function PlanTitleBar({
   opacity,
@@ -23,6 +25,7 @@ export default function PlanTitleBar({
     'shrink-0 w-7 h-7 flex items-center justify-center rounded-md text-sm text-white/70 hover:bg-white/10 hover:text-white transition-colors';
   return (
     <div
+      data-tauri-drag-region
       className={`sticky top-0 z-50 h-10 flex items-center gap-2 pl-2.5 pr-1.5 select-none ${
         mini ? 'bg-[#23232c]' : 'bg-[#17171d]'
       }`}
@@ -52,7 +55,7 @@ export default function PlanTitleBar({
           max={100}
           value={opacity}
           onChange={(e) => onOpacityChange(Number(e.target.value))}
-          className="w-16 sm:w-20 accent-indigo-400"
+          className={`${mini ? 'w-12' : 'w-16 sm:w-20'} accent-indigo-400`}
         />
         <span className="tabular-nums w-8">{opacity}%</span>
       </label>

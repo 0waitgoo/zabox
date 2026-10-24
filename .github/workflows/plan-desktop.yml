@@ -14,6 +14,9 @@ on:
       - 'src-tauri/**'
       - 'src/plan-app.tsx'
       - 'src/components/v2/PlanSyncBar.tsx'
+      - 'src/components/v2/PlanTitleBar.tsx'
+      - 'src/components/v2/MiniStickyNote.tsx'
+      - 'src/components/v2/planWindow.ts'
       - 'src/components/pages/PlanPage.tsx'
       - 'src/components/v2/TaskSections.tsx'
       - 'src/components/v2/TaskCard.tsx'
@@ -52,7 +55,7 @@ jobs:
           name: 杂盒计划桌面版
           body: |
             杂盒计划桌面版（Windows 安装包），与网站计划组件同源构建。
-            首次使用：在应用顶部粘贴有 ainav-data 仓读写权限的 GitHub 令牌，点同步即可与网站互通。
+            首次使用：点应用里的 GitHub 登录，在浏览器确认一次即可与网站互通（无需粘贴令牌）。
             未签名：Windows SmartScreen 首次安装会提示，点“仍要运行”即可。
           files: |
             src-tauri/target/release/bundle/nsis/*.exe

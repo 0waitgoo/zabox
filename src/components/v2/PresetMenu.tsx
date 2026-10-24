@@ -61,13 +61,22 @@ export default function PresetMenu({ store }: { store: LocalStore }) {
   };
 
   const rowClass = (current: boolean, disabled = false) =>
-    `w-full flex items-center gap-3 px-3 py-2.5 rounded-2xl border text-left transition-all ${
+    `w-full flex items-center gap-2.5 px-3 py-2 rounded-2xl border text-left transition-all ${
       current
         ? 'border-indigo-400/80 bg-white/8'
         : disabled
           ? 'border-white/5 opacity-45 cursor-default'
           : 'border-white/10 hover:border-white/30 hover:bg-white/[0.04]'
     }`;
+
+  // 第一百一十四轮：面板压缩——预设行由两行卡片改单行（名 + 短述 + 勾），
+  // 全述只放 title 悬停；短述为原述的忠实缩写，语义不变
+  const SHORT_DESC: Record<string, string> = {
+    default: '均衡排版',
+    designer: '设计资源优先',
+    programmer: '开发资源优先',
+    tools: '整页小组件',
+  };
 
   return (
     <div ref={containerRef} className="relative shrink-0">
@@ -93,11 +102,11 @@ export default function PresetMenu({ store }: { store: LocalStore }) {
             transition={{ duration: 0.15 }}
             /* 面板实色不透明（同 BackgroundMenu 口径）：不用毛玻璃，避免透出后面卡片文字；
                marginLeft 为打开时算出的视口平移（手机防溢出，桌面恒 0），不与 motion 的 transform 冲突 */
-            className="absolute left-0 top-full mt-2 w-72 max-w-[calc(100vw-24px)] rounded-3xl bg-[#17171d] border border-white/15 p-3 shadow-2xl shadow-black/70 z-50"
+            className="absolute left-0 top-full mt-2 w-72 max-w-[calc(100vw-24px)] max-h-[85vh] overflow-y-auto rounded-3xl bg-[#17171d] border border-white/15 p-2.5 shadow-2xl shadow-black/70 z-50"
             style={{ marginLeft: panelShift }}
           >
-            <p className="px-1 pb-2 text-[10px] tracking-wider text-white/40 uppercase">主页预设</p>
-            <div className="flex flex-col gap-1.5">
+            <p className="px-1 pb-1.5 text-[10px] tracking-wider text-white/40 uppercase">主页预设</p>
+            <div className="flex flex-col gap-1">
               {BUILTIN_PRESET_META.map((meta) => {
                 const current = activePreset === meta.id;
                 return (
@@ -105,12 +114,13 @@ export default function PresetMenu({ store }: { store: LocalStore }) {
                     key={meta.id}
                     data-preset-option={meta.id}
                     data-preset-current={current || undefined}
+                    title={meta.desc}
                     onClick={() => pick(meta.id)}
                     className={rowClass(current)}
                   >
-                    <span className="flex-1 min-w-0">
-                      <span className="block text-[13px] font-medium text-white/90">{meta.name}</span>
-                      <span className="block text-[11px] text-white/45 truncate">{meta.desc}</span>
+                    <span className="shrink-0 text-[13px] font-medium text-white/90">{meta.name}</span>
+                    <span className="flex-1 min-w-0 text-[11px] text-white/45 truncate">
+                      {SHORT_DESC[meta.id] ?? meta.desc}
                     </span>
                     {current && (
                       <span className="shrink-0 w-[18px] h-[18px] rounded-full bg-indigo-500 flex items-center justify-center">
@@ -121,18 +131,17 @@ export default function PresetMenu({ store }: { store: LocalStore }) {
                 );
               })}
               {/* 「我的」：恢复自己的存档（含外观）。无存档时呈禁用态注明「暂无存档」；
-                  有存档或正在自定义态时说明：你现在的排版与外观，改动即自动保存 */}
+                  有存档或正在自定义态时说明：改动即自动保存 */}
               <button
                 data-preset-option="my"
                 data-preset-current={activePreset === 'my' || undefined}
+                title="你现在的排版与外观，改动即自动保存"
                 onClick={() => pick('my')}
                 className={rowClass(activePreset === 'my', !hasMyArchive && activePreset !== 'my')}
               >
-                <span className="flex-1 min-w-0">
-                  <span className="block text-[13px] font-medium text-white/90">我的</span>
-                  <span className="block text-[11px] text-white/45 truncate">
-                    {hasMyArchive || activePreset === 'my' ? '你现在的排版与外观，改动即自动保存' : '暂无存档'}
-                  </span>
+                <span className="shrink-0 text-[13px] font-medium text-white/90">我的</span>
+                <span className="flex-1 min-w-0 text-[11px] text-white/45 truncate">
+                  {hasMyArchive || activePreset === 'my' ? '改动即自动保存' : '暂无存档'}
                 </span>
                 {activePreset === 'my' && (
                   <span className="shrink-0 w-[18px] h-[18px] rounded-full bg-indigo-500 flex items-center justify-center">
@@ -141,12 +150,12 @@ export default function PresetMenu({ store }: { store: LocalStore }) {
                 )}
               </button>
             </div>
-            <p className="px-1 pt-2.5 text-[11px] leading-relaxed text-white/35">
-              切换换主页排版与外观，计划不受影响；排版或外观一改动就自动存进「我的」。
+            <p className="px-1 pt-2 text-[11px] text-white/35 truncate">
+              计划不受影响；改动自动存进「我的」。
             </p>
             {/* 外观节（第一百一十一轮）：原顶栏背景按钮的面板正文整体并入此处 */}
-            <div className="my-3 border-t border-white/[0.07]" />
-            <p className="px-1 pb-2 text-[10px] tracking-wider text-white/40 uppercase">外观</p>
+            <div className="my-2 border-t border-white/[0.07]" />
+            <p className="px-1 pb-1.5 text-[10px] tracking-wider text-white/40 uppercase">外观</p>
             <AppearanceSection store={store} />
           </motion.div>
         )}

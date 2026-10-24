@@ -1,5 +1,7 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { openUrl } from '@tauri-apps/plugin-opener';
+import { fetch as tauriFetch } from '@tauri-apps/plugin-http';
+import { ArrowLeft, Sparkles } from 'lucide-react';
 import type { LocalStore } from '../../store/localStore';
 import {
   ghGetFile,
@@ -8,13 +10,19 @@ import {
 } from '../../store/githubSync';
 import { packDataEnvelope, restoreWidgetStorage } from '../../store/widgetStorage';
 import { reloadColorsData } from '../../store/colorsData';
+import type { PlanTheme } from '../../plan-app';
 
 /**
- * 桌面计划应用的同步条（v2）：与网站计划组件同源数据（tasks/plans），
+ * 桌面计划应用的同步条（第 3 轮）：与网站计划组件同源数据（tasks/plans），
  * 通过网站版同一套 GitHub 同步协议（ainav-data 私仓整份 store JSON）与网站互通。
- * v1 的粘贴令牌框已删，改 GitHub Device Flow 登录：点「GitHub 登录」→ 界面显示
- * user_code → 点「去 GitHub 确认」在浏览器里确认一次 → 轮询拿到 token 后存本机。
+ * GitHub Device Flow 登录：点「GitHub 登录」→ 界面显示 user_code → 点
+ * 「去 GitHub 确认」在浏览器里确认一次 → 轮询拿到 token 后存本机。
  * 令牌只存本机独立 key（zabox-plan-sync-token），绝不进同步 JSON。
+ * 第 3 轮修登录无反应：设备码与换 token 两次请求改走 @tauri-apps/plugin-http
+ * （Rust 侧发请求，不受浏览器 CORS 限制——github.com 的 OAuth 接口不给浏览器
+ * 跨域头，网页 fetch 拿不到响应）；状态文案在 420px 窄窗也不再隐藏
+ * （之前 hidden sm:block 导致点完什么提示都看不见）。
+ * 左侧「同步」二字已删（用户定）；行尾空白带是拖动区（第 3 轮新增）。
  * v1 口径不变：本应用供你自己用，同步仓固定为你自己的 0waitgoo/ainav-data；
  * 公开版需改成每人自己的仓（下一步）。
  */
@@ -49,10 +57,14 @@ type DeviceSession = {
 
 export default function PlanSyncBar({
   store,
-  variant = 'bar',
+  theme,
+  aiView,
+  onAiToggle,
 }: {
   store: LocalStore;
-  variant?: 'bar' | 'mini';
+  theme: PlanTheme;
+  aiView: 'main' | 'ai';
+  onAiToggle: () => void;
 }) {
   const [token, setToken] = useState(loadToken);
   const [busy, setBusy] = useState(false);
@@ -65,6 +77,8 @@ export default function PlanSyncBar({
   const pollTimer = useRef<number | null>(null);
   const deviceRef = useRef<DeviceSession | null>(null);
   deviceRef.current = device;
+
+  const light = theme === 'light';
 
   const stopPolling = () => {
     if (pollTimer.current !== null) {
@@ -159,14 +173,10 @@ export default function PlanSyncBar({
     stopPolling();
     pollTimer.current = window.setTimeout(async () => {
       try {
-        const res = await fetch(DEVICE_TOKEN_URL, {
+        const res = await tauriFetch(DEVICE_TOKEN_URL, {
           method: 'POST',
-          headers: { Accept: 'application/json', 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            client_id: CLIENT_ID,
-            device_code: session.deviceCode,
-            grant_type: 'urn:ietf:params:oauth:grant-type:device_code',
-          }),
+          headers: { Accept: 'application/json', 'Content-Type': 'application/x-www-form-urlencoded' },
+          body: `client_id=${encodeURIComponent(CLIENT_ID)}&device_code=${encodeURIComponent(session.deviceCode)}&grant_type=${encodeURIComponent('urn:ietf:params:oauth:grant-type:device_code')}`,
         });
         const json = (await res.json()) as {
           access_token?: string;
@@ -204,10 +214,10 @@ export default function PlanSyncBar({
     setOpenerFailed(false);
     setStatus('正在向 GitHub 申请确认码…');
     try {
-      const res = await fetch(DEVICE_CODE_URL, {
+      const res = await tauriFetch(DEVICE_CODE_URL, {
         method: 'POST',
-        headers: { Accept: 'application/json', 'Content-Type': 'application/json' },
-        body: JSON.stringify({ client_id: CLIENT_ID, scope: 'repo' }),
+        headers: { Accept: 'application/json', 'Content-Type': 'application/x-www-form-urlencoded' },
+        body: `client_id=${encodeURIComponent(CLIENT_ID)}&scope=${encodeURIComponent('repo')}`,
       });
       const json = (await res.json()) as {
         device_code?: string;
@@ -261,13 +271,20 @@ export default function PlanSyncBar({
 
   const syncBtnCls =
     'shrink-0 px-3 py-1.5 rounded-lg text-xs font-medium bg-indigo-500 hover:bg-indigo-400 disabled:opacity-40 disabled:cursor-default text-white transition-colors';
-  const loginBtnCls =
-    'shrink-0 px-3 py-1.5 rounded-lg text-xs font-medium bg-white/10 hover:bg-white/[0.18] text-white transition-colors';
+  const loginBtnCls = light
+    ? 'shrink-0 px-3 py-1.5 rounded-lg text-xs font-medium bg-black/[0.06] hover:bg-black/10 text-zinc-800 transition-colors'
+    : 'shrink-0 px-3 py-1.5 rounded-lg text-xs font-medium bg-white/10 hover:bg-white/[0.18] text-white transition-colors';
+  const faintCls = light ? 'text-zinc-500' : 'text-white/45';
+  const faintLinkCls = light
+    ? 'text-[11px] text-zinc-500 hover:text-zinc-800'
+    : 'text-[11px] text-white/40 hover:text-white/80';
 
   const loginControl = token ? (
     <span className="shrink-0 flex items-center gap-2">
-      <span className="text-xs text-emerald-300/90">已连接 GitHub</span>
-      <button type="button" onClick={relogin} className="text-[11px] text-white/40 hover:text-white/80">
+      <span className={`text-xs ${light ? 'text-emerald-700' : 'text-emerald-300/90'}`}>
+        已连接 GitHub
+      </span>
+      <button type="button" onClick={relogin} className={faintLinkCls}>
         重新登录
       </button>
     </span>
@@ -278,54 +295,41 @@ export default function PlanSyncBar({
   );
 
   const devicePanel = device ? (
-    <div className="mt-2 rounded-lg bg-white/5 border border-white/10 px-3 py-2.5 flex flex-col gap-2">
+    <div
+      className={`mt-2 rounded-lg border px-3 py-2.5 flex flex-col gap-2 ${
+        light ? 'bg-black/[0.04] border-black/10' : 'bg-white/5 border-white/10'
+      }`}
+    >
       <div className="flex items-center gap-2 flex-wrap">
-        <span className="text-xs text-white/60">确认码</span>
-        <span className="text-lg font-bold tracking-[0.2em] text-white select-all">
+        <span className={`text-xs ${faintCls}`}>确认码</span>
+        <span
+          className={`text-lg font-bold tracking-[0.2em] select-all ${
+            light ? 'text-zinc-900' : 'text-white'
+          }`}
+        >
           {device.userCode}
         </span>
         <button type="button" onClick={() => void openVerification()} className={loginBtnCls}>
           去 GitHub 确认
         </button>
-        <button
-          type="button"
-          onClick={cancelLogin}
-          className="text-[11px] text-white/40 hover:text-white/80"
-        >
+        <button type="button" onClick={cancelLogin} className={faintLinkCls}>
           取消
         </button>
       </div>
-      <p className="text-[11px] text-white/40 break-all">
+      <p className={`text-[11px] break-all ${faintCls}`}>
         正在等你在 GitHub 确认{openerFailed ? '（未能自动打开浏览器，请手动打开下面链接并输入确认码）' : ''}
         ：{device.verificationUri}
       </p>
     </div>
   ) : null;
 
-  if (variant === 'mini') {
-    return (
-      <div className="flex flex-col gap-2">
-        <div className="flex items-center gap-2">
-          {loginControl}
-          <button
-            type="button"
-            onClick={() => void sync()}
-            disabled={busy || !token.trim()}
-            className={syncBtnCls}
-          >
-            {busy ? '同步中…' : '同步'}
-          </button>
-          {status && <span className="text-[11px] text-white/45 truncate">{status}</span>}
-        </div>
-        {devicePanel}
-      </div>
-    );
-  }
-
   return (
-    <div className="sticky top-10 z-40 bg-[#17171d]/95 backdrop-blur border-b border-white/10 px-3 py-2">
+    <div
+      className={`sticky top-10 z-40 backdrop-blur border-b px-3 py-2 ${
+        light ? 'bg-[#f2f2f5]/95 border-black/10' : 'bg-[#17171d]/95 border-white/10'
+      }`}
+    >
       <div className="flex items-center gap-2">
-        <span className="shrink-0 text-xs font-medium text-white/80">同步</span>
         {loginControl}
         <button
           type="button"
@@ -335,11 +339,20 @@ export default function PlanSyncBar({
         >
           {busy ? '同步中…' : '同步'}
         </button>
+        {/* AI 整理从计划页头移到本行（用户定：今日进度删、AI 整理放上面更简约） */}
+        <button type="button" onClick={onAiToggle} className={loginBtnCls}>
+          <span className="flex items-center gap-1">
+            {aiView === 'ai' ? <ArrowLeft size={12} /> : <Sparkles size={12} />}
+            {aiView === 'ai' ? '返回' : 'AI 整理'}
+          </span>
+        </button>
         {status && (
-          <span className="hidden sm:block shrink-0 text-[11px] text-white/45 truncate max-w-[220px]">
+          <span className={`shrink-0 text-[11px] truncate max-w-[220px] ${faintCls}`}>
             {status}
           </span>
         )}
+        {/* 拖动区：行尾空白带（按钮与文案不在拖动区内，点击不受影响） */}
+        <div data-tauri-drag-region className="flex-1 min-w-0 self-stretch" />
       </div>
       {devicePanel}
     </div>

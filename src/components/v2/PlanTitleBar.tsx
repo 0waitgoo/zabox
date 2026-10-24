@@ -1,33 +1,37 @@
 import React from 'react';
 import { safeClose, safeMinimize, safeToggleMaximize } from './planWindow';
+import type { PlanTheme } from '../../plan-app';
 
 /**
- * 桌面计划应用的内置标题栏（v2，便签优化版）：替代系统白色标题栏。
- * 深色底（与应用 #17171d 一致，悬浮窗模式用浅一点的底），左侧 logo +「杂盒计划」、
- * 右侧透明度滑杆 + 悬浮窗切换 + 最小化 / 最大化 / 关闭。
- * 拖动区：整条标题栏都是拖动区（Tauri 官方口径：拖动区内的按钮、滑杆等可交互控件
- * 仍可正常点击），不再只有「杂盒计划」几个字能拖；悬浮窗模式下滑杆收窄，
- * 保证空白拖动带够宽。窗口仍出现在任务栏（tauri.conf skipTaskbar=false），
- * 最小化进任务栏。
+ * 桌面计划应用的内置标题栏（第 3 轮）：替代系统白色标题栏。
+ * 左侧 logo +「杂盒计划」、右侧透明度滑杆 + 暗夜/白天切换 + 最小化 / 最大化 / 关闭。
+ * 拖动区：只放在非交互区——logo + 标题、中间空白；滑杆与按钮不在拖动区内，
+ * 避免拖动区吞掉点击（Tauri 官方口径只保证拖动区内的空白可拖，控件点击不可靠）。
+ * 便签切换已删（用户定：不要便签模式了）。窗口仍出现在任务栏
+ * （tauri.conf skipTaskbar=false），最小化进任务栏。
  */
 export default function PlanTitleBar({
   opacity,
   onOpacityChange,
-  mini,
-  onToggleMini,
+  theme,
+  onThemeChange,
 }: {
   opacity: number;
   onOpacityChange: (v: number) => void;
-  mini: boolean;
-  onToggleMini: () => void;
+  theme: PlanTheme;
+  onThemeChange: (t: PlanTheme) => void;
 }) {
-  const btnCls =
-    'shrink-0 w-7 h-7 flex items-center justify-center rounded-md text-sm text-white/70 hover:bg-white/10 hover:text-white transition-colors';
+  const light = theme === 'light';
+  const btnBase =
+    'shrink-0 w-7 h-7 flex items-center justify-center rounded-md text-sm transition-colors';
+  const btnCls = light
+    ? `${btnBase} text-zinc-600 hover:bg-black/10 hover:text-zinc-900`
+    : `${btnBase} text-white/70 hover:bg-white/10 hover:text-white`;
+  const closeCls = `${btnBase} text-zinc-600 hover:bg-red-500/80 hover:text-white`;
   return (
     <div
-      data-tauri-drag-region
       className={`sticky top-0 z-50 h-10 flex items-center gap-2 pl-2.5 pr-1.5 select-none ${
-        mini ? 'bg-[#23232c]' : 'bg-[#17171d]'
+        light ? 'bg-[#f2f2f5]' : 'bg-[#17171d]'
       }`}
     >
       {/* 拖动区：logo + 标题 */}
@@ -40,14 +44,21 @@ export default function PlanTitleBar({
             (e.target as HTMLImageElement).style.display = 'none';
           }}
         />
-        <span data-tauri-drag-region className="text-sm font-medium text-white/90 truncate">
+        <span
+          data-tauri-drag-region
+          className={`text-sm font-medium truncate ${light ? 'text-zinc-900' : 'text-white/90'}`}
+        >
           杂盒计划
         </span>
       </div>
       {/* 拖动区：中间空白 */}
       <div data-tauri-drag-region className="flex-1 min-w-0 h-full" />
       {/* 透明度：滑杆 50%–100%，默认 100%，存 zabox-plan-opacity（由 plan-app 持有） */}
-      <label className="shrink-0 flex items-center gap-1.5 text-[11px] text-white/50">
+      <label
+        className={`shrink-0 flex items-center gap-1.5 text-[11px] ${
+          light ? 'text-zinc-500' : 'text-white/50'
+        }`}
+      >
         <span className="hidden sm:inline">透明度</span>
         <input
           type="range"
@@ -55,17 +66,18 @@ export default function PlanTitleBar({
           max={100}
           value={opacity}
           onChange={(e) => onOpacityChange(Number(e.target.value))}
-          className={`${mini ? 'w-12' : 'w-16 sm:w-20'} accent-indigo-400`}
+          className="w-16 sm:w-20 accent-indigo-400"
         />
         <span className="tabular-nums w-8">{opacity}%</span>
       </label>
+      {/* 外观简约版：只留暗夜 / 白天切换（存 zabox-plan-theme），面板翻色走 index.css */}
       <button
         type="button"
-        title={mini ? '回完整版' : '悬浮窗'}
-        onClick={onToggleMini}
-        className="shrink-0 h-7 px-2 flex items-center rounded-md text-xs text-white/70 hover:bg-white/10 hover:text-white transition-colors"
+        title={light ? '切换暗夜' : '切换白天'}
+        onClick={() => onThemeChange(light ? 'dark' : 'light')}
+        className={btnCls}
       >
-        {mini ? '完整版' : '便签'}
+        {light ? '☾' : '☀'}
       </button>
       <button type="button" title="最小化" onClick={() => void safeMinimize()} className={btnCls}>
         —
@@ -82,7 +94,7 @@ export default function PlanTitleBar({
         type="button"
         title="关闭"
         onClick={() => void safeClose()}
-        className={`${btnCls} hover:bg-red-500/80`}
+        className={light ? closeCls : `${btnBase} text-white/70 hover:bg-red-500/80 hover:text-white`}
       >
         ✕
       </button>

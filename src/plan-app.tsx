@@ -3,14 +3,12 @@ import { createRoot } from 'react-dom/client';
 import PlanPage from './components/pages/PlanPage';
 import PlanSyncBar from './components/v2/PlanSyncBar';
 import PlanTitleBar from './components/v2/PlanTitleBar';
-import MiniStickyNote from './components/v2/MiniStickyNote';
 import {
   currentMonitor,
-  LogicalSize,
   PhysicalPosition,
   PhysicalSize,
 } from '@tauri-apps/api/window';
-import { planWindow } from './components/v2/planWindow';
+import { planWindow, safeClose } from './components/v2/planWindow';
 import { useLocalStore } from './store/localStore';
 import './index.css';
 import { applyDisplayPrefs, loadDisplayPrefs } from './store/displayPrefs';
@@ -19,9 +17,11 @@ import { applyDisplayPrefs, loadDisplayPrefs } from './store/displayPrefs';
 applyDisplayPrefs(loadDisplayPrefs());
 
 const OPACITY_KEY = 'zabox-plan-opacity';
-const MINI_SIZE = { width: 320, height: 440 };
+const THEME_KEY = 'zabox-plan-theme';
 const EDGE_PEEK = 24; // 边缘收起后露出的细边宽度
 const EDGE_TOLERANCE = 4; // 贴边判定：离边缘 4px 内算贴住
+
+export type PlanTheme = 'dark' | 'light';
 
 function loadOpacity(): number {
   try {
@@ -32,28 +32,48 @@ function loadOpacity(): number {
   }
 }
 
+function loadTheme(): PlanTheme {
+  try {
+    return localStorage.getItem(THEME_KEY) === 'light' ? 'light' : 'dark';
+  } catch {
+    return 'dark';
+  }
+}
+
+// 桌面版主题独立于网站偏好：启动时立即覆盖 <html> 的 data-theme，
+// 否则网站白天偏好会透进计划面板（index.css 的 [data-theme="light"] 规则按祖先匹配）。
+try {
+  document.documentElement.dataset.theme = loadTheme();
+} catch {
+  /* 忽略 */
+}
+
 type Rect = { x: number; y: number; width: number; height: number };
 type Edge = 'left' | 'right' | 'top' | 'bottom';
 
 /**
- * 桌面计划应用入口（v2，便签优化版）：
- * - 内置深色标题栏（替代系统白色标题栏）+ 整体圆角 20px + 透明窗口；
+ * 桌面计划应用入口（v2，第 3 轮）：
+ * - 内置标题栏（替代系统白色标题栏）+ 整体圆角 20px + 透明窗口；
  * - 标题栏透明度滑杆（50%–100%，存 zabox-plan-opacity）作用于根容器；
- * - 悬浮窗：320×440 便签式卡贴（浅一点的底色），置顶保持，再点回完整版尺寸位置；
- * - 边缘收起（完整版与便签模式都生效；v2 只在完整版跑，便签里拖到边上没反应，
- *   是用户报“无法贴边收起”的原因）：每 500ms 查窗口位置与主显示器尺寸，贴到
- *   左/右/上/下边缘 4px 内且连续两次轮询位置不变（排除拖动中）、未最大化时，
- *   收成该边缘一条 24px 细边（带小把手），悬停或点击细边恢复原尺寸原位置。
- *   恢复后在窗口位置变化前不再自动收起，避免刚恢复就立刻又收回去。
+ * - 边缘收起：每 500ms 查窗口位置与主显示器尺寸，贴到左/右/上/下边缘 4px 内
+ *   且连续两次轮询位置不变（排除拖动中）、未最大化时，收成该边缘一条 24px
+ *   细边（带小把手），悬停或点击细边恢复原尺寸原位置。恢复后在窗口位置变化
+ *   前不再自动收起，避免刚恢复就立刻又收回去。
+ * - 系统贴靠已关（tauri.conf maximizable/resizable=false）：拖到边缘不再被
+ *   Windows 贴靠放大，改由本应用的边缘收起接管；最大化按钮仍走程序化最大化。
+ * - 便签模式已删（用户定）：只剩完整版；收起的细边上带 ✕，不用展开也能直接关。
+ * - 外观简约版：暗夜 / 白天切换（存 zabox-plan-theme），面板翻色复用网站
+ *   index.css 的 [data-theme] 规则，标题栏与同步条用主题条件类。
  * 与网站计划组件同一份源码（PlanPage + store），网站改计划、CI 重打安装包即一起更新。
  * AI 整理需线上接口，桌面版暂不可用（核心待办/长期计划均为本地数据，不受影响）。
  */
 function PlanApp() {
   const store = useLocalStore();
-  const [mode, setMode] = useState<'full' | 'mini'>('full');
   const [opacity, setOpacity] = useState(loadOpacity);
+  const [theme, setTheme] = useState<PlanTheme>(loadTheme);
   const [collapsed, setCollapsed] = useState<Edge | null>(null);
-  const fullRectRef = useRef<Rect | null>(null);
+  const [isMaximized, setIsMaximized] = useState(false);
+  const [aiView, setAiView] = useState<'main' | 'ai'>('main');
   const collapsedRectRef = useRef<Rect | null>(null);
   const suppressCollapseRef = useRef(false);
   const restoreTimer = useRef<number | null>(null);
@@ -78,40 +98,17 @@ function PlanApp() {
     }
   };
 
-  const toggleMode = async () => {
-    const win = planWindow();
-    if (mode === 'full') {
-      if (win) {
-        try {
-          if (await win.isMaximized()) await win.unmaximize();
-          const pos = await win.outerPosition();
-          const size = await win.outerSize();
-          fullRectRef.current = { x: pos.x, y: pos.y, width: size.width, height: size.height };
-        } catch {
-          /* 非 Tauri 环境忽略 */
-        }
-      }
-      setMode('mini');
-      try {
-        await win?.setSize(new LogicalSize(MINI_SIZE.width, MINI_SIZE.height));
-      } catch {
-        /* 忽略 */
-      }
-    } else {
-      setMode('full');
-      const rect = fullRectRef.current;
-      if (win && rect) {
-        try {
-          await win.setSize(new PhysicalSize(rect.width, rect.height));
-          await win.setPosition(new PhysicalPosition(rect.x, rect.y));
-        } catch {
-          /* 忽略 */
-        }
-      }
+  const changeTheme = (t: PlanTheme) => {
+    setTheme(t);
+    try {
+      localStorage.setItem(THEME_KEY, t);
+      document.documentElement.dataset.theme = t;
+    } catch {
+      /* 忽略 */
     }
   };
 
-  // 边缘收起轮询（完整版与便签模式都跑；未收起时跑）
+  // 边缘收起轮询（未收起时跑；最大化时只记状态、不收起）
   useEffect(() => {
     if (collapsed) return;
     let stopped = false;
@@ -121,9 +118,11 @@ function PlanApp() {
       if (!win) return;
       try {
         if (await win.isMaximized()) {
+          setIsMaximized(true);
           lastPos = null;
           return;
         }
+        setIsMaximized(false);
         const pos = await win.outerPosition();
         const size = await win.outerSize();
         const mon = await currentMonitor();
@@ -217,85 +216,106 @@ function PlanApp() {
     }
   };
 
+  const light = theme === 'light';
+
   // 收起态：只渲染一条 24px 细边 + 小把手（窗口其余部分已滑出屏幕外）。
   // 右边缘收起时露的是窗口左沿 → 把手放左；左边缘收起时露右沿 → 把手放右；
   // 上边缘收起时露底沿 → 把手放底部；下边缘收起时露顶沿 → 把手放顶部。
+  // 细边上另带一个 ✕：收起时不用展开也能直接关窗口（用户报“缩小后 X 看不见”）。
   if (collapsed) {
     const chevron =
       collapsed === 'right' ? '‹' : collapsed === 'left' ? '›' : collapsed === 'top' ? '⌄' : '⌃';
-    const handleCls =
-      'shrink-0 bg-[#2a2a35] hover:bg-indigo-500/80 text-white/85 flex items-center justify-center transition-colors cursor-pointer';
-    const expandBtn = (
+    const handleBase = light
+      ? 'bg-[#dcdce2] text-zinc-700'
+      : 'bg-[#2a2a35] text-white/85';
+    const chevronBtn = (
       <button
         type="button"
         aria-label="展开窗口"
         onMouseEnter={scheduleRestore}
         onMouseLeave={cancelScheduledRestore}
         onClick={() => void restoreFromCollapse()}
-        className={`${handleCls} ${
-          collapsed === 'top' || collapsed === 'bottom' ? 'w-full h-[24px] text-sm' : 'w-[24px] h-full text-base'
+        className={`${handleBase} flex-1 flex items-center justify-center transition-colors cursor-pointer hover:bg-indigo-500/80 hover:text-white ${
+          collapsed === 'top' || collapsed === 'bottom' ? 'text-sm' : 'text-base'
         }`}
       >
         {chevron}
       </button>
     );
+    const closeBtn = (
+      <button
+        type="button"
+        aria-label="关闭窗口"
+        title="关闭"
+        onClick={() => void safeClose()}
+        className={`${handleBase} shrink-0 flex items-center justify-center transition-colors cursor-pointer text-xs hover:bg-red-500/80 hover:text-white ${
+          collapsed === 'top' || collapsed === 'bottom' ? 'w-[24px] h-full' : 'w-full h-[24px]'
+        }`}
+      >
+        ✕
+      </button>
+    );
+    const strip =
+      collapsed === 'top' || collapsed === 'bottom' ? (
+        <div className="w-full h-[24px] flex flex-row">{chevronBtn}{closeBtn}</div>
+      ) : (
+        <div className="w-[24px] h-full flex flex-col">{chevronBtn}{closeBtn}</div>
+      );
     return (
       <div
-        className="relative w-full h-dvh text-white overflow-hidden bg-[#17171d]"
+        className={`relative w-full h-dvh overflow-hidden ${
+          light ? 'text-zinc-900 bg-[#f2f2f5]' : 'text-white bg-[#17171d]'
+        }`}
         style={{ opacity: opacity / 100 }}
       >
         {collapsed === 'top' ? (
           <div className="flex flex-col h-full">
             <div className="flex-1" />
-            {expandBtn}
+            {strip}
           </div>
         ) : collapsed === 'bottom' ? (
           <div className="flex flex-col h-full">
-            {expandBtn}
+            {strip}
             <div className="flex-1" />
           </div>
         ) : (
           <div className="flex h-full">
-            {collapsed === 'right' && expandBtn}
+            {collapsed === 'right' && strip}
             <div className="flex-1" />
-            {collapsed === 'left' && expandBtn}
+            {collapsed === 'left' && strip}
           </div>
         )}
       </div>
     );
   }
 
-  if (mode === 'mini') {
-    return (
-      <div
-        className="relative w-full h-dvh flex flex-col text-white rounded-[20px] overflow-hidden bg-[#23232c]"
-        style={{ opacity: opacity / 100 }}
-      >
-        <PlanTitleBar
-          opacity={opacity}
-          onOpacityChange={changeOpacity}
-          mini
-          onToggleMini={() => void toggleMode()}
-        />
-        <MiniStickyNote store={store} onExpand={() => void toggleMode()} />
-      </div>
-    );
-  }
-
   return (
     <div
-      className="relative min-h-screen w-full text-white rounded-[20px] overflow-hidden bg-[#17171d]"
+      className={`relative min-h-screen w-full overflow-hidden ${
+        isMaximized ? 'rounded-none' : 'rounded-[20px]'
+      } ${light ? 'text-zinc-900 bg-[#f2f2f5]' : 'text-white bg-[#17171d]'}`}
       style={{ opacity: opacity / 100 }}
     >
       <PlanTitleBar
         opacity={opacity}
         onOpacityChange={changeOpacity}
-        mini={false}
-        onToggleMini={() => void toggleMode()}
+        theme={theme}
+        onThemeChange={changeTheme}
       />
-      <PlanSyncBar store={store} />
+      <PlanSyncBar
+        store={store}
+        theme={theme}
+        aiView={aiView}
+        onAiToggle={() => setAiView((v) => (v === 'ai' ? 'main' : 'ai'))}
+      />
       <div className="px-3 sm:px-4 py-3">
-        <PlanPage store={store} />
+        <PlanPage
+          store={store}
+          view={aiView}
+          onViewChange={setAiView}
+          compactHeader
+          hideAiButton
+        />
       </div>
     </div>
   );

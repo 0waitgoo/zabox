@@ -47,8 +47,9 @@ export default function AppearanceSection({ store }: { store: LocalStore }) {
 
   return (
     <div>
-      <p className="px-1 pb-2 text-[10px] tracking-wider text-white/40 uppercase">默认背景</p>
-      <div className="grid grid-cols-2 gap-2">
+      {/* 第一百一十四轮：面板压缩——背景瓷砖由两列大块改三列小块（与预设单行同理），
+          「默认背景」小标题省掉（瓷砖直接跟在「外观」节下），一项功能不砍 */}
+      <div className="grid grid-cols-3 gap-1.5">
         {BACKGROUND_PRESETS.map((preset) => {
           const active = !usingLocal && background.presetId === preset.id;
           const isOcean = preset.id === 'ocean';
@@ -61,7 +62,7 @@ export default function AppearanceSection({ store }: { store: LocalStore }) {
                 setOceanPickerOpen(isOcean);
                 setMessage(null);
               }}
-              className={`group relative h-14 rounded-2xl overflow-hidden border text-left transition-all ${
+              className={`group relative h-12 rounded-2xl overflow-hidden border text-left transition-all ${
                 active ? 'border-indigo-400/80 ring-1 ring-indigo-400/50' : 'border-white/10 hover:border-white/30'
               }`}
               style={{ background: isOcean ? displayPrefs.oceanColor : preset.css }}
@@ -86,7 +87,7 @@ export default function AppearanceSection({ store }: { store: LocalStore }) {
       {/* 「深海蓝」选色（第九十二轮）：纯色版点开即选——色板快捷色 + 系统取色器自定义，
           选完即时生效并存本机显示偏好（ainav-display-prefs-v1），下次打开保持 */}
       {oceanPickerOpen && !usingLocal && background.presetId === 'ocean' && (
-        <div data-ocean-picker className="mt-2.5 rounded-2xl border border-white/10 bg-white/[0.03] p-2.5">
+        <div data-ocean-picker className="mt-2 rounded-2xl border border-white/10 bg-white/[0.03] p-2">
           <div className="flex items-center justify-between px-0.5 pb-2">
             <p className="text-[11px] text-white/60">深海蓝颜色</p>
             <span className="text-[11px] text-white/40 uppercase">{displayPrefs.oceanColor}</span>
@@ -132,9 +133,9 @@ export default function AppearanceSection({ store }: { store: LocalStore }) {
           )}
         </div>
       )}
-      <div className="my-3 border-t border-white/[0.07]" />
+      <div className="my-2 border-t border-white/[0.07]" />
 
-      <p className="px-1 pb-1.5 text-[10px] tracking-wider text-white/40 uppercase">外观模式</p>
+      <p className="px-1 pb-1 text-[10px] tracking-wider text-white/40 uppercase">外观模式</p>
       <div className="grid grid-cols-2 gap-1.5">
         {(
           [
@@ -160,7 +161,7 @@ export default function AppearanceSection({ store }: { store: LocalStore }) {
         })}
       </div>
 
-      <p className="px-1 pt-3 pb-1.5 text-[10px] tracking-wider text-white/40 uppercase">透明度</p>
+      <p className="px-1 pt-2 pb-1 text-[10px] tracking-wider text-white/40 uppercase">透明度</p>
       <p className="px-1 pb-1 text-[11px] text-white/60">编组卡底框透明度</p>
       <div className="px-1 flex items-center gap-2.5">
         <input
@@ -176,7 +177,7 @@ export default function AppearanceSection({ store }: { store: LocalStore }) {
         />
         <span className="text-[11px] text-white/60 w-9 text-right shrink-0">{alphaPct}%</span>
       </div>
-      <p className="px-1 pt-2.5 pb-1 text-[11px] text-white/60">小组件底色不透明度</p>
+      <p className="px-1 pt-1.5 pb-1 text-[11px] text-white/60">小组件底色不透明度</p>
       <div className="px-1 flex items-center gap-2.5">
         <input
           type="range"
@@ -191,12 +192,16 @@ export default function AppearanceSection({ store }: { store: LocalStore }) {
         />
         <span className="text-[11px] text-white/60 w-9 text-right shrink-0">{widgetAlphaPct}%</span>
       </div>
-      <div className="my-3 border-t border-white/[0.07]" />
+      <div className="my-2 border-t border-white/[0.07]" />
 
-      <p className="px-1 pb-1.5 text-[10px] tracking-wider text-white/40 uppercase">本地图片</p>
+      {/* 第一百一十四轮：「仅存本机，不上传」由两行说明并进标题行右侧，省一段 */}
+      <p className="px-1 pb-1 text-[10px] tracking-wider text-white/40 uppercase flex items-center justify-between">
+        <span>本地图片</span>
+        <span className="normal-case tracking-normal text-white/35">仅存本机，不上传</span>
+      </p>
       {/* 背景模糊滑杆（第六十二轮）：只作用于本地图片背景之上的 backdrop 模糊，预设背景不受影响 */}
       <p className="px-1 pb-1 text-[11px] text-white/60">背景模糊</p>
-      <div className="px-1 pb-2.5 flex items-center gap-2.5">
+      <div className="px-1 pb-2 flex items-center gap-2.5">
         <input
           type="range"
           min={0}
@@ -210,9 +215,6 @@ export default function AppearanceSection({ store }: { store: LocalStore }) {
         />
         <span className="text-[11px] text-white/60 w-9 text-right shrink-0">{bgBlurPct}%</span>
       </div>
-      <p className="px-1 pb-2.5 text-[11px] text-white/40 leading-relaxed">
-        图片只保存在你这台设备的浏览器里，不会上传到任何服务器。
-      </p>
       <button
         onClick={() => fileRef.current?.click()}
         className="w-full flex items-center gap-2.5 px-3 py-2 rounded-xl text-left text-xs text-white/75 hover:bg-white/8 hover:text-white transition-colors"

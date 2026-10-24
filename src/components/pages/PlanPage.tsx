@@ -28,17 +28,20 @@ export default function PlanPage({
   store,
   view,
   onViewChange,
-  compactHeader = false,
+  hideHeader = false,
   hideAiButton = false,
+  flatPanels = false,
 }: {
   store: LocalStore;
   /** 受控视图（桌面版用：AI 整理按钮已移到同步条，视图状态由 plan-app 持有） */
   view?: 'main' | 'ai';
   onViewChange?: (v: 'main' | 'ai') => void;
-  /** 简约页头（桌面版用）：删副标题说明与今日进度，只留「计划」标题 */
-  compactHeader?: boolean;
+  /** 不渲染页头（桌面版用：标题与副标题、今日进度都不留，标题栏已有「杂盒计划」） */
+  hideHeader?: boolean;
   /** 不渲染页头 AI 整理按钮（桌面版用：按钮已移到同步条） */
   hideAiButton?: boolean;
+  /** 平铺节区（桌面版用）：去掉圆角卡框，待办与长期计划直接上下排、页面整体滚动 */
+  flatPanels?: boolean;
 }) {
   const { tasks, plans } = store.data;
   /** 主视图 / AI 整理（与 2x 卡面头部同一对视图、同一切换语言） */
@@ -67,42 +70,40 @@ export default function PlanPage({
     <div data-plan-page className="flex flex-col gap-4">
 
       {/* 页头：沿用子页样式（标题 + 说明）；右侧今日进度与 AI 整理切换（与卡面头部同语言）；
-          桌面版简约页头：副标题与今日进度不渲染、AI 整理按钮移到同步条 */}
-      <div className="flex items-end justify-between gap-3 flex-wrap">
-        <div>
-          <h2 className="text-xl sm:text-2xl font-bold tracking-tight">计划</h2>
-          {!compactHeader && (
+          桌面版不渲染页头（标题栏已有「杂盒计划」） */}
+      {!hideHeader && (
+        <div className="flex items-end justify-between gap-3 flex-wrap">
+          <div>
+            <h2 className="text-xl sm:text-2xl font-bold tracking-tight">计划</h2>
             <p className="text-xs sm:text-sm text-white/45 mt-1">
               待办与长期计划的全窗工作区——和主页计划卡同一份数据，在哪边改都即时同步。
             </p>
-          )}
-        </div>
-        <div className="flex items-center gap-3 shrink-0">
-          {!compactHeader && (
+          </div>
+          <div className="flex items-center gap-3 shrink-0">
             <span data-plan-page-progress className="text-xs text-white/50 tabular-nums">
               今日进度 {done}/{total} · {pct}%
             </span>
-          )}
-          {!hideAiButton && (
-            <button
-              type="button"
-              data-ai-open
-              onClick={() => setView(curView === 'ai' ? 'main' : 'ai')}
-              className="flex items-center gap-1 text-[11px] font-medium text-zinc-200 hover:text-white bg-white/10 hover:bg-white/[0.18] px-2.5 py-1.5 rounded-lg transition-colors shrink-0"
-            >
-              {curView === 'ai' ? (
-                <>
-                  <ArrowLeft size={12} /> 返回
-                </>
-              ) : (
-                <>
-                  <Sparkles size={12} /> AI 整理
-                </>
-              )}
-            </button>
-          )}
+            {!hideAiButton && (
+              <button
+                type="button"
+                data-ai-open
+                onClick={() => setView(curView === 'ai' ? 'main' : 'ai')}
+                className="flex items-center gap-1 text-[11px] font-medium text-zinc-200 hover:text-white bg-white/10 hover:bg-white/[0.18] px-2.5 py-1.5 rounded-lg transition-colors shrink-0"
+              >
+                {curView === 'ai' ? (
+                  <>
+                    <ArrowLeft size={12} /> 返回
+                  </>
+                ) : (
+                  <>
+                    <Sparkles size={12} /> AI 整理
+                  </>
+                )}
+              </button>
+            )}
+          </div>
         </div>
-      </div>
+      )}
 
       {curView === 'ai' ? (
         /* AI 整理：与卡面同一个 AiView，本页给它整页高度（内部自带滚动） */
@@ -113,6 +114,13 @@ export default function PlanPage({
           <div className="relative flex flex-col flex-1 min-h-0" data-nodrag>
             <AiView store={store} onDone={() => setView('main')} />
           </div>
+        </div>
+      ) : flatPanels ? (
+        /* 平铺（桌面版）：不要圆角卡框，待办在上、长期计划在下直接排，页面整体滚动；
+           节区不用 pinned（无固定列高、无列内滚动），列表自然伸展、添加行跟在列表后 */
+        <div className="flex flex-col gap-8">
+          <TasksSection store={store} />
+          <PlansSection store={store} />
         </div>
       ) : (
         /* 双列工作区：桌面吃满剩余视口高（两列 pinned 各自滚动），手机单列上下排、

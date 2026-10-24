@@ -24,10 +24,30 @@ import WidgetTintLayer from '../v2/WidgetTint';
  *   顶栏不为本页加按钮）。卡内拖拽滚动复用 TaskCard 导出的 useCardDragScroll，按落点滚对应列。
  * - 本轮纯呈现层：数据结构与迁移一概不动，计划卡除卡头加入口外不改。
  */
-export default function PlanPage({ store }: { store: LocalStore }) {
+export default function PlanPage({
+  store,
+  view,
+  onViewChange,
+  compactHeader = false,
+  hideAiButton = false,
+}: {
+  store: LocalStore;
+  /** 受控视图（桌面版用：AI 整理按钮已移到同步条，视图状态由 plan-app 持有） */
+  view?: 'main' | 'ai';
+  onViewChange?: (v: 'main' | 'ai') => void;
+  /** 简约页头（桌面版用）：删副标题说明与今日进度，只留「计划」标题 */
+  compactHeader?: boolean;
+  /** 不渲染页头 AI 整理按钮（桌面版用：按钮已移到同步条） */
+  hideAiButton?: boolean;
+}) {
   const { tasks, plans } = store.data;
   /** 主视图 / AI 整理（与 2x 卡面头部同一对视图、同一切换语言） */
-  const [view, setView] = useState<'main' | 'ai'>('main');
+  const [innerView, setInnerView] = useState<'main' | 'ai'>('main');
+  const curView = view ?? innerView;
+  const setView = (v: 'main' | 'ai') => {
+    if (view === undefined) setInnerView(v);
+    onViewChange?.(v);
+  };
   const dragScroll = useCardDragScroll();
 
   // 进度口径与卡面头部一致：组按子任务摊平（taskFlatStats）
@@ -46,38 +66,45 @@ export default function PlanPage({ store }: { store: LocalStore }) {
   return (
     <div data-plan-page className="flex flex-col gap-4">
 
-      {/* 页头：沿用子页样式（标题 + 说明）；右侧今日进度与 AI 整理切换（与卡面头部同语言） */}
+      {/* 页头：沿用子页样式（标题 + 说明）；右侧今日进度与 AI 整理切换（与卡面头部同语言）；
+          桌面版简约页头：副标题与今日进度不渲染、AI 整理按钮移到同步条 */}
       <div className="flex items-end justify-between gap-3 flex-wrap">
         <div>
           <h2 className="text-xl sm:text-2xl font-bold tracking-tight">计划</h2>
-          <p className="text-xs sm:text-sm text-white/45 mt-1">
-            待办与长期计划的全窗工作区——和主页计划卡同一份数据，在哪边改都即时同步。
-          </p>
+          {!compactHeader && (
+            <p className="text-xs sm:text-sm text-white/45 mt-1">
+              待办与长期计划的全窗工作区——和主页计划卡同一份数据，在哪边改都即时同步。
+            </p>
+          )}
         </div>
         <div className="flex items-center gap-3 shrink-0">
-          <span data-plan-page-progress className="text-xs text-white/50 tabular-nums">
-            今日进度 {done}/{total} · {pct}%
-          </span>
-          <button
-            type="button"
-            data-ai-open
-            onClick={() => setView((v) => (v === 'ai' ? 'main' : 'ai'))}
-            className="flex items-center gap-1 text-[11px] font-medium text-zinc-200 hover:text-white bg-white/10 hover:bg-white/[0.18] px-2.5 py-1.5 rounded-lg transition-colors shrink-0"
-          >
-            {view === 'ai' ? (
-              <>
-                <ArrowLeft size={12} /> 返回
-              </>
-            ) : (
-              <>
-                <Sparkles size={12} /> AI 整理
-              </>
-            )}
-          </button>
+          {!compactHeader && (
+            <span data-plan-page-progress className="text-xs text-white/50 tabular-nums">
+              今日进度 {done}/{total} · {pct}%
+            </span>
+          )}
+          {!hideAiButton && (
+            <button
+              type="button"
+              data-ai-open
+              onClick={() => setView(curView === 'ai' ? 'main' : 'ai')}
+              className="flex items-center gap-1 text-[11px] font-medium text-zinc-200 hover:text-white bg-white/10 hover:bg-white/[0.18] px-2.5 py-1.5 rounded-lg transition-colors shrink-0"
+            >
+              {curView === 'ai' ? (
+                <>
+                  <ArrowLeft size={12} /> 返回
+                </>
+              ) : (
+                <>
+                  <Sparkles size={12} /> AI 整理
+                </>
+              )}
+            </button>
+          )}
         </div>
       </div>
 
-      {view === 'ai' ? (
+      {curView === 'ai' ? (
         /* AI 整理：与卡面同一个 AiView，本页给它整页高度（内部自带滚动） */
         <div
           className={`${panelCls} h-[calc(100dvh-13.5rem)] min-h-[26rem] flex flex-col`}

@@ -5,7 +5,6 @@ import PlanSyncBar from './components/v2/PlanSyncBar';
 import PlanTitleBar from './components/v2/PlanTitleBar';
 import PlanSettings from './components/v2/PlanSettings';
 import PlanAiView from './components/v2/PlanAiView';
-import FloatWidget from './components/v2/FloatWidget';
 import {
   currentMonitor,
   LogicalSize,
@@ -25,9 +24,7 @@ const OPACITY_KEY = 'zabox-plan-opacity';
 const THEME_KEY = 'zabox-plan-theme';
 const EDGE_PEEK = 24; // 边缘收起后露出的细边宽度
 const EDGE_TOLERANCE = 4; // 贴边判定：离边缘 4px 内算贴住
-const FLOAT_SIZE = { width: 320, height: 300 }; // 悬浮小组件尺寸（逻辑像素）
-const FLOAT_ENTER = { width: 340, height: 360 }; // 缩到小于该尺寸 → 自动变悬浮
-const FLOAT_EXIT = { width: 380, height: 420 }; // 悬浮时拖大到超过该尺寸 → 回完整版
+const STRIP_HEIGHT = 48; // 只留顶栏的细条高度（逻辑像素）
 
 export type PlanTheme = 'dark' | 'light';
 
@@ -68,21 +65,26 @@ const DARK_HANDLE: [number, number, number] = [42, 42, 53];
 const LIGHT_HANDLE: [number, number, number] = [220, 220, 226];
 
 /**
- * 桌面计划应用入口（v2，第 4 轮）：
+ * 桌面计划应用入口（v2，第 5 轮）：
  * - 直角窗口（用户定，不用圆角）；底色透明度滑杆只改底色、字体不透明——
  *   窗口底色由根容器一层 rgba 背景承载，标题栏/同步条底色透明 + 磨砂；
- * - 最小化（—）= 变成悬浮小组件（用户定，不再收进任务栏）；悬浮时点「完整版」回来；
- * - 放大缩小恢复：tauri.conf 重新允许 resize/maximize（第 3 轮关贴靠时一并关掉了，
- *   导致 □ 与边缘拖拽都失效）；贴靠放大改由轮询识别——□ 点的最大化有 expect 标记，
- *   无标记的最大化一律视为系统贴靠，自动还原到最大化前的位置尺寸，再由贴边收起接管；
- * - 缩到一定程度自动变悬浮（宽 <340 或高 <360，且尺寸稳定两轮才动作，拖动中不乱跳）；
- *   悬浮时拖大到超过阈值自动回完整版；恢复后先禁一次自动变悬浮，防小窗口反复横跳；
+ * - 收起（V）：第 5 轮改——最小化变悬浮已删（之前一点就弹回完整版，是轮询在
+ *   悬浮态下读到旧的大尺寸误触发回完整版），改成收成只留顶栏的细条：仅显示
+ *   GitHub 登录按钮 + 收起/最大化/关闭，再点展开；顶栏点登录会先展开再自动开始登录；
+ * - 放大缩小：tauri.conf 允许 resize/maximize；贴靠放大改由轮询识别——□ 点的最大化
+ *   有 expect 标记，无标记的最大化一律视为系统贴靠，自动还原到最大化前的位置尺寸，
+ *   再由贴边收起接管；
  * - 托盘点击由前端接管（Rust 只发事件）：收起态先恢复原尺寸位置、最小化先还原、
  *   再按显隐切换——解决了只剩细边/最小化时点托盘不见窗口的问题；
  * - 设置页：外观（暗夜/白天 + 底色透明度）与 AI 接口聚合在里面，标题栏只留设置按钮；
  * - AI 整理：桌面版直接调设置页里配的接口（DeepSeek / OpenAI / 自定义），
  *   按用户一句话把大计划拆成小步骤，确认后落到待办；
  * - 边缘收起：每 500ms 查窗口位置与主显示器尺寸，贴边且稳定、未最大化时收成 24px 细边；
+ * - 登录根因（第 5 轮查实）：@tauri-apps/plugin-http 的 fetch 除命令许可外还要在
+ *   capability 里配 URL scope（http:default + allow），之前只给了 http:allow-fetch、
+ *   未配任何 URL，全部请求都被插件以拒绝访问驳回——表现为「网络异常，拿不到确认码」；
+ *   本轮 capabilities 已补 scope（GitHub 两域 + DeepSeek/OpenAI + https 通配，
+ *   覆盖用户自定义 AI 地址）；登录与 AI 的失败文案也改成带具体原因，不再一律网络异常；
  * - 稳定优化：轮询加进行中 guard（上一轮没跑完不重叠跑）；重复启动只聚焦已有窗口
  *   （single-instance 插件，Rust 侧）；全部窗口操作 try/catch，静默失败不闪退。
  * 与网站计划组件同一份源码（PlanPage + store），网站改计划、CI 重打安装包即一起更新。
@@ -92,18 +94,18 @@ function PlanApp() {
   const [opacity, setOpacity] = useState(loadOpacity);
   const [theme, setTheme] = useState<PlanTheme>(loadTheme);
   const [settingsOpen, setSettingsOpen] = useState(false);
-  const [floatMode, setFloatMode] = useState(false);
+  const [headerOnly, setHeaderOnly] = useState(false);
+  const [autoLogin, setAutoLogin] = useState(false);
   const [collapsed, setCollapsed] = useState<Edge | null>(null);
   const [aiView, setAiView] = useState<'main' | 'ai'>('main');
   const collapsedRectRef = useRef<Rect | null>(null);
-  const floatRectRef = useRef<Rect | null>(null);
+  const headerOnlyRectRef = useRef<Rect | null>(null);
   const lastRectRef = useRef<Rect | null>(null);
   const suppressCollapseRef = useRef(false);
-  const suppressFloatRef = useRef(false);
   const expectMaximizedRef = useRef(false);
   const restoreTimer = useRef<number | null>(null);
   const collapsedRef = useRef<Edge | null>(null);
-  const floatModeRef = useRef(false);
+  const headerOnlyRef = useRef(false);
   const trayToggleRef = useRef<(kind: 'toggle' | 'show') => Promise<void>>(async () => {});
 
   // html/body 背景透明（index.css 给 body 定了 #050505，行内样式压过它）
@@ -120,8 +122,8 @@ function PlanApp() {
     collapsedRef.current = collapsed;
   }, [collapsed]);
   useEffect(() => {
-    floatModeRef.current = floatMode;
-  }, [floatMode]);
+    headerOnlyRef.current = headerOnly;
+  }, [headerOnly]);
 
   const changeOpacity = (v: number) => {
     setOpacity(v);
@@ -175,37 +177,38 @@ function PlanApp() {
     }
   };
 
-  /** 最小化按钮：变成悬浮小组件（先还原最大化再记位置，避免记一个全屏尺寸） */
-  const enterFloat = async () => {
-    if (floatModeRef.current) return;
+  /** 收起（V）：窗口收成只留顶栏的细条（48px），记下完整版位置尺寸供展开恢复；
+      已最大化时先还原再记，避免记一个全屏尺寸 */
+  const enterHeaderOnly = async () => {
+    if (headerOnlyRef.current) return;
     const win = planWindow();
     if (win) {
       try {
         if (await win.isMaximized()) await win.unmaximize();
         const pos = await win.outerPosition();
         const size = await win.outerSize();
-        floatRectRef.current = { x: pos.x, y: pos.y, width: size.width, height: size.height };
+        const sc = await win.scaleFactor().catch(() => 1);
+        headerOnlyRectRef.current = { x: pos.x, y: pos.y, width: size.width, height: size.height };
+        const lw = Math.max(280, Math.round(size.width / sc));
+        setHeaderOnly(true);
+        await win.setSize(new LogicalSize(lw, STRIP_HEIGHT));
       } catch {
-        /* 忽略 */
+        setHeaderOnly(true);
       }
-    }
-    setFloatMode(true);
-    try {
-      await win?.setSize(new LogicalSize(FLOAT_SIZE.width, FLOAT_SIZE.height));
-    } catch {
-      /* 忽略 */
+    } else {
+      setHeaderOnly(true);
     }
   };
 
-  /** 悬浮回完整版：恢复进悬浮前的位置尺寸，恢复后先禁一次自动变悬浮 */
-  const restoreFull = async () => {
-    if (!floatModeRef.current) return;
-    const rect = floatRectRef.current;
-    setFloatMode(false);
-    suppressFloatRef.current = true;
+  /** 展开：恢复收起前的位置尺寸（已最大化时先还原，避免在最大化态下改尺寸无效） */
+  const exitHeaderOnly = async () => {
+    if (!headerOnlyRef.current) return;
+    const rect = headerOnlyRectRef.current;
+    setHeaderOnly(false);
     const win = planWindow();
     if (win && rect) {
       try {
+        if (await win.isMaximized()) await win.unmaximize();
         await win.setSize(new PhysicalSize(rect.width, rect.height));
         await win.setPosition(new PhysicalPosition(rect.x, rect.y));
       } catch {
@@ -288,7 +291,6 @@ function PlanApp() {
     let stopped = false;
     let ticking = false;
     let lastPos: { x: number; y: number } | null = null;
-    let lastSize: { width: number; height: number } | null = null;
     const tick = async () => {
       if (ticking) return;
       ticking = true;
@@ -300,7 +302,6 @@ function PlanApp() {
           if (expectMaximizedRef.current) {
             expectMaximizedRef.current = false;
             lastPos = null;
-            lastSize = null;
             return;
           }
           const r = lastRectRef.current;
@@ -314,16 +315,11 @@ function PlanApp() {
             /* 忽略 */
           }
           expectMaximizedRef.current = false;
-          suppressFloatRef.current = true;
           lastPos = null;
-          lastSize = null;
           return;
         }
         const pos = await win.outerPosition();
         const size = await win.outerSize();
-        const sc = await win.scaleFactor().catch(() => 1);
-        const lw = size.width / sc;
-        const lh = size.height / sc;
         const mon = await currentMonitor();
         if (!mon) return;
         const ox = mon.position.x;
@@ -331,25 +327,6 @@ function PlanApp() {
         const mw = mon.size.width;
         const mh = mon.size.height;
         lastRectRef.current = { x: pos.x, y: pos.y, width: size.width, height: size.height };
-        const stableSize =
-          lastSize !== null && lastSize.width === size.width && lastSize.height === size.height;
-        // 悬浮自动进出（尺寸稳定两轮才动作，避免拖动中途乱跳）
-        if (!floatModeRef.current) {
-          if ((lw < FLOAT_ENTER.width || lh < FLOAT_ENTER.height) && stableSize && !suppressFloatRef.current) {
-            await enterFloat();
-            lastPos = null;
-            lastSize = null;
-            return;
-          }
-          if (lw >= FLOAT_ENTER.width && lh >= FLOAT_ENTER.height) {
-            suppressFloatRef.current = false;
-          }
-        } else if ((lw > FLOAT_EXIT.width || lh > FLOAT_EXIT.height) && stableSize) {
-          await restoreFull();
-          lastPos = null;
-          lastSize = null;
-          return;
-        }
         // 边缘收起
         const nearRight = pos.x + size.width >= ox + mw - EDGE_TOLERANCE;
         const nearLeft = pos.x <= ox + EDGE_TOLERANCE;
@@ -366,14 +343,12 @@ function PlanApp() {
                 : null;
         if (!edge) {
           lastPos = { x: pos.x, y: pos.y };
-          lastSize = { width: size.width, height: size.height };
           suppressCollapseRef.current = false;
           return;
         }
         // 恢复后位置未变过时不自动收起（用户刚把窗口拉回来，不应立刻又收走）
         if (suppressCollapseRef.current) {
           lastPos = { x: pos.x, y: pos.y };
-          lastSize = { width: size.width, height: size.height };
           return;
         }
         if (lastPos && lastPos.x === pos.x && lastPos.y === pos.y) {
@@ -389,10 +364,8 @@ function PlanApp() {
             await win.setPosition(new PhysicalPosition(pos.x, oy + mh - EDGE_PEEK));
           }
           lastPos = null;
-          lastSize = null;
         } else {
           lastPos = { x: pos.x, y: pos.y };
-          lastSize = { width: size.width, height: size.height };
         }
       } catch {
         /* Tauri 不可用时静默 */
@@ -486,14 +459,73 @@ function PlanApp() {
     );
   }
 
-  // 悬浮小组件态
-  if (floatMode) {
+  // 只留顶栏态：一条 48px 细条，仅显示 GitHub 登录按钮 + 收起/最大化/关闭
+  // （用户定）。登录按钮点一下先展开回完整版，再自动开始登录（已有令牌则只展开）。
+  if (headerOnly) {
+    let stripToken = '';
+    try {
+      stripToken = localStorage.getItem('zabox-plan-sync-token') ?? '';
+    } catch {
+      /* 忽略 */
+    }
+    const stripBtnBase =
+      'shrink-0 w-6 h-6 flex items-center justify-center rounded-md text-xs transition-colors';
+    const stripBtnCls = light
+      ? `${stripBtnBase} text-zinc-600 hover:bg-black/10 hover:text-zinc-900`
+      : `${stripBtnBase} text-white/70 hover:bg-white/10 hover:text-white`;
+    const stripLoginCls = light
+      ? 'shrink-0 px-3 py-1.5 rounded-lg text-xs font-medium bg-black/[0.06] hover:bg-black/10 text-zinc-800 transition-colors'
+      : 'shrink-0 px-3 py-1.5 rounded-lg text-xs font-medium bg-white/10 hover:bg-white/[0.18] text-white transition-colors';
     return (
       <div
-        className={`relative w-full h-dvh flex flex-col overflow-hidden ${textCls}`}
+        className={`relative w-full h-dvh flex items-center gap-2 px-2.5 overflow-hidden select-none ${textCls}`}
         style={{ backgroundColor: bg }}
       >
-        <FloatWidget store={store} theme={theme} onExpand={() => void restoreFull()} />
+        {stripToken ? (
+          <span className={`shrink-0 text-xs ${light ? 'text-emerald-700' : 'text-emerald-300/90'}`}>
+            已连接 GitHub
+          </span>
+        ) : (
+          <button
+            type="button"
+            onClick={() => {
+              void exitHeaderOnly();
+              setAutoLogin(true);
+            }}
+            className={stripLoginCls}
+          >
+            GitHub 登录
+          </button>
+        )}
+        <div data-tauri-drag-region className="flex-1 min-w-0 h-full" />
+        <button
+          type="button"
+          title="展开"
+          onClick={() => void exitHeaderOnly()}
+          className={stripBtnCls}
+        >
+          ⌃
+        </button>
+        <button
+          type="button"
+          title="最大化 / 还原"
+          onClick={() => void handleToggleMaximize()}
+          className={stripBtnCls}
+        >
+          ▢
+        </button>
+        <button
+          type="button"
+          title="关闭"
+          onClick={() => void safeClose()}
+          className={
+            light
+              ? `${stripBtnBase} text-zinc-600 hover:bg-red-500/80 hover:text-white`
+              : `${stripBtnBase} text-white/70 hover:bg-red-500/80 hover:text-white`
+          }
+        >
+          ✕
+        </button>
       </div>
     );
   }
@@ -503,7 +535,7 @@ function PlanApp() {
       theme={theme}
       settingsOpen={settingsOpen}
       onSettingsToggle={() => setSettingsOpen((v) => !v)}
-      onMinimizeToFloat={() => void enterFloat()}
+      onToggleHeaderOnly={() => void enterHeaderOnly()}
       onToggleMaximize={() => void handleToggleMaximize()}
     />
   );
@@ -540,6 +572,8 @@ function PlanApp() {
         theme={theme}
         aiView={aiView}
         onAiToggle={() => setAiView((v) => (v === 'ai' ? 'main' : 'ai'))}
+        autoLogin={autoLogin}
+        onAutoLoginConsumed={() => setAutoLogin(false)}
       />
       <div className="px-3 sm:px-4 py-3">
         {aiView === 'ai' ? (

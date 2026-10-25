@@ -1,6 +1,6 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { motion } from 'motion/react';
-import { ArrowLeft, Check, ChevronRight, Layers, ListTodo, Sparkles } from 'lucide-react';
+import { ArrowLeft, CalendarDays, CalendarRange, Check, Layers, ListTodo, Maximize2, Sparkles, Target } from 'lucide-react';
 import {
   cardFaceStyleOf,
   isTaskGroup,
@@ -72,17 +72,18 @@ export default function TaskCard({
   const [focusExpanded, setFocusExpanded] = useState(false);
   /** 2x 卡面视图：主视图（待办+计划）/ AI 整理（第六十九轮从面板迁入卡内切换） */
   const [cardView, setCardView] = useState<'main' | 'ai'>('main');
-  /** 2x 卡面 tab（本轮新增）：计划 | 日程表 | 推进表——只在卡内切换视图，不开新页面；
-      当前 tab 记本地（显示偏好，不进同步），下次打开还是这个 tab */
-  const [planTab, setPlanTab] = useState<'plan' | 'timeline' | 'week'>(() => {
+  /** 2x 卡面 tab（本轮改成标题 tab）：计划（待办）| 长期计划 | 日程表 | 推进表——只在卡内切换视图，不开新页面；
+      当前 tab 记本地（显示偏好，不进同步），下次打开还是这个 tab；
+      1 栏（colSpan 1）时 tab 只留图标（窄卡放不下文字时同口径） */
+  const [planTab, setPlanTab] = useState<'plan' | 'plans' | 'timeline' | 'week'>(() => {
     try {
       const saved = localStorage.getItem('ainav-plan-card-tab');
-      return saved === 'timeline' || saved === 'week' ? saved : 'plan';
+      return saved === 'plans' || saved === 'timeline' || saved === 'week' ? saved : 'plan';
     } catch {
       return 'plan';
     }
   });
-  const switchPlanTab = (tab: 'plan' | 'timeline' | 'week') => {
+  const switchPlanTab = (tab: 'plan' | 'plans' | 'timeline' | 'week') => {
     setPlanTab(tab);
     try {
       localStorage.setItem('ainav-plan-card-tab', tab);
@@ -143,16 +144,17 @@ export default function TaskCard({
   const bothEmpty = tasks.length === 0 && plans.length === 0;
   const tintLayer = tint ? <WidgetTintLayer tint={tint} emoji="📋" watermarkOpacity={bothEmpty ? 0.1 : 0} /> : null;
 
-  /* 「打开计划页」入口（第八十八轮，1x/2x 两壳共用；语言仿资讯卡头部的「进入资讯页 >」：
-   * 11px 弱化文字 + ChevronRight，靠右排在进度之后） */
+  /* 「打开计划页」入口（第八十八轮，1x/2x 两壳共用；本轮改成展开图标，不占文字位） */
   const planPageEntry = onOpenPlanPage ? (
     <button
       type="button"
       data-plan-open
+      title="打开计划页"
+      aria-label="打开计划页"
       onClick={onOpenPlanPage}
-      className="flex items-center gap-0.5 text-[11px] text-white/45 hover:text-white/85 transition-colors shrink-0"
+      className="w-7 h-7 rounded-lg bg-white/10 hover:bg-white/[0.18] text-zinc-200 hover:text-white flex items-center justify-center transition-colors shrink-0"
     >
-      打开计划页 <ChevronRight size={12} />
+      <Maximize2 size={13} />
     </button>
   ) : null;
 
@@ -169,12 +171,32 @@ export default function TaskCard({
       >
         {tintLayer}
         <div className="relative flex flex-col flex-1 min-h-0">
-        {/* 头部：标题 + 今日进度 + AI 整理入口（第六十九轮：原「展开」按钮删除，面板层取消） */}
-        <div className="flex items-center gap-2 mb-2 shrink-0">
-          <div className="w-7 h-7 rounded-full bg-indigo-500 text-white shadow-[0_1px_4px_rgba(0,0,0,0.3)] ring-1 ring-black/20 flex items-center justify-center shrink-0">
-            <ListTodo size={14} />
+        {/* 头部（本轮改成标题 tab）：计划 | 长期计划 | 日程表 | 推进表 + 今日进度 + 展开图标 + AI 整理图标；
+            1 栏时 tab 只留图标（窄卡放不下文字时同口径），2 栏时图标 + 文字 */}
+        <div className="flex items-center gap-1.5 mb-2 shrink-0">
+          <div className="flex gap-0.5 p-0.5 rounded-xl bg-white/5 border border-white/10">
+            {([
+              ['plan', '计划', ListTodo],
+              ['plans', '长期计划', Target],
+              ['timeline', '日程表', CalendarDays],
+              ['week', '推进表', CalendarRange],
+            ] as const).map(([tab, label, Icon]) => (
+              <button
+                key={tab}
+                type="button"
+                data-plan-tab={tab}
+                title={label}
+                aria-label={label}
+                onClick={() => switchPlanTab(tab)}
+                className={`${colSpan === 1 ? 'w-7 h-7 flex items-center justify-center' : 'flex items-center gap-1 px-2.5 py-1.5'} rounded-lg transition-colors ${
+                  planTab === tab ? 'bg-indigo-500/80 text-white font-medium' : 'text-white/55 hover:text-white/85'
+                }`}
+              >
+                <Icon size={13} />
+                {colSpan !== 1 && <span className="text-xs">{label}</span>}
+              </button>
+            ))}
           </div>
-          <h3 className="font-semibold text-base sm:text-lg tracking-tight">计划</h3>
           <span data-task-progress className="ml-auto text-xs text-zinc-300 tabular-nums">
             {doneCount}/{total}
           </span>
@@ -182,43 +204,16 @@ export default function TaskCard({
           <button
             type="button"
             data-ai-open
+            title={cardView === 'ai' ? '返回' : 'AI 整理'}
+            aria-label={cardView === 'ai' ? '返回' : 'AI 整理'}
             onClick={() => setCardView((v) => (v === 'ai' ? 'main' : 'ai'))}
-            className="flex items-center gap-1 text-[11px] font-medium text-zinc-200 hover:text-white bg-white/10 hover:bg-white/[0.18] px-2.5 py-1.5 rounded-lg transition-colors shrink-0"
+            className="w-7 h-7 rounded-lg bg-white/10 hover:bg-white/[0.18] text-zinc-200 hover:text-white flex items-center justify-center transition-colors shrink-0"
           >
-            {cardView === 'ai' ? (
-              <>
-                <ArrowLeft size={12} /> 返回
-              </>
-            ) : (
-              <>
-                <Sparkles size={12} /> AI 整理
-              </>
-            )}
+            {cardView === 'ai' ? <ArrowLeft size={13} /> : <Sparkles size={13} />}
           </button>
         </div>
         <div className="h-1 rounded-full bg-white/20 overflow-hidden shrink-0 mb-2">
           <div className="h-full rounded-full bg-indigo-400 transition-all duration-300" style={{ width: `${pct}%` }} />
-        </div>
-
-        {/* 视图 tab（本轮新增）：计划 | 日程表 | 推进表，只在卡内切换，不开新页面 */}
-        <div className="flex gap-0.5 p-0.5 rounded-xl bg-white/5 border border-white/10 shrink-0 mb-2">
-          {([
-            ['plan', '计划'],
-            ['timeline', '日程表'],
-            ['week', '推进表'],
-          ] as const).map(([tab, label]) => (
-            <button
-              key={tab}
-              type="button"
-              data-plan-tab={tab}
-              onClick={() => switchPlanTab(tab)}
-              className={`flex-1 text-xs py-1.5 rounded-lg transition-colors ${
-                planTab === tab ? 'bg-indigo-500/80 text-white font-medium' : 'text-white/55 hover:text-white/85'
-              }`}
-            >
-              {label}
-            </button>
-          ))}
         </div>
 
         {cardView === 'ai' ? (
@@ -227,44 +222,33 @@ export default function TaskCard({
           </div>
         ) : planTab === 'timeline' ? (
           <div data-nodrag className="flex-1 min-h-0 overflow-y-auto pr-0.5">
-            <TimelineView store={store} onAddPlan={() => switchPlanTab('plan')} />
+            <TimelineView store={store} onAddPlan={() => switchPlanTab('plans')} />
           </div>
         ) : planTab === 'week' ? (
           <div data-nodrag className="flex-1 min-h-0 overflow-y-auto pr-0.5">
-            <WeekGridView store={store} />
+            <WeekGridView store={store} onGoPlan={() => switchPlanTab('plans')} />
           </div>
-        ) : colSpan === 2 ? (
-          /* 2 栏加密结构（第八十七轮）：外层不再滚动，两列各占满高——列内「标题在顶 →
-             列表各自滚动 → 添加行钉底」由 sections 的 pinned 模式实现；拖拽滚动由
-             useCardDragScroll 按指针落点找 [data-task-col-scroll] 接管对应列 */
+        ) : planTab === 'plans' ? (
           <div
             ref={dragScroll.scrollRef}
             onPointerDown={dragScroll.onPointerDown}
             onClickCapture={dragScroll.onClickCapture}
             data-task-scroll
             data-nodrag
-            className="flex-1 min-h-0"
+            className="flex-1 min-h-0 flex flex-col"
           >
-            <div className="grid gap-4 sm:gap-5 h-full min-h-0 grid-cols-2">
-              <TasksSection store={store} pinned />
-              <PlansSection store={store} pinned />
-            </div>
+            <PlansSection store={store} pinned />
           </div>
         ) : (
-          /* 1 栏堆叠：共享滚动区（整区 data-nodrag，卡内滚动/操作不触发卡片拖拽）；
-             鼠标按住拖拽滚动由 useCardDragScroll 接管（顶层待办行是合并拖拽的领地，不作起手） */
           <div
             ref={dragScroll.scrollRef}
             onPointerDown={dragScroll.onPointerDown}
             onClickCapture={dragScroll.onClickCapture}
             data-task-scroll
             data-nodrag
-            className="flex-1 min-h-0 overflow-y-auto"
+            className="flex-1 min-h-0 flex flex-col"
           >
-            <div className="grid gap-4 sm:gap-5 items-start grid-cols-1">
-              <TasksSection store={store} />
-              <PlansSection store={store} />
-            </div>
+            <TasksSection store={store} pinned />
           </div>
         )}
         </div>

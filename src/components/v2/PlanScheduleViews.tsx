@@ -1,5 +1,5 @@
 import React, { useMemo, useState } from 'react';
-import { ChevronLeft, ChevronRight, Plus, X } from 'lucide-react';
+import { Check, ChevronLeft, ChevronRight, Minus, Plus, X } from 'lucide-react';
 import {
   formatMonthDay,
   toDateStr,
@@ -75,23 +75,32 @@ function isTimed(p: PlanItem): boolean {
   return typeof p.startTime === 'string' && /^([01]\d|2[0-3]):[0-5]\d$/.test(p.startTime);
 }
 
-/** 只取日期型且 deadline 合法的计划，按截止日正序、开始时间排 */
+/** 日程排位日：事件日优先，不填事件日则用截止日（老计划无事件日，行为不变） */
+function placeDate(p: PlanItem): string {
+  return isDateKey(p.eventDate) ? p.eventDate! : p.deadline!;
+}
+
+/** 只取日期型且排位日合法的计划，按排位日正序、开始时间排 */
 function datedPlans(plans: PlanItem[]): PlanItem[] {
   return plans
-    .filter((p) => p.mode === 'date' && isDateKey(p.deadline))
+    .filter((p) => p.mode === 'date' && isDateKey(placeDate(p)))
     .sort((a, b) => {
-      const d = parseDay(a.deadline!).getTime() - parseDay(b.deadline!).getTime();
+      const d = parseDay(placeDate(a)).getTime() - parseDay(placeDate(b)).getTime();
       if (d !== 0) return d;
       return (a.startTime ?? '') < (b.startTime ?? '') ? -1 : 1;
     });
 }
 
-type PlanState = 'active' | 'soon' | 'overdue' | 'done';
+type PlanState = 'active' | 'soon' | 'overdue' | 'past' | 'done';
 
 function planState(p: PlanItem, today: string): PlanState {
   if (p.done) return 'done';
-  const left = dayDiff(today, p.deadline!);
-  if (left < 0) return 'overdue';
+  const anchor = placeDate(p);
+  const left = dayDiff(today, anchor);
+  if (left < 0) {
+    // 事件型：日子过了只是已过去（灰），不是逾期（红）；截止型才算逾期
+    return isDateKey(p.eventDate) ? 'past' : 'overdue';
+  }
   if (left <= 3) return 'soon';
   return 'active';
 }
@@ -100,8 +109,15 @@ const STATE_META: Record<PlanState, { label: string; bar: string; text: string }
   active: { label: '进行中', bar: 'border-indigo-400', text: 'text-indigo-200' },
   soon: { label: '即将到期', bar: 'border-amber-400', text: 'text-amber-200' },
   overdue: { label: '已逾期', bar: 'border-red-400', text: 'text-red-200' },
+  past: { label: '已过去', bar: 'border-zinc-400', text: 'text-zinc-300' },
   done: { label: '已完成', bar: 'border-emerald-400', text: 'text-emerald-200' },
 };
+
+/** 状态文案：事件型的 soon 是「即将开始」，不是「即将到期」 */
+function stateLabel(p: PlanItem, st: PlanState): string {
+  if (st === 'soon' && isDateKey(p.eventDate)) return '即将开始';
+  return STATE_META[st].label;
+}
 
 function timeLabel(p: PlanItem): string {
   if (!isTimed(p)) return '全天';
@@ -109,10 +125,12 @@ function timeLabel(p: PlanItem): string {
 }
 
 function rangeLabel(p: PlanItem): string {
-  if (p.startDate && p.startDate !== p.deadline) {
-    return `${formatMonthDay(p.startDate)}–${formatMonthDay(p.deadline!)}`;
+  const place = placeDate(p);
+  // 跨天条：开始日（用户可改，默认创建日）→ 排位日；开始日不早于排位日时只显示单日
+  if (p.startDate && isDateKey(p.startDate) && dayDiff(p.startDate, place) > 0) {
+    return `${formatMonthDay(p.startDate)}–${formatMonthDay(place)}`;
   }
-  return formatMonthDay(p.deadline!);
+  return formatMonthDay(place);
 }
 
 /** 块详情：复用 store 方法（完成/删除）与现有编辑表单，不另起编辑 UI */
@@ -142,7 +160,10 @@ function PlanDetail({
         <div className="flex-1 min-w-0">
           <p className="text-sm font-medium text-white/90 break-words">{plan.title}</p>
           <p className="mt-1 text-[11px] text-zinc-300">
-            {rangeLabel(plan)} · {timeLabel(plan)} · <span className={meta.text}>{meta.label}</span>
+            {rangeLabel(plan)} · {timeLabel(plan)} · <span className={meta.text}>{stateLabel(plan, st)}</span>
+            {isDateKey(plan.eventDate) && plan.eventDate !== plan.deadline && (
+              <> · 截止 {formatMonthDay(plan.deadline!)}</>
+            )}
           </p>
           <div className="mt-2 h-1 rounded-full bg-white/20 overflow-hidden">
             <div
@@ -220,9 +241,69 @@ const NAV_BTN =
 const SEG_BTN = (active: boolean) =>
   `px-2.5 py-1 rounded-lg text-xs transition-colors ${active ? 'bg-indigo-500/80 text-white font-medium' : 'text-white/55 hover:text-white/85'}`;
 
+const COUNT_STEP_BTN =
+  'w-6 h-6 rounded-lg bg-white/10 text-zinc-100 hover:bg-white/20 hover:text-white disabled:opacity-40 disabled:hover:bg-white/10 flex items-center justify-center transition-colors shrink-0';
+
+/** 打卡区（第 4 项）：按次数的计划没有固定日期，进不了按日的表，单独列在这里推进；
+    进度条 + −/+ 直接复用 store.bumpPlanCount，与长期计划行同一套 */
+function CountPlansSection({ store }: { store: LocalStore }) {
+  const counts = store.data.plans.filter((p) => p.mode === 'count');
+  if (counts.length === 0) return null;
+  return (
+    <div data-count-section className="mt-4">
+      <p className="text-xs text-zinc-400 mb-2">打卡进行中 · 按次数的计划没有固定日期，在这里推进</p>
+      <div className="flex flex-col gap-2">
+        {counts.map((p) => {
+          const cur = p.currentCount ?? 0;
+          const target = p.targetCount ?? 0;
+          const unit = p.unit ?? '次';
+          const full = target > 0 && cur >= target;
+          const ratio = target > 0 ? cur / target : 0;
+          return (
+            <div key={p.id} data-count-plan={p.id} className="rounded-2xl border border-white/20 bg-white/10 px-3 py-2.5">
+              <div className="flex items-center gap-2">
+                <span className="flex-1 min-w-0 truncate text-sm font-medium text-white/90">{p.title}</span>
+                <span data-count-progress className="text-[11px] text-zinc-200 tabular-nums shrink-0">
+                  {cur}/{target} {unit}
+                </span>
+                {full && <Check size={13} className="text-indigo-200 shrink-0" />}
+              </div>
+              <div className="mt-1.5 flex items-center gap-2">
+                <div className="flex-1 h-1 rounded-full bg-white/20 overflow-hidden">
+                  <div className="h-full rounded-full bg-indigo-400 transition-all duration-300" style={{ width: `${Math.round(ratio * 100)}%` }} />
+                </div>
+                <button
+                  type="button"
+                  aria-label="减少一次"
+                  data-count-minus
+                  disabled={cur <= 0}
+                  onClick={() => store.bumpPlanCount(p.id, -1)}
+                  className={COUNT_STEP_BTN}
+                >
+                  <Minus size={12} />
+                </button>
+                <button
+                  type="button"
+                  aria-label="增加一次"
+                  data-count-plus
+                  disabled={full}
+                  onClick={() => store.bumpPlanCount(p.id, 1)}
+                  className={COUNT_STEP_BTN}
+                >
+                  <Plus size={12} />
+                </button>
+              </div>
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
 /* ================= 推进表：Day / Week / Month ================= */
 
-export function WeekGridView({ store }: { store: LocalStore }) {
+export function WeekGridView({ store, onGoPlan }: { store: LocalStore; onGoPlan: () => void }) {
   const today = toDateStr(new Date());
   const [mode, setMode] = useState<'day' | 'week' | 'month'>('week');
   const [anchor, setAnchor] = useState(today);
@@ -256,13 +337,13 @@ export function WeekGridView({ store }: { store: LocalStore }) {
     }
   };
 
-  // 全天区：跨天计划（startDate→deadline）按区间分 lane 排布，避免重叠压在一起
+  // 全天区：跨天计划（开始日→排位日）按区间分 lane 排布，避免重叠压在一起
   const allDayLanes = useMemo(() => {
     const items = plans.filter((p) => !isTimed(p));
     const lanes: { plan: PlanItem; start: number; end: number }[][] = [];
     for (const p of items) {
-      const s = p.startDate && isDateKey(p.startDate) ? p.startDate : p.deadline!;
-      const e = p.deadline!;
+      const s = p.startDate && isDateKey(p.startDate) ? p.startDate : placeDate(p);
+      const e = placeDate(p);
       const si = days.indexOf(s);
       const ei = days.indexOf(e);
       if (ei < 0 && si < 0) continue; // 本期外不画（跨期只画可见部分）
@@ -282,15 +363,19 @@ export function WeekGridView({ store }: { store: LocalStore }) {
   const timedByDay = useMemo(() => {
     const map = new Map<string, PlanItem[]>();
     for (const p of plans.filter(isTimed)) {
-      const arr = map.get(p.deadline!) ?? [];
+      const arr = map.get(placeDate(p)) ?? [];
       arr.push(p);
-      map.set(p.deadline!, arr);
+      map.set(placeDate(p), arr);
     }
     return map;
   }, [plans]);
 
   const blockCls = (p: PlanItem) =>
     `rounded-lg border border-white/20 bg-white/10 px-2 py-1.5 cursor-pointer hover:bg-white/[0.16] transition-colors border-l-4 ${STATE_META[planState(p, today)].bar}`;
+
+  // 时间轴空态（第 3 项）：本期没有带时间的计划时直说原因，不让用户以为表坏了
+  const hasTimedInPeriod = plans.some((p) => isTimed(p) && days.includes(placeDate(p)));
+  const hasCountPlans = store.data.plans.some((p) => p.mode === 'count');
 
   return (
     <div data-schedule-view="week" className="flex flex-col min-h-0">
@@ -319,12 +404,14 @@ export function WeekGridView({ store }: { store: LocalStore }) {
         <PlanDetail plan={selected} store={store} today={today} onClose={() => setSelectedId(null)} />
       )}
 
-      {plans.length === 0 ? (
+      {plans.length === 0 && !hasCountPlans ? (
         <p className="text-[13px] text-zinc-300 py-6 text-center">
-          还没有带日期的长期计划，去「计划」里新建一个按日期的计划，就会出现在这里。
+          还没有带日期的长期计划，去「长期计划」里新建一个按日期的计划，就会出现在这里。
         </p>
-      ) : mode === 'month' ? (
-        /* 月视图：日历格，只画截止日当天的块；点日期数字跳到该周 */
+      ) : (
+        <>
+          {mode === 'month' ? (
+        /* 月视图：日历格，只画排位日当天的块；点日期数字跳到该周 */
         <div className="grid grid-cols-7 gap-1" data-month-grid>
           {['一', '二', '三', '四', '五', '六', '日'].map((w) => (
             <div key={w} className="text-center text-[11px] text-zinc-400 py-1">
@@ -333,7 +420,7 @@ export function WeekGridView({ store }: { store: LocalStore }) {
           ))}
           {days.map((key) => {
             const inMonth = parseDay(key).getMonth() === parseDay(anchor).getMonth();
-            const dayPlans = plans.filter((p) => p.deadline === key);
+            const dayPlans = plans.filter((p) => placeDate(p) === key);
             return (
               <div
                 key={key}
@@ -369,7 +456,23 @@ export function WeekGridView({ store }: { store: LocalStore }) {
           })}
         </div>
       ) : (
-        /* 日 / 周视图：全天区 + 时间轴（手机端横向滑动看全周） */
+        <>
+        {/* 时间轴空态（第 3 项）：本期没有带时间的计划时直说原因 + 去补时间入口 */}
+        {!hasTimedInPeriod && (
+          <div data-week-time-hint className="rounded-2xl border border-white/15 bg-white/[0.04] px-3 py-2 mb-2 flex items-center gap-2">
+            <p className="flex-1 min-w-0 text-[11px] text-zinc-300">
+              本期时间轴还是空的：没有带时间的计划，在长期计划里给计划填上时间，就会落到这里。
+            </p>
+            <button
+              type="button"
+              onClick={onGoPlan}
+              className="px-2.5 py-1.5 rounded-lg bg-indigo-500/80 hover:bg-indigo-500 text-white text-[11px] font-medium transition-colors shrink-0"
+            >
+              去长期计划
+            </button>
+          </div>
+        )}
+        {/* 日 / 周视图：全天区 + 时间轴（手机端横向滑动看全周） */}
         <div className="overflow-x-auto pb-1" data-week-grid>
           <div style={{ minWidth: mode === 'day' ? '100%' : 840 }}>
             {/* 表头：星期 + 日期 */}
@@ -409,7 +512,7 @@ export function WeekGridView({ store }: { store: LocalStore }) {
                       >
                         <p className="truncate text-xs font-medium text-white/90">{plan.title}</p>
                         <p className="truncate text-[11px] text-zinc-300">
-                          {rangeLabel(plan)} · {STATE_META[planState(plan, today)].label}
+                          {rangeLabel(plan)} · {stateLabel(plan, planState(plan, today))}
                         </p>
                       </button>
                     ))}
@@ -458,8 +561,12 @@ export function WeekGridView({ store }: { store: LocalStore }) {
             </div>
           </div>
         </div>
+        </>
       )}
-    </div>
+      <CountPlansSection store={store} />
+    </>
+  )}
+</div>
   );
 }
 
@@ -471,16 +578,17 @@ export function TimelineView({ store, onAddPlan }: { store: LocalStore; onAddPla
   const plans = datedPlans(store.data.plans);
   const selected = plans.find((p) => p.id === selectedId) ?? null;
 
-  // 按截止日分组，正序；没计划的日期天然不存在，不占位
+  // 按排位日分组，正序；没计划的日期天然不存在，不占位
   const groups = useMemo(() => {
     const map = new Map<string, PlanItem[]>();
     for (const p of plans) {
-      const arr = map.get(p.deadline!) ?? [];
+      const arr = map.get(placeDate(p)) ?? [];
       arr.push(p);
-      map.set(p.deadline!, arr);
+      map.set(placeDate(p), arr);
     }
     return [...map.entries()].sort((a, b) => parseDay(a[0]).getTime() - parseDay(b[0]).getTime());
   }, [plans]);
+  const hasCountPlans = store.data.plans.some((p) => p.mode === 'count');
 
   return (
     <div data-schedule-view="timeline" className="flex flex-col min-h-0">
@@ -499,11 +607,15 @@ export function TimelineView({ store, onAddPlan }: { store: LocalStore; onAddPla
         <PlanDetail plan={selected} store={store} today={today} onClose={() => setSelectedId(null)} />
       )}
 
-      {groups.length === 0 ? (
+      {groups.length === 0 && !hasCountPlans ? (
         <p className="text-[13px] text-zinc-300 py-6 text-center">
-          还没有带日期的长期计划，去「计划」里新建一个按日期的计划，就会出现在这里。
+          还没有带日期的长期计划，去「长期计划」里新建一个按日期的计划，就会出现在这里。
         </p>
       ) : (
+        <>
+        {groups.length === 0 ? (
+          <p className="text-[13px] text-zinc-300 py-2">还没有带日期的长期计划。</p>
+        ) : (
         <div className="flex flex-col">
           {groups.map(([key, dayPlans], gi) => (
             <div key={key} className="flex gap-3">
@@ -538,7 +650,7 @@ export function TimelineView({ store, onAddPlan }: { store: LocalStore; onAddPla
                     >
                       <p className="text-sm font-medium text-white/90 break-words">{p.title}</p>
                       <p className="mt-0.5 text-[11px] text-zinc-300">
-                        {timeLabel(p)} · {rangeLabel(p)} · <span className={meta.text}>{meta.label}</span>
+                        {timeLabel(p)} · {rangeLabel(p)} · <span className={meta.text}>{stateLabel(p, planState(p, today))}</span>
                       </p>
                     </button>
                   );
@@ -547,6 +659,9 @@ export function TimelineView({ store, onAddPlan }: { store: LocalStore; onAddPla
             </div>
           ))}
         </div>
+        )}
+        <CountPlansSection store={store} />
+      </>
       )}
     </div>
   );

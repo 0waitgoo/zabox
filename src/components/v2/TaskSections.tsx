@@ -908,6 +908,7 @@ const PlanRow: React.FC<{
             </span>
           )}
           {!plan.done && plan.deadline && <span className="text-zinc-400">· 目标 {formatMonthDay(plan.deadline)}</span>}
+          {plan.eventDate && <span className="text-zinc-400">· 事件 {formatMonthDay(plan.eventDate)}</span>}
         </div>
         <div className="mt-1.5 h-1 rounded-full bg-white/20 overflow-hidden">
           <div
@@ -977,8 +978,10 @@ function PlanCreateForm({ store, onClose }: { store: LocalStore; onClose: () => 
   const [target, setTarget] = useState('10');
   const [unit, setUnit] = useState('次');
   const [deadline, setDeadline] = useState(todayDateStr());
+  const [startDate, setStartDate] = useState(todayDateStr());
   const [startTime, setStartTime] = useState('');
   const [endTime, setEndTime] = useState('');
+  const [eventDate, setEventDate] = useState('');
   const today = todayDateStr();
   /** 「点表单外 = 确认」判定（第七十五轮） */
   const outsideConfirm = useOutsidePressConfirm();
@@ -991,7 +994,14 @@ function PlanCreateForm({ store, onClose }: { store: LocalStore; onClose: () => 
     if (mode === 'count') {
       store.addPlan(title, { mode, targetCount: parseInt(target, 10) || 10, unit });
     } else {
-      store.addPlan(title, { mode, deadline, startTime: startTime || undefined, endTime: endTime || undefined });
+      store.addPlan(title, {
+        mode,
+        deadline,
+        startDate: startDate || undefined,
+        startTime: startTime || undefined,
+        endTime: endTime || undefined,
+        eventDate: eventDate || undefined,
+      });
     }
     onClose();
   };
@@ -1068,6 +1078,26 @@ function PlanCreateForm({ store, onClose }: { store: LocalStore; onClose: () => 
               className="flex-1 min-w-0 bg-white/5 border border-white/12 rounded-xl px-2.5 py-1.5 text-sm outline-none focus:border-indigo-400/50 [color-scheme:dark]"
             />
           </label>
+          <label className="mt-2 flex items-center gap-2">
+            <span className="text-[11px] text-zinc-300 shrink-0">开始日</span>
+            <input
+              type="date"
+              value={startDate}
+              onChange={(e) => setStartDate(e.target.value)}
+              data-plan-start-date
+              className="flex-1 min-w-0 bg-white/5 border border-white/12 rounded-xl px-2.5 py-1.5 text-sm outline-none focus:border-indigo-400/50 [color-scheme:dark]"
+            />
+          </label>
+          <label className="mt-2 flex items-center gap-2">
+            <span className="text-[11px] text-zinc-300 shrink-0">事件日（可选）</span>
+            <input
+              type="date"
+              value={eventDate}
+              onChange={(e) => setEventDate(e.target.value)}
+              data-plan-event-date
+              className="flex-1 min-w-0 bg-white/5 border border-white/12 rounded-xl px-2.5 py-1.5 text-sm outline-none focus:border-indigo-400/50 [color-scheme:dark]"
+            />
+          </label>
           <div className="mt-2 flex items-center gap-2">
             <span className="text-[11px] text-zinc-300 shrink-0">时间（可选）</span>
             <input
@@ -1117,8 +1147,10 @@ export const PlanEditForm: React.FC<{ plan: PlanItem; store: LocalStore; onClose
   const [target, setTarget] = useState(String(plan.targetCount ?? 10));
   const [unit, setUnit] = useState(plan.unit ?? '次');
   const [deadline, setDeadline] = useState(plan.deadline ?? todayDateStr());
+  const [startDate, setStartDate] = useState(plan.startDate ?? todayDateStr());
   const [startTime, setStartTime] = useState(plan.startTime ?? '');
   const [endTime, setEndTime] = useState(plan.endTime ?? '');
+  const [eventDate, setEventDate] = useState(plan.eventDate ?? '');
   /** 「点表单外 = 确认」判定（第七十五轮，口径同新建表单） */
   const outsideConfirm = useOutsidePressConfirm();
 
@@ -1128,7 +1160,7 @@ export const PlanEditForm: React.FC<{ plan: PlanItem; store: LocalStore; onClose
       const n = parseInt(target, 10);
       store.updatePlan(plan.id, { title, targetCount: n > 0 ? n : undefined, unit });
     } else {
-      store.updatePlan(plan.id, { title, deadline, startTime, endTime });
+      store.updatePlan(plan.id, { title, deadline, startDate, startTime, endTime, eventDate });
     }
     onClose();
   };
@@ -1176,6 +1208,26 @@ export const PlanEditForm: React.FC<{ plan: PlanItem; store: LocalStore; onClose
               value={deadline}
               onChange={(e) => setDeadline(e.target.value)}
               data-plan-edit-deadline
+              className="flex-1 min-w-0 bg-white/5 border border-white/12 rounded-xl px-2.5 py-1.5 text-sm outline-none focus:border-indigo-400/50 [color-scheme:dark]"
+            />
+          </label>
+          <label className="mt-2 flex items-center gap-2">
+            <span className="text-[11px] text-zinc-300 shrink-0">开始日</span>
+            <input
+              type="date"
+              value={startDate}
+              onChange={(e) => setStartDate(e.target.value)}
+              data-plan-edit-start-date
+              className="flex-1 min-w-0 bg-white/5 border border-white/12 rounded-xl px-2.5 py-1.5 text-sm outline-none focus:border-indigo-400/50 [color-scheme:dark]"
+            />
+          </label>
+          <label className="mt-2 flex items-center gap-2">
+            <span className="text-[11px] text-zinc-300 shrink-0">事件日（可选）</span>
+            <input
+              type="date"
+              value={eventDate}
+              onChange={(e) => setEventDate(e.target.value)}
+              data-plan-edit-event-date
               className="flex-1 min-w-0 bg-white/5 border border-white/12 rounded-xl px-2.5 py-1.5 text-sm outline-none focus:border-indigo-400/50 [color-scheme:dark]"
             />
           </label>

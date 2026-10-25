@@ -35,6 +35,7 @@ for (const scale of [1, 1.25, 1.5, 2]) {
     for (let i = 0; i < 100; i++) {
       await f.controller.enterHeader();
       assert.equal(f.rect().height, Math.round(48 * scale));
+      assert.equal(f.rect().width, Math.round(232 * scale));
       await f.controller.exitHeader();
       assert.deepEqual(f.rect(), original);
     }
@@ -133,3 +134,105 @@ for (const scale of [1, 1.25, 1.5, 2]) {
     assert.equal(f.controller.edge, 'top');
   });
 }
+
+for (const scale of [1, 1.25, 1.5, 2]) {
+  test(`expand upward at the work-area bottom and keep the toolbar anchored at ${scale * 100}% DPI`, async () => {
+    const f = fixture(scale);
+    const bounds = { x: -2400, y: 40, width: 2400, height: 2000 };
+    f.win.readWorkArea = async () => bounds;
+    await f.controller.enterHeader();
+    const stripY = bounds.y + bounds.height - 48 * scale - 16;
+    await f.win.setPosition(-700, stripY);
+    await f.controller.exitHeader();
+    assert.equal(f.controller.toolbarBottom, true);
+    assert.equal(f.rect().y, bounds.y + bounds.height - 680 * scale - 16);
+    assert.equal(f.rect().height, 680 * scale);
+    for (let i = 0; i < 10; i++) {
+      await f.controller.enterHeader();
+      assert.equal(f.rect().y, stripY);
+      await f.controller.exitHeader();
+      assert.equal(f.rect().height, 680 * scale);
+      assert.equal(f.controller.toolbarBottom, true);
+    }
+    // Move the collapsed toolbar higher: sufficient room restores top-toolbar mode.
+    await f.controller.enterHeader();
+    await f.win.setPosition(-700, 100);
+    await f.controller.exitHeader();
+    assert.equal(f.rect().y, 100);
+    assert.equal(f.controller.toolbarBottom, false);
+  });
+}
+
+test('expanding a tall saved window fits the current smaller monitor work area', async () => {
+  const f = fixture();
+  f.win.readWorkArea = async () => ({ x: 60, y: 40, width: 800, height: 600 });
+  await f.controller.enterHeader();
+  await f.win.setPosition(800, 550);
+  await f.controller.exitHeader();
+  const rect = f.rect();
+  assert.equal(rect.height, 584);
+  assert.ok(rect.x >= 60 && rect.x + rect.width + 16 <= 860);
+  assert.ok(rect.y >= 40 && rect.y + rect.height + 16 <= 640);
+  assert.equal(f.controller.toolbarBottom, true);
+});
+
+for (const scale of [1, 1.5, 2]) {
+  test(`manually enlarging a compact strip restores content at ${scale * 100}% DPI`, async () => {
+    const f = fixture(scale);
+    await Promise.all([f.controller.enterHeader(), f.controller.handleResize()]);
+    assert.equal(f.controller.headerOnly, true, 'programmatic strip sizing must stay compact');
+    await f.win.setSize(500 * scale, 400 * scale);
+    await f.controller.handleResize();
+    assert.equal(f.controller.headerOnly, false);
+    assert.equal(f.rect().height, 400 * scale);
+    assert.equal(f.rect().width, 500 * scale);
+    await f.controller.handleResize();
+    assert.equal(f.rect().height, 400 * scale);
+    await f.controller.enterHeader();
+    await f.controller.exitHeader();
+    assert.equal(f.rect().height, 400 * scale);
+  });
+}
+
+test('enlarging only a strip width also exits compact mode with a usable minimum height', async () => {
+  const f = fixture();
+  await f.controller.enterHeader();
+  await f.win.setSize(600, 48);
+  await f.controller.handleResize();
+  assert.equal(f.controller.headerOnly, false);
+  assert.equal(f.rect().width, 600);
+  assert.equal(f.rect().height, 200);
+});
+
+test('hover preview restores full content temporarily then returns to the same short strip', async () => {
+  const f = fixture();
+  await f.controller.enterHeader();
+  const strip = f.rect();
+  await f.controller.previewHeader();
+  assert.equal(f.controller.previewing, true);
+  assert.equal(f.controller.headerOnly, false);
+  assert.equal(f.rect().height, 680);
+  await f.controller.handleResize();
+  assert.equal(f.controller.previewing, true, 'native preview resize must not pin it open');
+  await f.controller.closePreview();
+  assert.equal(f.controller.previewing, false);
+  assert.equal(f.controller.headerOnly, true);
+  assert.deepEqual(f.rect(), strip);
+  await f.controller.exitHeader();
+  assert.equal(f.rect().width, 420);
+  assert.equal(f.rect().height, 680);
+});
+
+test('leaving during a queued preview and resizing a preview keep transitions consistent', async () => {
+  const f = fixture();
+  await f.controller.enterHeader();
+  await Promise.all([f.controller.previewHeader(), f.controller.closePreview()]);
+  assert.equal(f.controller.headerOnly, true);
+  await f.controller.previewHeader();
+  await f.win.setSize(500, 500);
+  await f.controller.handleResize();
+  assert.equal(f.controller.previewing, false);
+  await f.controller.closePreview();
+  assert.equal(f.controller.headerOnly, false);
+  assert.equal(f.rect().height, 500);
+});

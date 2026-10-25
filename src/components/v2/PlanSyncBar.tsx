@@ -1,7 +1,7 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { planWindow } from './planWindow';
 import { desktopBrowserLogin } from '../../services/desktopOAuth';
-import { ArrowLeft, Sparkles } from 'lucide-react';
+import { ArrowLeft, CircleAlert, Github, Sparkles, X } from 'lucide-react';
 import type { LocalStore } from '../../store/localStore';
 import {
   ghGetFile,
@@ -196,63 +196,34 @@ export default function PlanSyncBar({
     void startLogin();
   };
 
-  const syncBtnCls =
-    'shrink-0 px-3 py-1.5 rounded-lg text-xs font-medium bg-indigo-500 hover:bg-indigo-400 disabled:opacity-40 disabled:cursor-default text-white transition-colors';
-  const loginBtnCls = light
-    ? 'shrink-0 px-3 py-1.5 rounded-lg text-xs font-medium bg-black/[0.06] hover:bg-black/10 text-zinc-800 transition-colors'
-    : 'shrink-0 px-3 py-1.5 rounded-lg text-xs font-medium bg-white/10 hover:bg-white/[0.18] text-white transition-colors';
-  const faintCls = light ? 'text-zinc-500' : 'text-white/45';
-  const faintLinkCls = light
-    ? 'text-[11px] text-zinc-500 hover:text-zinc-800'
-    : 'text-[11px] text-white/40 hover:text-white/80';
-
-  const loginControl = token ? (
-    <span className="shrink-0 flex items-center gap-2">
-      <span className={`text-xs ${light ? 'text-emerald-700' : 'text-emerald-300/90'}`}>
-        已连接 GitHub
-      </span>
-      <button type="button" onClick={relogin} className={faintLinkCls}>
-        重新登录
-      </button>
-    </span>
-  ) : (
-    <button type="button" disabled={loggingIn} onClick={() => void startLogin()} className={loginBtnCls}>
-      {loggingIn ? '等待浏览器授权…' : 'GitHub 登录'}
-    </button>
-  );
-
+  const buttonCls = light
+    ? 'h-6 rounded-md bg-black/[0.06] hover:bg-black/10 text-zinc-800'
+    : 'h-6 rounded-md bg-white/10 hover:bg-white/[0.18] text-white';
+  const iconCls = `shrink-0 w-6 flex items-center justify-center ${buttonCls}`;
+  const aiLabel = aiView === 'ai' ? '返回计划' : 'AI 整理';
   return (
-    <div
-      className={`sticky top-0 z-40 backdrop-blur border-b px-3 py-2 ${
-        light ? 'border-black/10' : 'border-white/10'
-      }`}
-    >
-      <div data-plan-dock-row className="flex items-center gap-2 flex-wrap">
-        {loginControl}
-        <button
-          type="button"
-          onClick={() => void sync()}
-          disabled={busy || !token.trim()}
-          className={syncBtnCls}
-        >
-          {busy ? '同步中…' : '同步'}
+    <div data-plan-dock-row className="flex items-center gap-1 min-w-0">
+      {token ? (
+        <button type="button" onClick={relogin} className={iconCls}
+          aria-label="重新登录 GitHub" title={status ?? '已连接 GitHub，点击重新登录'}><Github size={14} /></button>
+      ) : (
+        <button type="button" disabled={loggingIn} onClick={() => void startLogin()}
+          title={status ?? 'GitHub 登录'}
+          className={`min-w-0 px-2 text-xs font-medium truncate ${buttonCls}`}>
+          {loggingIn ? '授权中…' : 'GitHub 登录'}
         </button>
-        {/* AI 整理从计划页头移到本行（用户定：今日进度删、AI 整理放上面更简约） */}
-        <button type="button" onClick={onAiToggle} className={loginBtnCls}>
-          <span className="flex items-center gap-1">
-            {aiView === 'ai' ? <ArrowLeft size={12} /> : <Sparkles size={12} />}
-            {aiView === 'ai' ? '返回' : 'AI 整理'}
-          </span>
-        </button>
-        {status && (
-          <span role="status" className={`text-[11px] break-words ${faintCls}`}>
-            {status}
-          </span>
-        )}
-        {/* 拖动区：行尾空白带（按钮与文案不在拖动区内，点击不受影响） */}
-        <div data-plan-drag-region className="flex-1 min-w-0 self-stretch" />
-      </div>
-      {loggingIn && <button type="button" onClick={cancelLogin} className={faintLinkCls}>取消登录</button>}
+      )}
+      {token.trim() && <button type="button" onClick={() => void sync()} disabled={busy}
+        title={status ?? '同步'} className="shrink-0 h-6 px-2 rounded-md text-xs font-medium bg-indigo-500 hover:bg-indigo-400 disabled:opacity-40 text-white">
+        {busy ? '同步中…' : '同步'}
+      </button>}
+      <button type="button" onClick={onAiToggle} className={iconCls} title={aiLabel} aria-label={aiLabel} aria-pressed={aiView === 'ai'}>
+        {aiView === 'ai' ? <ArrowLeft size={14} /> : <Sparkles size={14} />}
+      </button>
+      {loggingIn && <button type="button" onClick={cancelLogin} className={iconCls} title="取消登录" aria-label="取消登录"><X size={12} /></button>}
+      {status && (status.includes('失败')
+        ? <span role="status" title={status} aria-label={status} className="shrink-0 text-red-400"><CircleAlert size={14} /></span>
+        : <span role="status" className="sr-only">{status}</span>)}
     </div>
   );
 }

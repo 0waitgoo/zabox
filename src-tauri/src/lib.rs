@@ -7,6 +7,7 @@ use tauri::{
 };
 
 fn restore_window(window: &tauri::WebviewWindow) {
+    let _ = window.set_skip_taskbar(false);
     let _ = window.unminimize();
     let _ = window.show();
     let _ = window.set_focus();
@@ -58,6 +59,7 @@ pub fn run() {
                     }
                     "hide" => {
                         if let Some(window) = app.get_webview_window("main") {
+                            let _ = window.set_skip_taskbar(true);
                             let _ = window.hide();
                         }
                     }

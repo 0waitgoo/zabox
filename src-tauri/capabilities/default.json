@@ -17,6 +17,7 @@
     "core:window:allow-primary-monitor",
     "core:window:allow-start-dragging",
     "core:window:allow-hide",
+    "core:window:allow-set-skip-taskbar",
     "core:window:allow-show",
     "core:window:allow-set-focus",
     "core:window:allow-is-visible",

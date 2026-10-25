@@ -19,6 +19,7 @@ import type { PlanTheme } from '../../plan-app';
 export default function PlanTitleBar({
   theme,
   settingsOpen,
+  actions,
   closeLabel,
   onClose,
   pinned,
@@ -30,6 +31,7 @@ export default function PlanTitleBar({
 }: {
   theme: PlanTheme;
   settingsOpen: boolean;
+  actions: React.ReactNode;
   closeLabel: string;
   onClose: () => void;
   pinned: boolean;
@@ -49,7 +51,8 @@ export default function PlanTitleBar({
     ? `${btnBase} bg-indigo-500 text-white`
     : btnCls;
   return (
-    <div className="sticky top-0 z-50 h-10 flex items-center gap-2 pl-2.5 pr-1.5 select-none backdrop-blur">
+    <div className="sticky top-0 z-50 h-10 flex items-center gap-1 px-1.5 select-none backdrop-blur">
+      {actions}
       {/* 拖动区：中间空白 */}
       <div data-plan-drag-region className="flex-1 min-w-0 h-full" />
       <PinButton pinned={pinned} busy={pinBusy} light={light} onToggle={onTogglePin} />

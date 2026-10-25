@@ -101,6 +101,7 @@ function PlanApp() {
       setPinned,
     );
   }
+  const [toolbarBottom, setToolbarBottom] = useState(false);
   const [headerOnly, setHeaderOnly] = useState(false);
   const [autoLogin, setAutoLogin] = useState(false);
   const [collapsed, setCollapsed] = useState<Edge | null>(null);
@@ -112,6 +113,8 @@ function PlanApp() {
   const [windowError, setWindowError] = useState<string | null>(null);
   const controllerRef = useRef<DesktopWindowController | null>(null);
   const restoreTimer = useRef<number | null>(null);
+  const previewTimer = useRef<number | null>(null);
+  const pointerInside = useRef(false);
   if (!controllerRef.current) {
     const win = planWindow();
     if (win) controllerRef.current = new DesktopWindowController({
@@ -124,6 +127,10 @@ function PlanApp() {
         return { x: pos.x, y: pos.y, width: size.width, height: size.height };
       },
       scaleFactor: () => win.scaleFactor(),
+      readWorkArea: async () => {
+        const area = (await currentMonitor())?.workArea;
+        return area ? { x: area.position.x, y: area.position.y, width: area.size.width, height: area.size.height } : null;
+      },
       setSize: (width, height) => win.setSize(new PhysicalSize(width, height)),
       setMinSize: (width, height) => win.setMinSize(new LogicalSize(width, height)),
       setPosition: (x, y) => win.setPosition(new PhysicalPosition(x, y)),
@@ -132,6 +139,7 @@ function PlanApp() {
       toggleMaximize: () => win.toggleMaximize(),
     }, () => {
       setHeaderOnly(controllerRef.current!.headerOnly);
+      setToolbarBottom(controllerRef.current!.toolbarBottom);
       setCollapsed(controllerRef.current!.edge);
     });
   }
@@ -196,7 +204,7 @@ function PlanApp() {
     return () => { cancelAnimationFrame(frame); cancelAnimationFrame(nextFrame); };
   }, [createTarget, settingsOpen, aiView, headerOnly, collapsed]);
 
-  const closeLabel = minimizeOnClose ? '最小化到任务栏' : '关闭窗口';
+  const closeLabel = minimizeOnClose ? '收进托盘' : '关闭窗口';
 
   const togglePin = async () => {
     const pin = pinControllerRef.current;
@@ -263,6 +271,31 @@ function PlanApp() {
     if (restoreTimer.current !== null) window.clearTimeout(restoreTimer.current);
     restoreTimer.current = null;
   };
+  const cancelPreviewTimer = () => {
+    if (previewTimer.current !== null) window.clearTimeout(previewTimer.current);
+    previewTimer.current = null;
+  };
+  const previewEnter = () => {
+    pointerInside.current = true;
+    cancelPreviewTimer();
+    if (!controllerRef.current?.headerOnly) return;
+    previewTimer.current = window.setTimeout(() => {
+      previewTimer.current = null;
+      void controllerRef.current?.previewHeader().then(() => {
+        // The pointer can leave while a native resize is pending.
+        if (!pointerInside.current) return controllerRef.current?.closePreview();
+      }).catch(reportWindowError);
+    }, 220);
+  };
+  const previewLeave = () => {
+    pointerInside.current = false;
+    cancelPreviewTimer();
+    if (!controllerRef.current?.previewing) return;
+    previewTimer.current = window.setTimeout(() => {
+      previewTimer.current = null;
+      void controllerRef.current?.closePreview().catch(reportWindowError);
+    }, 300);
+  };
   const enterHeaderOnly = async () => {
     try { await controllerRef.current?.enterHeader(); } catch (error) { reportWindowError(error); }
   };
@@ -278,6 +311,11 @@ function PlanApp() {
     if (!win) return;
     let disposed = false;
     const unlisteners: (() => void)[] = [];
+    void win.onResized(() => {
+      void controllerRef.current?.handleResize().catch(reportWindowError);
+    }).then((stop) => {
+      if (disposed) stop(); else unlisteners.push(stop);
+    }).catch(reportWindowError);
     void win.onCloseRequested((event) => {
       if (!minimizeOnCloseRef.current) return;
       event.preventDefault();
@@ -293,7 +331,7 @@ function PlanApp() {
       try {
         const win = planWindow();
         if (controllerRef.current?.edge) await restoreFromCollapse();
-        else await win?.hide();
+        else if (win) await applyCloseAction(true, win, async () => {});
       } catch (error) { reportWindowError(error); }
     }).then((stop) => {
       if (disposed) stop(); else unlisteners.push(stop);
@@ -305,11 +343,12 @@ function PlanApp() {
         const area = monitor.workArea;
         const root = document.querySelector('[data-plan-desktop]')?.getBoundingClientRect();
         const limit = document.querySelector('[data-plan-dock-limit]')?.getBoundingClientRect();
+        const bar = document.querySelector('[data-plan-titlebar]')?.getBoundingClientRect();
         const row = document.querySelector('[data-plan-dock-row]')?.getBoundingClientRect();
-        if (!root || !limit) return;
+        if (!root || !limit || !bar) return;
         const dockRegion = {
-          x: 0, y: 0, width: limit.right - root.left,
-          height: Math.max(40, row && row.height > 0 ? row.bottom - root.top : 40),
+          x: 0, y: bar.top - root.top, width: limit.right - root.left,
+          height: Math.max(40, row && row.height > 0 ? row.bottom - bar.top : 40),
         };
         await controllerRef.current?.collapse({
           x: area.position.x, y: area.position.y,
@@ -324,6 +363,7 @@ function PlanApp() {
       disposed = true;
       unlisteners.forEach((stop) => stop());
       cancelScheduledRestore();
+      cancelPreviewTimer();
       window.removeEventListener('plan-drag-end', onDragEnd);
       window.removeEventListener('plan-window-error', onError);
     };
@@ -431,11 +471,11 @@ function PlanApp() {
       ? `${stripBtnBase} text-zinc-600 hover:bg-black/10 hover:text-zinc-900`
       : `${stripBtnBase} text-white/70 hover:bg-white/10 hover:text-white`;
     const stripLoginCls = light
-      ? 'shrink-0 px-3 py-1.5 rounded-lg text-xs font-medium bg-black/[0.06] hover:bg-black/10 text-zinc-800 transition-colors'
-      : 'shrink-0 px-3 py-1.5 rounded-lg text-xs font-medium bg-white/10 hover:bg-white/[0.18] text-white transition-colors';
+      ? 'shrink-0 px-2 py-1 rounded-lg text-xs font-medium bg-black/[0.06] hover:bg-black/10 text-zinc-800 transition-colors'
+      : 'shrink-0 px-2 py-1 rounded-lg text-xs font-medium bg-white/10 hover:bg-white/[0.18] text-white transition-colors';
     return (
       <div
-        className={`relative w-full h-dvh flex items-center gap-2 px-2.5 overflow-hidden select-none ${textCls}`}
+        className={`relative w-full h-dvh flex items-center gap-1 px-1.5 overflow-hidden select-none ${textCls}`}
         style={{ backgroundColor: bg }}
       >
         {stripToken ? (
@@ -492,6 +532,11 @@ function PlanApp() {
     <PlanTitleBar
       theme={theme}
       settingsOpen={settingsOpen}
+      actions={<div hidden={settingsOpen} className="min-w-0">
+        <PlanSyncBar store={store} theme={theme} aiView={aiView}
+          onAiToggle={() => setAiView((v) => v === 'ai' ? 'main' : 'ai')}
+          autoLogin={autoLogin} onAutoLoginConsumed={() => setAutoLogin(false)} />
+      </div>}
       closeLabel={closeLabel}
       onClose={() => void handleClose()}
       pinned={pinned}
@@ -504,28 +549,25 @@ function PlanApp() {
   );
 
   return (
-    <div data-plan-desktop data-plan-theme={theme}
+    <div data-plan-desktop data-plan-theme={theme} data-plan-toolbar-position={toolbarBottom ? 'bottom' : 'top'}
+      onPointerEnter={previewEnter} onPointerLeave={previewLeave}
       onContextMenu={(event) => {
         if (event.defaultPrevented || headerOnly || collapsed || !(event.target instanceof Element)
           || event.target.closest('input,textarea,select,button,a,[contenteditable="true"]')) return;
         event.preventDefault();
         setCreateMenu({ x: event.clientX, y: event.clientY });
       }}
-      className={`relative h-dvh w-full overflow-hidden ${textCls}`} style={{ backgroundColor: bg }}>
+      className={`relative flex flex-col h-dvh w-full overflow-hidden ${textCls}`} style={{ backgroundColor: bg }}>
       {createMenu && <DesktopCreateMenu position={createMenu} onClose={closeCreateMenu} onCreate={(kind) => void startCreate(kind)} />}
-      {collapsed ? renderEdge() : headerOnly ? renderStrip() : titleBar}
+      <div data-plan-titlebar hidden={!!collapsed || headerOnly} className="shrink-0">{titleBar}</div>
+      {collapsed ? renderEdge() : headerOnly ? renderStrip() : null}
       {windowError && !headerOnly && !collapsed && (
         <div role="alert" className="px-3 py-2 text-xs bg-red-500/20">
           {windowError}
           <button type="button" className="ml-2 underline" onClick={() => setWindowError(null)}>关闭提示</button>
         </div>
       )}
-      <div className={`${collapsed || headerOnly ? 'hidden' : 'flex'} flex-col h-[calc(100dvh-40px)] min-h-0 overflow-hidden`}>
-        <div hidden={settingsOpen} className="shrink-0">
-          <PlanSyncBar store={store} theme={theme} aiView={aiView}
-            onAiToggle={() => setAiView((v) => v === 'ai' ? 'main' : 'ai')}
-            autoLogin={autoLogin} onAutoLoginConsumed={() => setAutoLogin(false)} />
-        </div>
+      <div className={`${collapsed || headerOnly ? 'hidden' : 'flex'} flex-col flex-1 min-h-0 overflow-hidden`}>
         <div className={`px-3 sm:px-4 py-3 flex-1 min-h-0 ${settingsOpen || aiView === 'ai' ? 'overflow-y-auto' : 'flex flex-col'}`}>
           {settingsOpen ? (
             <PlanSettings theme={theme} onThemeChange={changeTheme} customColor={customColor}

@@ -32,6 +32,16 @@ try {
   const root = page.locator('[data-plan-desktop]');
   await root.waitFor();
   const colorOf = (selector: string) => page.locator(selector).first().evaluate((element) => getComputedStyle(element).color);
+  assert.equal(await page.getByRole('button', { name: '同步', exact: true }).count(), 0);
+  assert.equal(await page.getByRole('button', { name: 'AI 整理', exact: true }).textContent(), '');
+  const loginBox = await page.getByRole('button', { name: 'GitHub 登录', exact: true }).boundingBox();
+  const pinBox = await page.getByRole('button', { name: '取消置顶', exact: true }).boundingBox();
+  assert.ok(loginBox && pinBox && Math.abs(loginBox.y - pinBox.y) < 2);
+  await page.setViewportSize({ width: 280, height: 800 });
+  const narrowLogin = await page.getByRole('button', { name: 'GitHub 登录', exact: true }).boundingBox();
+  const narrowClose = await page.getByRole('button', { name: '收进托盘', exact: true }).boundingBox();
+  assert.ok(narrowLogin && narrowClose && Math.abs(narrowLogin.y - narrowClose.y) < 2 && narrowClose.x + narrowClose.width <= 280);
+  await page.setViewportSize({ width: 420, height: 800 });
   assert.equal(await colorOf('[data-plan-desktop]'), 'rgb(0, 0, 0)');
   assert.equal(await page.locator('[data-plan-logo]').count(), 0);
   assert.equal(await colorOf('[data-task-add]'), 'rgb(0, 0, 0)');
@@ -47,7 +57,7 @@ try {
   assert.equal(await page.locator('[data-plan-logo]').evaluate((element) => getComputedStyle(element).filter), 'brightness(0)');
   assert.equal(await page.getByText('杂盒计划', { exact: true }).count(), 1);
   assert.equal(await page.getByRole('link', { name: 'https://zahe.hiitun.top/', exact: true }).getAttribute('href'), 'https://zahe.hiitun.top/');
-  const closeSwitch = page.getByRole('switch', { name: '点击关闭时最小化到任务栏' });
+  const closeSwitch = page.getByRole('switch', { name: '点击关闭时收进托盘' });
   assert.equal(await closeSwitch.isChecked(), true);
   await closeSwitch.locator('..').click();
   assert.equal(await closeSwitch.isChecked(), false);
@@ -77,7 +87,7 @@ try {
   await page.getByTitle('设置', { exact: true }).click();
   assert.equal(await closeSwitch.isChecked(), false);
   await closeSwitch.locator('..').click();
-  await page.getByTitle('最小化到任务栏', { exact: true }).waitFor();
+  await page.getByTitle('收进托盘', { exact: true }).waitFor();
   // Create from the settings background, switch back to the main page and focus.
   await page.getByRole('heading', { name: '外观', exact: true }).click({ button: 'right' });
   await page.getByRole('menuitem', { name: '新建待办', exact: true }).click();
@@ -125,6 +135,12 @@ try {
   await page.setViewportSize({ width: 420, height: 800 });
   await page.waitForFunction(() => document.querySelector('[data-desktop-workspace]')?.getAttribute('data-layout') === 'tabs');
   assert.equal(await page.getByRole('tab', { name: '长期计划', exact: true }).getAttribute('aria-selected'), 'true');
+  // Check the bottom-toolbar presentation independently of native screen placement.
+  await root.evaluate((element) => { (element as HTMLElement).dataset.planToolbarPosition = 'bottom'; });
+  const bottomBar = await page.locator('[data-plan-titlebar]').boundingBox();
+  const workspace = await page.locator('[data-desktop-workspace]').boundingBox();
+  assert.ok(bottomBar && workspace && bottomBar.y >= workspace.y + workspace.height);
+  await root.evaluate((element) => { (element as HTMLElement).dataset.planToolbarPosition = 'top'; });
   assert.deepEqual(errors, []);
   console.log('Desktop browser checks passed: black light-mode text/logo, invisible unchecked glyph, pin control, custom colors, dark-mode restore and persisted background.');
 } finally {

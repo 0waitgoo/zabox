@@ -12,16 +12,20 @@ export function saveMinimizeOnClose(value: boolean, storage?: CloseStorage): voi
   catch { /* Keep the preference usable for this session. */ }
 }
 
-/** Restore a hidden edge before minimizing so taskbar activation remains usable. */
+/** Restore a hidden edge, then hide to the tray and remove the taskbar entry. */
 export async function applyCloseAction(
   minimize: boolean,
-  win: { minimize(): Promise<void>; close(): Promise<void> },
+  win: { hide(): Promise<void>; setSkipTaskbar(skip: boolean): Promise<void>; close(): Promise<void> },
   restoreEdge: () => Promise<void>,
 ): Promise<void> {
   if (minimize) {
     await restoreEdge();
-    // If minimize fails, keep the window open and let the caller report it.
-    await win.minimize();
+    await win.setSkipTaskbar(true);
+    try { await win.hide(); }
+    catch (error) {
+      await win.setSkipTaskbar(false);
+      throw error;
+    }
   } else {
     await win.close();
   }

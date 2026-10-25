@@ -1,19 +1,39 @@
+mod desktop_login;
+
 use tauri::{
     menu::{Menu, MenuItem},
     tray::{MouseButton, MouseButtonState, TrayIconBuilder, TrayIconEvent},
-    Emitter, Manager,
+    Emitter, Manager, WindowEvent,
 };
+
+fn restore_window(window: &tauri::WebviewWindow) {
+    let _ = window.unminimize();
+    let _ = window.show();
+    let _ = window.set_focus();
+    let _ = window.emit("window-restore", ());
+}
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     tauri::Builder::default()
+        .manage(desktop_login::LoginState::default())
+        .invoke_handler(tauri::generate_handler![
+            desktop_login::start_desktop_login,
+            desktop_login::wait_desktop_login,
+            desktop_login::cancel_desktop_login,
+        ])
+        .on_window_event(|window, event| {
+            if matches!(event, WindowEvent::Focused(true)) {
+                // Taskbar activation must also restore an off-screen edge strip.
+                let _ = window.emit("window-restore", ());
+            }
+        })
         .plugin(tauri_plugin_opener::init())
         .plugin(tauri_plugin_http::init())
         .plugin(tauri_plugin_single_instance::init(|app, _args, _cwd| {
             // 重复启动不再开第二个窗口：直接把已有窗口弹出来（稳定优化）。
             if let Some(window) = app.get_webview_window("main") {
-                let _ = window.show();
-                let _ = window.set_focus();
+                restore_window(&window);
             }
         }))
         .setup(|app| {
@@ -28,16 +48,12 @@ pub fn run() {
             let _tray = TrayIconBuilder::new()
                 .icon(handle.default_window_icon().cloned().unwrap())
                 .menu(&menu)
+                .show_menu_on_left_click(false)
                 .tooltip("杂盒计划（点击恢复窗口）")
                 .on_menu_event(|app, event| match event.id.as_ref() {
                     "show" => {
-                        // 系统层直接恢复 + 再发事件给前端（前端按收起态恢复原尺寸位置）：
-                        // 两手都做——即使页面逻辑失效，点「显示窗口」也一定能把窗口弹出来，
-                        // 而不是只剩托盘图标、看着像软件关了。
                         if let Some(window) = app.get_webview_window("main") {
-                            let _ = window.show();
-                            let _ = window.set_focus();
-                            let _ = window.emit("tray-show", ());
+                            restore_window(&window);
                         }
                     }
                     "hide" => {
@@ -63,9 +79,8 @@ pub fn run() {
                     {
                         let app = tray.app_handle();
                         if let Some(window) = app.get_webview_window("main") {
-                            if !window.is_visible().unwrap_or(true) {
-                                let _ = window.show();
-                                let _ = window.set_focus();
+                            if !window.is_visible().unwrap_or(true) || window.is_minimized().unwrap_or(false) {
+                                restore_window(&window);
                             } else {
                                 let _ = window.emit("tray-toggle", ());
                             }

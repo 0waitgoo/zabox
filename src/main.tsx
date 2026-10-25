@@ -1,6 +1,7 @@
 import {StrictMode} from 'react';
 import {createRoot} from 'react-dom/client';
 import App from './App.tsx';
+import { tryDesktopLoginBridge } from './services/desktopLoginBridge';
 import './index.css';
 import { applyDisplayPrefs, loadDisplayPrefs } from './store/displayPrefs';
 
@@ -15,8 +16,11 @@ if ('serviceWorker' in navigator && !(import.meta as unknown as { env?: Record<s
   });
 }
 
-createRoot(document.getElementById('root')!).render(
-  <StrictMode>
-    <App />
-  </StrictMode>,
-);
+void tryDesktopLoginBridge().then((handled) => {
+  if (handled) return;
+  createRoot(document.getElementById('root')!).render(
+    <StrictMode>
+      <App />
+    </StrictMode>,
+  );
+});

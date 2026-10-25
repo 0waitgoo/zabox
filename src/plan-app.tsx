@@ -20,6 +20,8 @@ import {
   PhysicalSize,
 } from '@tauri-apps/api/window';
 import { listen } from '@tauri-apps/api/event';
+import { DesktopWindowController } from './components/v2/desktopWindow';
+import { useDesktopDrag } from './components/v2/useDesktopDrag';
 import { planWindow, safeClose } from './components/v2/planWindow';
 import { useLocalStore } from './store/localStore';
 import './index.css';
@@ -30,15 +32,14 @@ applyDisplayPrefs(loadDisplayPrefs());
 
 const OPACITY_KEY = 'zabox-plan-opacity';
 const THEME_KEY = 'zabox-plan-theme';
-const EDGE_PEEK = 24; // 边缘收起后露出的细边宽度
-const EDGE_TOLERANCE = 4; // 贴边判定：离边缘 4px 内算贴住
-const STRIP_HEIGHT = 48; // 只留顶栏的细条高度（逻辑像素）
 
 export type PlanTheme = 'dark' | 'light';
 
 function loadOpacity(): number {
   try {
-    const v = Number(localStorage.getItem(OPACITY_KEY));
+    const raw = localStorage.getItem(OPACITY_KEY);
+    if (raw === null) return 100;
+    const v = Number(raw);
     return Number.isFinite(v) ? Math.min(100, Math.max(50, v)) : 100;
   } catch {
     return 100;
@@ -61,7 +62,6 @@ try {
   /* 忽略 */
 }
 
-type Rect = { x: number; y: number; width: number; height: number };
 type Edge = 'left' | 'right' | 'top' | 'bottom';
 
 /** 底色 rgba：透明度滑杆只改底色，字体保持不透明（第 4 轮口径） */
@@ -72,31 +72,7 @@ const LIGHT_BG: [number, number, number] = [242, 242, 245];
 const DARK_HANDLE: [number, number, number] = [42, 42, 53];
 const LIGHT_HANDLE: [number, number, number] = [220, 220, 226];
 
-/**
- * 桌面计划应用入口（v2，第 5 轮）：
- * - 直角窗口（用户定，不用圆角）；底色透明度滑杆只改底色、字体不透明——
- *   窗口底色由根容器一层 rgba 背景承载，标题栏/同步条底色透明 + 磨砂；
- * - 收起（V）：第 5 轮改——最小化变悬浮已删（之前一点就弹回完整版，是轮询在
- *   悬浮态下读到旧的大尺寸误触发回完整版），改成收成只留顶栏的细条：仅显示
- *   GitHub 登录按钮 + 收起/最大化/关闭，再点展开；顶栏点登录会先展开再自动开始登录；
- * - 放大缩小：tauri.conf 允许 resize/maximize；贴靠放大改由轮询识别——□ 点的最大化
- *   有 expect 标记，无标记的最大化一律视为系统贴靠，自动还原到最大化前的位置尺寸，
- *   再由贴边收起接管；
- * - 托盘点击由前端接管（Rust 只发事件）：收起态先恢复原尺寸位置、最小化先还原、
- *   再按显隐切换——解决了只剩细边/最小化时点托盘不见窗口的问题；
- * - 设置页：外观（暗夜/白天 + 底色透明度）与 AI 接口聚合在里面，标题栏只留设置按钮；
- * - AI 整理：桌面版直接调设置页里配的接口（DeepSeek / OpenAI / 自定义），
- *   按用户一句话把大计划拆成小步骤，确认后落到待办；
- * - 边缘收起：每 500ms 查窗口位置与主显示器尺寸，贴边且稳定、未最大化时收成 24px 细边；
- * - 登录根因（第 5 轮查实）：@tauri-apps/plugin-http 的 fetch 除命令许可外还要在
- *   capability 里配 URL scope（http:default + allow），之前只给了 http:allow-fetch、
- *   未配任何 URL，全部请求都被插件以拒绝访问驳回——表现为「网络异常，拿不到确认码」；
- *   本轮 capabilities 已补 scope（GitHub 两域 + DeepSeek/OpenAI + https 通配，
- *   覆盖用户自定义 AI 地址）；登录与 AI 的失败文案也改成带具体原因，不再一律网络异常；
- * - 稳定优化：轮询加进行中 guard（上一轮没跑完不重叠跑）；重复启动只聚焦已有窗口
- *   （single-instance 插件，Rust 侧）；全部窗口操作 try/catch，静默失败不闪退。
- * 与网站计划组件同一份源码（PlanPage + store），网站改计划、CI 重打安装包即一起更新。
- */
+/** Desktop window changes are serialized; edge hiding runs only after a drag. */
 function PlanApp() {
   const store = useLocalStore();
   const [opacity, setOpacity] = useState(loadOpacity);
@@ -106,15 +82,34 @@ function PlanApp() {
   const [autoLogin, setAutoLogin] = useState(false);
   const [collapsed, setCollapsed] = useState<Edge | null>(null);
   const [aiView, setAiView] = useState<'main' | 'ai'>('main');
-  const collapsedRectRef = useRef<Rect | null>(null);
-  const headerOnlyRectRef = useRef<Rect | null>(null);
-  const lastRectRef = useRef<Rect | null>(null);
-  const suppressCollapseRef = useRef(false);
-  const expectMaximizedRef = useRef(false);
+  const [windowError, setWindowError] = useState<string | null>(null);
+  const controllerRef = useRef<DesktopWindowController | null>(null);
   const restoreTimer = useRef<number | null>(null);
-  const collapsedRef = useRef<Edge | null>(null);
-  const headerOnlyRef = useRef(false);
-  const trayToggleRef = useRef<(kind: 'toggle' | 'show') => Promise<void>>(async () => {});
+  if (!controllerRef.current) {
+    const win = planWindow();
+    if (win) controllerRef.current = new DesktopWindowController({
+      readRect: async () => {
+        const [pos, size] = await Promise.all([win.outerPosition(), win.innerSize()]);
+        return { x: pos.x, y: pos.y, width: size.width, height: size.height };
+      },
+      scaleFactor: () => win.scaleFactor(),
+      setSize: (width, height) => win.setSize(new PhysicalSize(width, height)),
+      setMinSize: (width, height) => win.setMinSize(new LogicalSize(width, height)),
+      setPosition: (x, y) => win.setPosition(new PhysicalPosition(x, y)),
+      isMaximized: () => win.isMaximized(),
+      unmaximize: () => win.unmaximize(),
+      toggleMaximize: () => win.toggleMaximize(),
+    }, () => {
+      setHeaderOnly(controllerRef.current!.headerOnly);
+      setCollapsed(controllerRef.current!.edge);
+    });
+  }
+  useDesktopDrag();
+
+  const reportWindowError = (error: unknown) => {
+    console.error('Desktop window operation failed', error);
+    setWindowError('窗口操作失败，请重试；可从系统托盘重新显示窗口。');
+  };
 
   // html/body 背景透明（index.css 给 body 定了 #050505，行内样式压过它）
   useEffect(() => {
@@ -125,13 +120,6 @@ function PlanApp() {
       /* 忽略 */
     }
   }, []);
-
-  useEffect(() => {
-    collapsedRef.current = collapsed;
-  }, [collapsed]);
-  useEffect(() => {
-    headerOnlyRef.current = headerOnly;
-  }, [headerOnly]);
 
   const changeOpacity = (v: number) => {
     setOpacity(v);
@@ -157,243 +145,63 @@ function PlanApp() {
       window.clearTimeout(restoreTimer.current);
       restoreTimer.current = null;
     }
-    const rect = collapsedRectRef.current;
-    setCollapsed(null);
-    suppressCollapseRef.current = true;
-    const win = planWindow();
-    if (win && rect) {
-      try {
-        await win.setPosition(new PhysicalPosition(rect.x, rect.y));
-        await win.setSize(new PhysicalSize(rect.width, rect.height));
-      } catch {
-        /* 忽略 */
-      }
-    }
+    try { await controllerRef.current?.restoreEdge(); } catch (error) { reportWindowError(error); }
   };
-
   const scheduleRestore = () => {
     if (restoreTimer.current !== null) return;
-    restoreTimer.current = window.setTimeout(() => {
-      restoreTimer.current = null;
-      void restoreFromCollapse();
-    }, 200);
+    restoreTimer.current = window.setTimeout(() => { void restoreFromCollapse(); }, 200);
   };
   const cancelScheduledRestore = () => {
-    if (restoreTimer.current !== null) {
-      window.clearTimeout(restoreTimer.current);
-      restoreTimer.current = null;
-    }
+    if (restoreTimer.current !== null) window.clearTimeout(restoreTimer.current);
+    restoreTimer.current = null;
   };
-
-  /** 收起（V）：窗口收成只留顶栏的细条（48px），记下完整版位置尺寸供展开恢复；
-      已最大化时先还原再记，避免记一个全屏尺寸。细条宽度不小于 320（第 6 轮：
-      之前细条能被拖到最小宽度，登录按钮会被挤坏），并把最小尺寸一并锁到 320×48，
-      展开时恢复 280×200。 */
   const enterHeaderOnly = async () => {
-    if (headerOnlyRef.current) return;
-    const win = planWindow();
-    if (win) {
-      try {
-        if (await win.isMaximized()) await win.unmaximize();
-        const pos = await win.outerPosition();
-        const size = await win.outerSize();
-        const sc = await win.scaleFactor().catch(() => 1);
-        headerOnlyRectRef.current = { x: pos.x, y: pos.y, width: size.width, height: size.height };
-        const lw = Math.max(320, Math.round(size.width / sc));
-        setHeaderOnly(true);
-        await win.setSize(new LogicalSize(lw, STRIP_HEIGHT));
-        await win.setMinSize(new LogicalSize(320, STRIP_HEIGHT));
-      } catch {
-        setHeaderOnly(true);
-      }
-    } else {
-      setHeaderOnly(true);
-    }
+    try { await controllerRef.current?.enterHeader(); } catch (error) { reportWindowError(error); }
   };
-
-  /** 展开：恢复收起前的位置尺寸（已最大化时先还原，避免在最大化态下改尺寸无效），
-      并把最小尺寸恢复成正常窗口的 280×200 */
   const exitHeaderOnly = async () => {
-    if (!headerOnlyRef.current) return;
-    const rect = headerOnlyRectRef.current;
-    setHeaderOnly(false);
-    const win = planWindow();
-    if (win && rect) {
-      try {
-        if (await win.isMaximized()) await win.unmaximize();
-        await win.setMinSize(new LogicalSize(280, 200));
-        await win.setSize(new PhysicalSize(rect.width, rect.height));
-        await win.setPosition(new PhysicalPosition(rect.x, rect.y));
-      } catch {
-        /* 忽略 */
-      }
-    }
+    try { await controllerRef.current?.exitHeader(); } catch (error) { reportWindowError(error); }
   };
-
-  /** 最大化按钮：先记 expect，轮询凭它区分“用户点的最大化”与“系统贴靠” */
   const handleToggleMaximize = async () => {
-    const win = planWindow();
-    if (!win) return;
-    try {
-      await win.toggleMaximize();
-      expectMaximizedRef.current = await win.isMaximized();
-    } catch {
-      /* 忽略 */
-    }
-  };
-
-  // 托盘点击由前端接管（Rust 侧只发 tray-toggle / tray-show 事件）：
-  // 收起态先恢复原尺寸位置、最小化先还原，再按显隐切换；全部 try/catch，绝不抛到界面。
-  trayToggleRef.current = async (kind: 'toggle' | 'show') => {
-    try {
-      const win = planWindow();
-      if (!win) return;
-      const wasCollapsed = collapsedRef.current;
-      if (wasCollapsed) await restoreFromCollapse();
-      if (await win.isMinimized()) {
-        await win.unminimize();
-        await win.show();
-        await win.setFocus();
-        return;
-      }
-      if (!wasCollapsed && kind === 'toggle' && (await win.isVisible())) {
-        await win.hide();
-        return;
-      }
-      await win.show();
-      await win.setFocus();
-    } catch {
-      /* 静默 */
-    }
+    try { await controllerRef.current?.maximize(); } catch (error) { reportWindowError(error); }
   };
 
   useEffect(() => {
-    let un1: (() => void) | undefined;
-    let un2: (() => void) | undefined;
-    let cancelled = false;
-    (async () => {
-      try {
-        const u1 = await listen('tray-toggle', () => {
-          void trayToggleRef.current('toggle');
-        });
-        const u2 = await listen('tray-show', () => {
-          void trayToggleRef.current('show');
-        });
-        if (cancelled) {
-          u1();
-          u2();
-        } else {
-          un1 = u1;
-          un2 = u2;
-        }
-      } catch {
-        /* 非 Tauri 环境忽略 */
-      }
-    })();
-    return () => {
-      cancelled = true;
-      un1?.();
-      un2?.();
-    };
-  }, []);
-
-  // 窗口状态轮询（未收起时跑）：贴靠还原、悬浮自动进出、边缘收起。
-  // 进行中 guard：上一轮没跑完不重叠跑，避免多轮交错改位置/尺寸导致窗口乱跳。
-  useEffect(() => {
-    if (collapsed) return;
-    let stopped = false;
-    let ticking = false;
-    let lastPos: { x: number; y: number } | null = null;
-    const tick = async () => {
-      if (ticking) return;
-      ticking = true;
+    let disposed = false;
+    const unlisteners: (() => void)[] = [];
+    void listen('window-restore', () => { void restoreFromCollapse(); }).then((stop) => {
+      if (disposed) stop(); else unlisteners.push(stop);
+    }).catch(reportWindowError);
+    void listen('tray-toggle', async () => {
       try {
         const win = planWindow();
-        if (!win) return;
-        // 最大化：有 expect = 用户点的 □，留着；无 expect = 系统贴靠，还原到最大化前的位置尺寸
-        if (await win.isMaximized()) {
-          if (expectMaximizedRef.current) {
-            expectMaximizedRef.current = false;
-            lastPos = null;
-            return;
-          }
-          const r = lastRectRef.current;
-          try {
-            await win.unmaximize();
-            if (r) {
-              await win.setPosition(new PhysicalPosition(r.x, r.y));
-              await win.setSize(new PhysicalSize(r.width, r.height));
-            }
-          } catch {
-            /* 忽略 */
-          }
-          expectMaximizedRef.current = false;
-          lastPos = null;
-          return;
-        }
-        const pos = await win.outerPosition();
-        const size = await win.outerSize();
-        const mon = await currentMonitor();
-        if (!mon) return;
-        const ox = mon.position.x;
-        const oy = mon.position.y;
-        const mw = mon.size.width;
-        const mh = mon.size.height;
-        lastRectRef.current = { x: pos.x, y: pos.y, width: size.width, height: size.height };
-        // 边缘收起
-        const nearRight = pos.x + size.width >= ox + mw - EDGE_TOLERANCE;
-        const nearLeft = pos.x <= ox + EDGE_TOLERANCE;
-        const nearTop = pos.y <= oy + EDGE_TOLERANCE;
-        const nearBottom = pos.y + size.height >= oy + mh - EDGE_TOLERANCE;
-        const edge: Edge | null = nearRight
-          ? 'right'
-          : nearLeft
-            ? 'left'
-            : nearTop
-              ? 'top'
-              : nearBottom
-                ? 'bottom'
-                : null;
-        if (!edge) {
-          lastPos = { x: pos.x, y: pos.y };
-          suppressCollapseRef.current = false;
-          return;
-        }
-        // 恢复后位置未变过时不自动收起（用户刚把窗口拉回来，不应立刻又收走）
-        if (suppressCollapseRef.current) {
-          lastPos = { x: pos.x, y: pos.y };
-          return;
-        }
-        if (lastPos && lastPos.x === pos.x && lastPos.y === pos.y) {
-          collapsedRectRef.current = { x: pos.x, y: pos.y, width: size.width, height: size.height };
-          setCollapsed(edge);
-          if (edge === 'right') {
-            await win.setPosition(new PhysicalPosition(ox + mw - EDGE_PEEK, pos.y));
-          } else if (edge === 'left') {
-            await win.setPosition(new PhysicalPosition(ox - size.width + EDGE_PEEK, pos.y));
-          } else if (edge === 'top') {
-            await win.setPosition(new PhysicalPosition(pos.x, oy - size.height + EDGE_PEEK));
-          } else {
-            await win.setPosition(new PhysicalPosition(pos.x, oy + mh - EDGE_PEEK));
-          }
-          lastPos = null;
-        } else {
-          lastPos = { x: pos.x, y: pos.y };
-        }
-      } catch {
-        /* Tauri 不可用时静默 */
-      } finally {
-        ticking = false;
-      }
+        if (controllerRef.current?.edge) await restoreFromCollapse();
+        else await win?.hide();
+      } catch (error) { reportWindowError(error); }
+    }).then((stop) => {
+      if (disposed) stop(); else unlisteners.push(stop);
+    }).catch(reportWindowError);
+    const onDragEnd = async () => {
+      try {
+        const monitor = await currentMonitor();
+        if (disposed || !monitor) return;
+        const area = monitor.workArea;
+        await controllerRef.current?.collapse({
+          x: area.position.x, y: area.position.y,
+          width: area.size.width, height: area.size.height,
+        });
+      } catch (error) { if (!disposed) reportWindowError(error); }
     };
-    const id = window.setInterval(() => {
-      if (!stopped) void tick();
-    }, 500);
+    const onError = (event: Event) => reportWindowError((event as CustomEvent).detail);
+    window.addEventListener('plan-drag-end', onDragEnd);
+    window.addEventListener('plan-window-error', onError);
     return () => {
-      stopped = true;
-      window.clearInterval(id);
+      disposed = true;
+      unlisteners.forEach((stop) => stop());
+      cancelScheduledRestore();
+      window.removeEventListener('plan-drag-end', onDragEnd);
+      window.removeEventListener('plan-window-error', onError);
     };
-  }, [collapsed]);
+  }, []);
 
   const light = theme === 'light';
   const bg = rgba(light ? LIGHT_BG : DARK_BG, opacity / 100);
@@ -405,7 +213,7 @@ function PlanApp() {
   // 上边缘收起时露底沿 → 把手放底部；下边缘收起时露顶沿 → 把手放顶部。
   // 细边上另带一个 ✕：收起时不用展开也能直接关窗口。
   // 图标统一用 lucide（第 6 轮，与标题栏同款，不再混排文字符号）。
-  if (collapsed) {
+  const renderEdge = () => {
     const chevronIcon =
       collapsed === 'right' ? (
         <ChevronLeft size={14} />
@@ -483,7 +291,7 @@ function PlanApp() {
 
   // 只留顶栏态：一条 48px 细条，仅显示 GitHub 登录按钮 + 收起/最大化/关闭
   // （用户定）。登录按钮点一下先展开回完整版，再自动开始登录（已有令牌则只展开）。
-  if (headerOnly) {
+  const renderStrip = () => {
     let stripToken = '';
     try {
       stripToken = localStorage.getItem('zabox-plan-sync-token') ?? '';
@@ -519,7 +327,7 @@ function PlanApp() {
             GitHub 登录
           </button>
         )}
-        <div data-tauri-drag-region className="flex-1 min-w-0 h-full" />
+        <div data-plan-drag-region className="flex-1 min-w-0 h-full" />
         <button
           type="button"
           title="展开"
@@ -562,58 +370,34 @@ function PlanApp() {
     />
   );
 
-  // 设置页：标题栏 + 设置内容（不同步条、不显示计划页）
-  if (settingsOpen) {
-    return (
-      <div
-        className={`relative min-h-screen w-full overflow-hidden ${textCls}`}
-        style={{ backgroundColor: bg }}
-      >
-        {titleBar}
-        <div className="px-3 sm:px-4 py-3">
-          <PlanSettings
-            theme={theme}
-            onThemeChange={changeTheme}
-            opacity={opacity}
-            onOpacityChange={changeOpacity}
-            onBack={() => setSettingsOpen(false)}
-          />
-        </div>
-      </div>
-    );
-  }
-
   return (
-    <div
-      className={`relative min-h-screen w-full overflow-hidden ${textCls}`}
-      style={{ backgroundColor: bg }}
-    >
-      {titleBar}
-      <PlanSyncBar
-        store={store}
-        theme={theme}
-        aiView={aiView}
-        onAiToggle={() => setAiView((v) => (v === 'ai' ? 'main' : 'ai'))}
-        autoLogin={autoLogin}
-        onAutoLoginConsumed={() => setAutoLogin(false)}
-      />
-      <div className="px-3 sm:px-4 py-3">
-        {aiView === 'ai' ? (
-          <PlanAiView
-            store={store}
-            theme={theme}
-            onOpenSettings={() => setSettingsOpen(true)}
-          />
-        ) : (
-          <PlanPage store={store} hideHeader hideAiButton flatPanels />
-        )}
+    <div className={`relative h-dvh w-full overflow-hidden ${textCls}`} style={{ backgroundColor: bg }}>
+      {collapsed ? renderEdge() : headerOnly ? renderStrip() : titleBar}
+      {windowError && !headerOnly && !collapsed && (
+        <div role="alert" className="px-3 py-2 text-xs bg-red-500/20">
+          {windowError}
+          <button type="button" className="ml-2 underline" onClick={() => setWindowError(null)}>关闭提示</button>
+        </div>
+      )}
+      <div hidden={!!collapsed || headerOnly} className="h-[calc(100dvh-40px)] overflow-y-auto">
+        <div hidden={settingsOpen}>
+          <PlanSyncBar store={store} theme={theme} aiView={aiView}
+            onAiToggle={() => setAiView((v) => v === 'ai' ? 'main' : 'ai')}
+            autoLogin={autoLogin} onAutoLoginConsumed={() => setAutoLogin(false)} />
+        </div>
+        <div className="px-3 sm:px-4 py-3">
+          {settingsOpen ? (
+            <PlanSettings theme={theme} onThemeChange={changeTheme} opacity={opacity}
+              onOpacityChange={changeOpacity} onBack={() => setSettingsOpen(false)} />
+          ) : aiView === 'ai' ? (
+            <PlanAiView store={store} theme={theme} onOpenSettings={() => setSettingsOpen(true)} />
+          ) : <PlanPage store={store} hideHeader hideAiButton flatPanels />}
+        </div>
       </div>
     </div>
   );
 }
 
 createRoot(document.getElementById('root')!).render(
-  <StrictMode>
-    <PlanApp />
-  </StrictMode>,
+  <StrictMode><PlanApp /></StrictMode>,
 );

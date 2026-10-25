@@ -13,6 +13,12 @@ on:
     paths:
       - 'src-tauri/**'
       - 'src/plan-app.tsx'
+      - 'src/main.tsx'
+      - 'src/services/desktop*.ts'
+      - 'src/components/v2/desktopWindow.ts'
+      - 'src/components/v2/useDesktopDrag.ts'
+      - 'tests/**'
+      - 'package-lock.json'
       - 'src/components/v2/PlanSyncBar.tsx'
       - 'src/components/v2/PlanTitleBar.tsx'
       - 'src/components/v2/PlanSettings.tsx'
@@ -32,6 +38,7 @@ on:
       - 'vite.config.plan.ts'
       - 'package.json'
       - '.github/workflows/plan-desktop.yml'
+  pull_request:
   workflow_dispatch:
 
 permissions:
@@ -47,12 +54,24 @@ jobs:
           node-version: 20
           cache: npm
       - run: npm ci
+      - run: npm run lint
+      - run: npm test
+      - run: npm run build
+      - run: npm run build:plan
       - uses: dtolnay/rust-toolchain@stable
+      - run: cargo test --manifest-path src-tauri/Cargo.toml
       - uses: tauri-apps/tauri-action@v0
         with:
           projectPath: .
           tauriScript: npx @tauri-apps/cli@2
+      - uses: actions/upload-artifact@v4
+        with:
+          name: zabox-plan-windows-test
+          path: |
+            src-tauri/target/release/bundle/nsis/*.exe
+            src-tauri/target/release/bundle/msi/*.msi
       - uses: softprops/action-gh-release@v2
+        if: github.ref == 'refs/heads/main' && github.event_name != 'pull_request'
         with:
           tag_name: plan-desktop
           name: 杂盒计划桌面版

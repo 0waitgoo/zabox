@@ -6,23 +6,22 @@ import {
   widgetTintOf,
   type LocalStore,
 } from '../../store/localStore';
-import { AiView, PlansSection, TasksSection } from '../v2/TaskSections';
+import { AiView, TasksSection } from '../v2/TaskSections';
+import { MonthView, TimelineView } from '../v2/PlanScheduleViews';
 import { useCardDragScroll } from '../v2/TaskCard';
 import WidgetTintLayer from '../v2/WidgetTint';
 
 /**
- * 计划全窗页（第八十八轮，用户：「给计划做一个独立全窗页面，因为这是我们的重点小组件」）：
- * - 整页工作区：待办 / 长期计划双列铺开（沿用第八十七轮加密后的 pinned 紧凑结构——
- *   标题在顶、列表各自滚动占满中间、添加行钉列底），一屏可见条目远多于卡面；
- *   手机端双列改单列上下排（每列自带高度、自滚），功能不减。
- * - 数据与逻辑同源：与主页计划卡读写同一份 store（tasks/plans）与同一套节区组件
- *   （TasksSection / PlansSection / AiView 直接复用），页里改完回卡面即时一致、反之亦然；
- *   本页不持有任何计划数据状态，唯一的本地状态是主视图 / AI 整理切换（与卡面同语言）。
- * - 呈现沿用卡面材质：两列各是一面 .group-card-scope.widget-panel（与 2x 卡面同壳），
+ * 计划全窗页（第八十八轮，用户：「给计划做一个独立全窗页面，因为这是我们的重点小组件」，
+ * 2026-10-26 重新设计后：待办 + 日程表（单日）+ 推进表（多日区间 month 格），与卡面同源）：
+ * - 整页工作区：待办与日程表双列铺开、推进表全宽在下（沿用卡面同一套节区组件），
+ *   手机端单列上下排；数据与逻辑同源：与主页计划卡读写同一份 store（tasks/plans），
+ *   页里改完回卡面即时一致、反之亦然；本页不持有任何计划数据状态，唯一的本地状态是
+ *   主视图 / AI 整理切换（与卡面同语言）。
+ * - 呈现沿用卡面材质：各面板是一面 .group-card-scope.widget-panel（与 2x 卡面同壳），
  *   专属底色与卡面同一份 widgetTints 分配；三档外观随 index.css 作用域规则自动适配，
- * * - 页头沿用子页样式（标题 + 说明，见组件商店页）；返回主页走顶栏 LOGO / 导航（子页惯例，
- *   顶栏不为本页加按钮）。卡内拖拽滚动复用 TaskCard 导出的 useCardDragScroll，按落点滚对应列。
- * - 本轮纯呈现层：数据结构与迁移一概不动，计划卡除卡头加入口外不改。
+ *   返回主页走顶栏 LOGO / 导航（子页惯例，顶栏不为本页加按钮）。卡内拖拽滚动复用
+ *   TaskCard 导出的 useCardDragScroll，按落点滚对应列。
  */
 export default function PlanPage({
   store,
@@ -40,7 +39,7 @@ export default function PlanPage({
   hideHeader?: boolean;
   /** 不渲染页头 AI 整理按钮（桌面版用：按钮已移到同步条） */
   hideAiButton?: boolean;
-  /** 平铺节区（桌面版用）：去掉圆角卡框，待办与长期计划直接上下排、页面整体滚动 */
+  /** 平铺节区（桌面版用）：去掉圆角卡框，待办、日程表与推进表直接上下排、页面整体滚动 */
   flatPanels?: boolean;
 }) {
   const { tasks, plans } = store.data;
@@ -76,7 +75,7 @@ export default function PlanPage({
           <div>
             <h2 className="text-xl sm:text-2xl font-bold tracking-tight">计划</h2>
             <p className="text-xs sm:text-sm text-white/45 mt-1">
-              待办与长期计划的全窗工作区——和主页计划卡同一份数据，在哪边改都即时同步。
+              待办、日程表与推进表的全窗工作区——和主页计划卡同一份数据，在哪边改都即时同步。
             </p>
           </div>
           <div className="flex items-center gap-3 shrink-0">
@@ -116,43 +115,50 @@ export default function PlanPage({
           </div>
         </div>
       ) : flatPanels ? (
-        /* 平铺（桌面版）：不要圆角卡框，待办在上、长期计划在下直接排，页面整体滚动；
-           节区不用 pinned（无固定列高、无列内滚动），列表自然伸展、添加行跟在列表后 */
+        /* 平铺（桌面版）：不要圆角卡框，待办、日程表、推进表直接上下排，页面整体滚动 */
         <div className="flex flex-col gap-8">
           <TasksSection store={store} />
-          <PlansSection store={store} />
+          <TimelineView store={store} />
+          <MonthView store={store} />
         </div>
       ) : (
-        /* 双列工作区：桌面吃满剩余视口高（两列 pinned 各自滚动），手机单列上下排、
-           每列 68dvh 自滚；拖拽滚动按指针落点找 [data-task-col-scroll] 接管对应列 */
-        <div
-          ref={dragScroll.scrollRef}
-          onPointerDown={dragScroll.onPointerDown}
-          onClickCapture={dragScroll.onClickCapture}
-          data-task-scroll
-          data-nodrag
-          className="md:h-[calc(100dvh-13.5rem)] md:min-h-[26rem]"
-        >
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4 md:h-full min-h-0">
-            <div
-              data-plan-panel="tasks"
-              className={`${panelCls} h-[68dvh] min-h-[24rem] md:h-auto md:min-h-0`}
-            >
-              {tint && (
-                <WidgetTintLayer tint={tint} emoji="📋" watermarkOpacity={bothEmpty ? 0.1 : 0} />
-              )}
-              <div className="relative h-full min-h-0">
-                <TasksSection store={store} pinned />
+        /* 工作区：待办与日程表双列（桌面吃满剩余视口高，手机单列上下排），
+           推进表全宽在下；拖拽滚动按指针落点找 [data-task-col-scroll] 接管对应列 */
+        <div className="flex flex-col gap-4">
+          <div
+            ref={dragScroll.scrollRef}
+            onPointerDown={dragScroll.onPointerDown}
+            onClickCapture={dragScroll.onClickCapture}
+            data-task-scroll
+            data-nodrag
+          >
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div
+                data-plan-panel="tasks"
+                className={`${panelCls} h-[68dvh] min-h-[24rem] md:h-[calc(100dvh-13.5rem)] md:min-h-[26rem]`}
+              >
+                {tint && (
+                  <WidgetTintLayer tint={tint} emoji="📋" watermarkOpacity={bothEmpty ? 0.1 : 0} />
+                )}
+                <div className="relative h-full min-h-0">
+                  <TasksSection store={store} pinned />
+                </div>
+              </div>
+              <div
+                data-plan-panel="timeline"
+                className={`${panelCls} h-[68dvh] min-h-[24rem] md:h-[calc(100dvh-13.5rem)] md:min-h-[26rem]`}
+              >
+                {tint && <WidgetTintLayer tint={tint} emoji="📋" watermarkOpacity={0} />}
+                <div className="relative h-full min-h-0 overflow-y-auto">
+                  <TimelineView store={store} />
+                </div>
               </div>
             </div>
-            <div
-              data-plan-panel="plans"
-              className={`${panelCls} h-[68dvh] min-h-[24rem] md:h-auto md:min-h-0`}
-            >
-              {tint && <WidgetTintLayer tint={tint} emoji="📋" watermarkOpacity={0} />}
-              <div className="relative h-full min-h-0">
-                <PlansSection store={store} pinned />
-              </div>
+          </div>
+          <div data-plan-panel="month" className={panelCls}>
+            {tint && <WidgetTintLayer tint={tint} emoji="📋" watermarkOpacity={0} />}
+            <div className="relative">
+              <MonthView store={store} />
             </div>
           </div>
         </div>

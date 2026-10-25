@@ -33,7 +33,7 @@ try {
   await root.waitFor();
   const colorOf = (selector: string) => page.locator(selector).first().evaluate((element) => getComputedStyle(element).color);
   assert.equal(await colorOf('[data-plan-desktop]'), 'rgb(0, 0, 0)');
-  assert.equal(await page.locator('[data-plan-logo]').evaluate((element) => getComputedStyle(element).filter), 'brightness(0)');
+  assert.equal(await page.locator('[data-plan-logo]').count(), 0);
   assert.equal(await colorOf('[data-task-add]'), 'rgb(0, 0, 0)');
   assert.equal(await page.locator('[data-task-add]').evaluate((element) => getComputedStyle(element, '::placeholder').color), 'rgb(0, 0, 0)');
   await page.locator('[data-task-add]').fill('白天文字检查');
@@ -44,6 +44,9 @@ try {
   assert.equal(await colorOf('[aria-label="取消置顶"]'), 'rgb(0, 0, 0)');
 
   await page.getByTitle('设置', { exact: true }).click();
+  assert.equal(await page.locator('[data-plan-logo]').evaluate((element) => getComputedStyle(element).filter), 'brightness(0)');
+  assert.equal(await page.getByText('杂盒计划', { exact: true }).count(), 1);
+  assert.equal(await page.getByRole('link', { name: 'https://zahe.hiitun.top/', exact: true }).getAttribute('href'), 'https://zahe.hiitun.top/');
   const closeSwitch = page.getByRole('switch', { name: '点击关闭时最小化到任务栏' });
   assert.equal(await closeSwitch.isChecked(), true);
   await closeSwitch.locator('..').click();
@@ -69,6 +72,7 @@ try {
   await root.waitFor();
   assert.equal(await root.evaluate((element) => getComputedStyle(element).backgroundColor), 'rgb(217, 232, 218)');
   assert.equal(await colorOf('[data-plan-desktop]'), 'rgb(0, 0, 0)');
+  assert.equal(await page.locator('[data-plan-logo]').count(), 0);
   await page.getByTitle('关闭窗口', { exact: true }).waitFor();
   await page.getByTitle('设置', { exact: true }).click();
   assert.equal(await closeSwitch.isChecked(), false);

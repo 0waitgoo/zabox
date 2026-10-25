@@ -1,4 +1,6 @@
 import React, { useState } from 'react';
+import { openUrl } from '@tauri-apps/plugin-opener';
+import { isTauri } from './planWindow';
 import {
   AI_PROVIDER_DEFAULTS,
   loadAiConfig,
@@ -39,6 +41,7 @@ export default function PlanSettings({
 }) {
   const [cfg, setCfg] = useState<AiConfig>(loadAiConfig);
   const [saved, setSaved] = useState(false);
+  const [websiteError, setWebsiteError] = useState(false);
   const light = theme === 'light';
 
   const faint = light ? 'text-zinc-500' : 'text-white/45';
@@ -233,6 +236,24 @@ export default function PlanSettings({
           </button>
           {saved && <span className="text-xs text-emerald-500">已保存，只存本机</span>}
         </div>
+      </section>
+      <section className="flex flex-col gap-3">
+        <h3 className={sectionTitle}>关于</h3>
+        <div className="flex items-center gap-2">
+          <img data-plan-logo src="logo.svg" alt="" className="w-6 h-6 shrink-0" />
+          <span className={sectionTitle}>杂盒计划</span>
+        </div>
+        <p className={`text-xs ${faint}`}>
+          官网：<a href="https://zahe.hiitun.top/" target="_blank" rel="noopener noreferrer"
+            className="underline underline-offset-2 hover:text-indigo-400"
+            onClick={(event) => {
+              if (!isTauri()) return;
+              event.preventDefault();
+              setWebsiteError(false);
+              void openUrl('https://zahe.hiitun.top/').catch(() => setWebsiteError(true));
+            }}>https://zahe.hiitun.top/</a>
+        </p>
+        {websiteError && <p role="alert" className={`text-xs ${faint}`}>无法打开浏览器，请复制上方网址访问官网。</p>}
       </section>
     </div>
   );

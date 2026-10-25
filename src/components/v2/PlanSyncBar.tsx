@@ -59,6 +59,7 @@ export default function PlanSyncBar({
   const [token, setToken] = useState(loadToken);
   const [busy, setBusy] = useState(false);
   const [status, setStatus] = useState<string | null>(null);
+  const [showError, setShowError] = useState(false);
   const [loggingIn, setLoggingIn] = useState(false);
   const loginRef = useRef<AbortController | null>(null);
   const dataRef = useRef(store.data);
@@ -170,7 +171,7 @@ export default function PlanSyncBar({
         await win.setFocus();
       }
     } catch (error) {
-      if (!controller.signal.aborted) setStatus(`登录失败：${errDetail(error)}`);
+      if (!controller.signal.aborted) { setStatus(`登录失败：${errDetail(error)}`); setShowError(true); }
     } finally {
       if (loginRef.current === controller) {
         loginRef.current = null;
@@ -222,8 +223,12 @@ export default function PlanSyncBar({
       </button>
       {loggingIn && <button type="button" onClick={cancelLogin} className={iconCls} title="取消登录" aria-label="取消登录"><X size={12} /></button>}
       {status && (status.includes('失败')
-        ? <span role="status" title={status} aria-label={status} className="shrink-0 text-red-400"><CircleAlert size={14} /></span>
+        ? <button type="button" title={status} aria-label="查看错误详情" onClick={() => setShowError((value) => !value)} className="shrink-0 text-red-400"><CircleAlert size={14} /></button>
         : <span role="status" className="sr-only">{status}</span>)}
+      {showError && status?.includes('失败') && <div role="alert" className="fixed left-2 right-2 top-11 z-[120] flex items-start gap-2 rounded-lg border border-red-400/40 bg-[#1e1e26] px-3 py-2 text-xs text-white shadow-xl">
+        <span className="flex-1">{status}</span>
+        <button type="button" aria-label="关闭错误提示" onClick={() => setShowError(false)}><X size={14} /></button>
+      </div>}
     </div>
   );
 }

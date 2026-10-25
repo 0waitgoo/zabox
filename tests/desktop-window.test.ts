@@ -170,3 +170,16 @@ test('click expansion keeps the strip position and toolbar at the top near the s
   await f.controller.exitHeader();
   assert.deepEqual(f.rect(), { x: 700, y: 950, width: 420, height: 680 });
 });
+
+test('one shortcut toggles full/compact, while recovering from tray always expands', async () => {
+  const f = fixture();
+  await f.controller.toggleHeader();
+  assert.equal(f.controller.headerOnly, true);
+  await f.controller.toggleHeader();
+  assert.equal(f.controller.headerOnly, false);
+  await f.controller.toggleHeader(true);
+  assert.equal(f.controller.headerOnly, false);
+  await f.controller.enterHeader();
+  await f.controller.toggleHeader(true);
+  assert.equal(f.controller.headerOnly, false);
+});

@@ -95,6 +95,18 @@ export class DesktopWindowController {
     return this.run(() => this.restoreHeader());
   }
 
+  toggleHeader(forceExpand = false): Promise<void> {
+    return this.run(async () => {
+      if (this.edge && this.edgeRect) {
+        await this.win.setPosition(this.edgeRect.x, this.edgeRect.y);
+        this.edge = null;
+        this.changed();
+        await this.restoreHeader();
+      } else if (this.headerOnly || forceExpand) await this.restoreHeader();
+      else await this.collapseHeader();
+    });
+  }
+
   maximize(): Promise<void> {
     return this.run(async () => {
       await this.restoreHeader();

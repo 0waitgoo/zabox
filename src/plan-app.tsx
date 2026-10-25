@@ -25,7 +25,7 @@ import {
 } from '@tauri-apps/api/window';
 import { listen } from '@tauri-apps/api/event';
 import { invoke } from '@tauri-apps/api/core';
-import { DesktopShortcutController, loadExpandShortcut } from './components/v2/desktopShortcut';
+import { DesktopShortcutController, loadExpandShortcut, loadShortcutBinding } from './components/v2/desktopShortcut';
 import { DesktopWindowController } from './components/v2/desktopWindow';
 import { useDesktopDrag } from './components/v2/useDesktopDrag';
 import { planWindow } from './components/v2/planWindow';
@@ -92,13 +92,15 @@ function PlanApp() {
   const minimizeOnCloseRef = useRef(minimizeOnClose);
   minimizeOnCloseRef.current = minimizeOnClose;
   const [shortcutEnabled, setShortcutEnabled] = useState(loadExpandShortcut);
+  const [shortcutBinding, setShortcutBinding] = useState(loadShortcutBinding);
+  const [shortcutRecording, setShortcutRecording] = useState(false);
   const [shortcutBusy, setShortcutBusy] = useState(false);
   const [shortcutError, setShortcutError] = useState<string | null>(null);
   const shortcutRef = useRef<DesktopShortcutController | null>(null);
   if (!shortcutRef.current) shortcutRef.current = new DesktopShortcutController(
-    (enabled) => planWindow() ? invoke('set_expand_shortcut', { enabled }) : Promise.resolve(),
+    (enabled, accelerator) => planWindow() ? invoke('set_expand_shortcut', { enabled, accelerator }) : Promise.resolve(),
     { getItem: (key) => localStorage.getItem(key), setItem: (key, value) => localStorage.setItem(key, value) },
-    setShortcutEnabled,
+    (enabled, accelerator) => { setShortcutEnabled(enabled); setShortcutBinding(accelerator); },
   );
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [pinned, setPinned] = useState(loadAlwaysOnTop);
@@ -176,6 +178,26 @@ function PlanApp() {
     try { await shortcutRef.current?.setEnabled(enabled); }
     catch { setShortcutError('快捷键设置失败，可能已被其他软件占用，请重试。'); }
     finally { setShortcutBusy(false); }
+  };
+  const changeShortcutRecording = async (recording: boolean) => {
+    if (shortcutBusy) return;
+    setShortcutBusy(true);
+    setShortcutError(null);
+    try {
+      if (recording) await shortcutRef.current?.suspend();
+      else await shortcutRef.current?.initialize();
+      setShortcutRecording(recording);
+    } catch { setShortcutError('快捷键暂时无法设置，请重试。'); }
+    finally { setShortcutBusy(false); }
+  };
+  const changeShortcutBinding = async (value: string) => {
+    if (shortcutBusy) return;
+    setShortcutBusy(true);
+    try { await shortcutRef.current?.setAccelerator(value); setShortcutError(null); }
+    catch {
+      await shortcutRef.current?.initialize().catch(() => {});
+      setShortcutError('这个快捷键无法注册，可能已被占用，请换一组。');
+    } finally { setShortcutRecording(false); setShortcutBusy(false); }
   };
   const handleClose = async () => {
     const win = planWindow();
@@ -297,17 +319,16 @@ function PlanApp() {
     if (!win) return;
     let disposed = false;
     const unlisteners: (() => void)[] = [];
-    void listen('window-expand', async () => {
+    void listen<boolean>('window-shortcut', async (event) => {
       try {
-        await controllerRef.current?.restoreEdge();
-        await controllerRef.current?.exitHeader();
+        await controllerRef.current?.toggleHeader(event.payload);
       } catch (error) { reportWindowError(error); }
     }).then(async (stop) => {
       if (disposed) { stop(); return; }
       unlisteners.push(stop);
       setShortcutBusy(true);
       try { await shortcutRef.current?.initialize(); }
-      catch { if (!disposed) setShortcutError('Ctrl + ` 未启用，可能已被其他软件占用。'); }
+      catch { if (!disposed) setShortcutError('快捷键未启用，可能已被其他软件占用。'); }
       finally { if (!disposed) setShortcutBusy(false); }
     }).catch(reportWindowError);
     void win.onResized(() => {
@@ -540,7 +561,7 @@ function PlanApp() {
       pinned={pinned}
       pinBusy={pinBusy}
       onTogglePin={() => void togglePin()}
-      onSettingsToggle={() => setSettingsOpen((v) => !v)}
+      onSettingsToggle={() => { if (shortcutRecording) void changeShortcutRecording(false); setSettingsOpen((v) => !v); }}
       onToggleHeaderOnly={() => void enterHeaderOnly()}
       onToggleMaximize={() => void handleToggleMaximize()}
     />
@@ -570,9 +591,11 @@ function PlanApp() {
             <PlanSettings theme={theme} onThemeChange={changeTheme} customColor={customColor}
               onCustomColorChange={changeCustomColor} minimizeOnClose={minimizeOnClose}
               onMinimizeOnCloseChange={changeMinimizeOnClose} shortcutEnabled={shortcutEnabled}
-              shortcutBusy={shortcutBusy} shortcutError={shortcutError}
+              shortcutBusy={shortcutBusy} shortcutError={shortcutError} shortcutBinding={shortcutBinding}
+              shortcutRecording={shortcutRecording} onShortcutRecordingChange={(value) => void changeShortcutRecording(value)}
+              onShortcutBindingChange={(value) => void changeShortcutBinding(value)}
               onShortcutEnabledChange={(enabled) => void changeShortcutEnabled(enabled)} opacity={opacity}
-              onOpacityChange={changeOpacity} onBack={() => setSettingsOpen(false)} />
+              onOpacityChange={changeOpacity} onBack={() => { if (shortcutRecording) void changeShortcutRecording(false); setSettingsOpen(false); }} />
           ) : aiView === 'ai' ? (
             <PlanAiView store={store} theme={theme} onOpenSettings={() => setSettingsOpen(true)} />
           ) : <DesktopPlanWorkspace store={store} active={activeSection} onActiveChange={setActiveSection} />}

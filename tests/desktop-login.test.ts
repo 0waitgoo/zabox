@@ -1,5 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
+import { requireDesktopLoginService } from '../src/services/desktopOAuthConfig';
 import { tryDesktopLoginBridge, validBridge } from '../src/services/desktopLoginBridge';
 
 test('desktop bridge validates the loopback port, nonce and expiry', () => {
@@ -91,4 +92,10 @@ test('denied authorization returns an error to the app', async () => {
   });
   await tryDesktopLoginBridge();
   assert.equal(new URL(env.destination()).searchParams.get('error'), 'access_denied');
+});
+
+test('desktop login rejects the old website before starting an authorization wait', () => {
+  assert.throws(() => requireDesktopLoginService({ clientId: 'public-id' }), /尚未更新/);
+  assert.throws(() => requireDesktopLoginService({ desktopLoginBridge: 1 }), /尚未配置/);
+  assert.doesNotThrow(() => requireDesktopLoginService({ clientId: 'public-id', desktopLoginBridge: 1 }));
 });

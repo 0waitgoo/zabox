@@ -1,6 +1,7 @@
-import React, { useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { openUrl } from '@tauri-apps/plugin-opener';
 import { isTauri } from './planWindow';
+import { captureShortcut, shortcutLabel } from './desktopShortcut';
 import {
   AI_PROVIDER_DEFAULTS,
   loadAiConfig,
@@ -28,6 +29,10 @@ export default function PlanSettings({
   shortcutEnabled,
   shortcutBusy,
   shortcutError,
+  shortcutBinding,
+  shortcutRecording,
+  onShortcutRecordingChange,
+  onShortcutBindingChange,
   onShortcutEnabledChange,
   opacity,
   onOpacityChange,
@@ -42,11 +47,17 @@ export default function PlanSettings({
   shortcutEnabled: boolean;
   shortcutBusy: boolean;
   shortcutError: string | null;
+  shortcutBinding: string;
+  shortcutRecording: boolean;
+  onShortcutRecordingChange: (recording: boolean) => void;
+  onShortcutBindingChange: (value: string) => void;
   onShortcutEnabledChange: (enabled: boolean) => void;
   opacity: number;
   onOpacityChange: (v: number) => void;
   onBack: () => void;
 }) {
+  const shortcutButton = useRef<HTMLButtonElement>(null);
+  useEffect(() => { if (shortcutRecording) shortcutButton.current?.focus(); }, [shortcutRecording]);
   const [cfg, setCfg] = useState<AiConfig>(loadAiConfig);
   const [saved, setSaved] = useState(false);
   const [websiteError, setWebsiteError] = useState(false);
@@ -164,11 +175,24 @@ export default function PlanSettings({
           <span aria-hidden="true" className="relative w-9 h-5 shrink-0 rounded-full bg-zinc-500/40 peer-checked:bg-indigo-500 peer-focus-visible:ring-2 peer-focus-visible:ring-indigo-400 after:absolute after:top-0.5 after:left-0.5 after:h-4 after:w-4 after:rounded-full after:bg-white after:transition-transform peer-checked:after:translate-x-4" />
         </label>
         <label className="flex items-center justify-between gap-4 cursor-pointer">
-          <span className={`text-xs ${light ? 'text-zinc-900' : 'text-white/90'}`}>启用展开快捷键 <kbd className="ml-1">Ctrl + `</kbd></span>
-          <input type="checkbox" aria-label="启用展开快捷键" checked={shortcutEnabled} disabled={shortcutBusy}
+          <span className={`text-xs ${light ? 'text-zinc-900' : 'text-white/90'}`}>启用展开 / 收起快捷键</span>
+          <input type="checkbox" aria-label="启用展开收起快捷键" checked={shortcutEnabled} disabled={shortcutBusy || shortcutRecording}
             onChange={(event) => onShortcutEnabledChange(event.target.checked)}
             className="h-4 w-4 accent-indigo-500 cursor-pointer disabled:opacity-50" />
         </label>
+        <button ref={shortcutButton} type="button" aria-label="设置展开收起快捷键" disabled={shortcutBusy}
+          className={`self-start px-3 py-1.5 rounded-lg text-xs ${inactiveAppearanceButton} ${shortcutRecording ? 'ring-2 ring-indigo-400' : ''}`}
+          onClick={() => onShortcutRecordingChange(true)}
+          onBlur={() => { if (shortcutRecording && !shortcutBusy) onShortcutRecordingChange(false); }}
+          onKeyDown={(event) => {
+            if (!shortcutRecording) return;
+            event.preventDefault(); event.stopPropagation();
+            if (event.code === 'Escape') { onShortcutRecordingChange(false); return; }
+            const value = captureShortcut(event.nativeEvent);
+            if (value) onShortcutBindingChange(value);
+          }}>
+          {shortcutRecording ? '请按下组合键，Esc 取消' : shortcutLabel(shortcutBinding)}
+        </button>
         {shortcutError && <p role="alert" className={`text-[11px] ${faint}`}>{shortcutError}</p>}
       </section>
 

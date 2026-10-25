@@ -10,7 +10,7 @@ export default async function handler(req, res) {
   // GET /api/github-oauth?config=1 → 只回公开配置（client_id 本来就是公开信息）
   if (req.method === 'GET') {
     if (req.query && req.query.config) {
-      return res.status(200).json({ clientId });
+      return res.status(200).json({ clientId, desktopLoginBridge: 1 });
     }
     return res.status(400).json({ error: 'bad_request' });
   }

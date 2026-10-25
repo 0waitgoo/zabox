@@ -6,21 +6,32 @@ use tauri::{
     Emitter, Manager, WindowEvent,
 };
 
-use tauri_plugin_global_shortcut::{Code, GlobalShortcutExt, Modifiers, Shortcut, ShortcutState};
+use tauri_plugin_global_shortcut::{GlobalShortcutExt, Shortcut, ShortcutState};
 
-fn expand_shortcut() -> Shortcut {
-    Shortcut::new(Some(Modifiers::CONTROL), Code::Backquote)
+#[derive(Default)]
+struct ShortcutBinding {
+    shortcut: std::sync::Mutex<Option<Shortcut>>,
+    pressed: std::sync::atomic::AtomicBool,
 }
 
 #[tauri::command]
-fn set_expand_shortcut(app: tauri::AppHandle, enabled: bool) -> Result<(), String> {
-    let shortcut = expand_shortcut();
+fn set_expand_shortcut(app: tauri::AppHandle, enabled: bool, accelerator: String,
+    binding: tauri::State<'_, ShortcutBinding>) -> Result<(), String> {
+    use std::sync::atomic::Ordering;
+    let desired = if enabled { Some(accelerator.parse::<Shortcut>().map_err(|e| e.to_string())?) } else { None };
+    let mut current = binding.shortcut.lock().map_err(|_| "快捷键状态不可用")?;
+    if *current == desired { return Ok(()); }
     let manager = app.global_shortcut();
-    if enabled && !manager.is_registered(shortcut) {
-        manager.register(shortcut).map_err(|e| format!("无法注册 Ctrl+`：{e}"))?;
-    } else if !enabled && manager.is_registered(shortcut) {
-        manager.unregister(shortcut).map_err(|e| format!("无法取消 Ctrl+`：{e}"))?;
+    // Register the replacement first; a conflict must leave the previous binding usable.
+    if let Some(next) = desired { manager.register(next).map_err(|e| e.to_string())?; }
+    if let Some(previous) = *current {
+        if let Err(error) = manager.unregister(previous) {
+            if let Some(next) = desired { let _ = manager.unregister(next); }
+            return Err(error.to_string());
+        }
     }
+    *current = desired;
+    binding.pressed.store(false, Ordering::Relaxed);
     Ok(())
 }
 
@@ -36,6 +47,7 @@ fn restore_window(window: &tauri::WebviewWindow) {
 pub fn run() {
     tauri::Builder::default()
         .manage(desktop_login::LoginState::default())
+        .manage(ShortcutBinding::default())
         .invoke_handler(tauri::generate_handler![
             set_expand_shortcut,
             desktop_login::start_desktop_login,
@@ -48,11 +60,16 @@ pub fn run() {
                 let _ = window.emit("window-restore", ());
             }
         })
-        .plugin(tauri_plugin_global_shortcut::Builder::new().with_handler(|app, shortcut, event| {
-            if shortcut == &expand_shortcut() && event.state() == ShortcutState::Pressed {
+        .plugin(tauri_plugin_global_shortcut::Builder::new().with_handler(|app, _shortcut, event| {
+            use std::sync::atomic::Ordering;
+            let binding = app.state::<ShortcutBinding>();
+            if event.state() == ShortcutState::Released {
+                binding.pressed.store(false, Ordering::Relaxed);
+            } else if !binding.pressed.swap(true, Ordering::Relaxed) {
                 if let Some(window) = app.get_webview_window("main") {
-                    restore_window(&window);
-                    let _ = window.emit("window-expand", ());
+                    let recover = !window.is_visible().unwrap_or(true) || window.is_minimized().unwrap_or(false);
+                    if recover { restore_window(&window); }
+                    let _ = window.emit("window-shortcut", recover);
                 }
             }
         }).build())
@@ -121,4 +138,15 @@ pub fn run() {
         })
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
+}
+
+#[cfg(test)]
+mod shortcut_tests {
+    use super::*;
+    use tauri_plugin_global_shortcut::{Code, Modifiers};
+    #[test]
+    fn frontend_key_codes_parse_to_native_shortcuts() {
+        assert_eq!("Control+Backquote".parse::<Shortcut>().unwrap(), Shortcut::new(Some(Modifiers::CONTROL), Code::Backquote));
+        assert_eq!("Control+Alt+KeyK".parse::<Shortcut>().unwrap(), Shortcut::new(Some(Modifiers::CONTROL | Modifiers::ALT), Code::KeyK));
+    }
 }

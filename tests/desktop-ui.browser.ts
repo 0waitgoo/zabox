@@ -59,8 +59,12 @@ try {
   assert.equal(await page.getByRole('link', { name: 'https://zahe.hiitun.top/', exact: true }).getAttribute('href'), 'https://zahe.hiitun.top/');
   assert.equal(await page.getByText('窗口行为', { exact: true }).count(), 0);
   assert.equal(await page.getByText('开启后，点右上角', { exact: false }).count(), 0);
-  const shortcutCheckbox = page.getByRole('checkbox', { name: '启用展开快捷键', exact: true });
+  const shortcutCheckbox = page.getByRole('checkbox', { name: '启用展开收起快捷键', exact: true });
   assert.equal(await shortcutCheckbox.isChecked(), true);
+  const shortcutRecorder = page.getByRole('button', { name: '设置展开收起快捷键', exact: true });
+  await shortcutRecorder.click();
+  await shortcutRecorder.press('Control+Alt+k');
+  await page.waitForFunction(() => document.querySelector('[aria-label="设置展开收起快捷键"]')?.textContent?.includes('Ctrl + Alt + K'));
   await shortcutCheckbox.uncheck();
   assert.equal(await shortcutCheckbox.isChecked(), false);
   const closeSwitch = page.getByRole('switch', { name: '点击关闭时收进托盘' });
@@ -93,6 +97,7 @@ try {
   await page.getByTitle('设置', { exact: true }).click();
   assert.equal(await closeSwitch.isChecked(), false);
   assert.equal(await shortcutCheckbox.isChecked(), false);
+  assert.match(await shortcutRecorder.textContent() ?? '', /Ctrl \+ Alt \+ K/);
   await closeSwitch.locator('..').click();
   await page.getByTitle('收进托盘', { exact: true }).waitFor();
   // Create from the settings background, switch back to the main page and focus.

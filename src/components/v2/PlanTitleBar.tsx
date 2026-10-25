@@ -50,6 +50,7 @@ export default function PlanTitleBar({
       {/* 拖动区：logo + 标题 */}
       <div data-plan-drag-region className="flex items-center gap-2 shrink-0 min-w-0">
         <img
+          data-plan-logo
           src="logo.svg"
           alt=""
           className="w-5 h-5 shrink-0"

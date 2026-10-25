@@ -28,6 +28,7 @@ import { useDesktopDrag } from './components/v2/useDesktopDrag';
 import { planWindow, safeClose } from './components/v2/planWindow';
 import { useLocalStore } from './store/localStore';
 import './index.css';
+import './desktop-theme.css';
 import { applyDisplayPrefs, loadDisplayPrefs } from './store/displayPrefs';
 
 // 首帧先落本机显示偏好（与网站版 main.tsx 同款，避免闪一帧）
@@ -430,7 +431,8 @@ function PlanApp() {
   );
 
   return (
-    <div className={`relative h-dvh w-full overflow-hidden ${textCls}`} style={{ backgroundColor: bg }}>
+    <div data-plan-desktop data-plan-theme={theme}
+      className={`relative h-dvh w-full overflow-hidden ${textCls}`} style={{ backgroundColor: bg }}>
       {collapsed ? renderEdge() : headerOnly ? renderStrip() : titleBar}
       {windowError && !headerOnly && !collapsed && (
         <div role="alert" className="px-3 py-2 text-xs bg-red-500/20">

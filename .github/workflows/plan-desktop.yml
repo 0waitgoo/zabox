@@ -63,6 +63,7 @@ jobs:
       - run: npm test
       - run: npm run build
       - run: npm run build:plan
+      - run: npm run test:ui
       - uses: dtolnay/rust-toolchain@stable
       - uses: Swatinem/rust-cache@v2
         with:

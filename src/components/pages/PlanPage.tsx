@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { ArrowLeft, Sparkles } from 'lucide-react';
+import { ArrowLeft, CalendarDays, CalendarRange, ListTodo, Sparkles } from 'lucide-react';
 import {
   taskFlatStats,
   widgetCardKey,
@@ -8,20 +8,18 @@ import {
 } from '../../store/localStore';
 import { AiView, TasksSection } from '../v2/TaskSections';
 import { MonthView, TimelineView } from '../v2/PlanScheduleViews';
-import { useCardDragScroll } from '../v2/TaskCard';
 import WidgetTintLayer from '../v2/WidgetTint';
 
 /**
  * 计划全窗页（第八十八轮，用户：「给计划做一个独立全窗页面，因为这是我们的重点小组件」，
- * 2026-10-26 重新设计后：待办 + 日程表（单日）+ 推进表（多日区间 month 格），与卡面同源）：
- * - 整页工作区：待办与日程表双列铺开、推进表全宽在下（沿用卡面同一套节区组件），
- *   手机端单列上下排；数据与逻辑同源：与主页计划卡读写同一份 store（tasks/plans），
- *   页里改完回卡面即时一致、反之亦然；本页不持有任何计划数据状态，唯一的本地状态是
- *   主视图 / AI 整理切换（与卡面同语言）。
- * - 呈现沿用卡面材质：各面板是一面 .group-card-scope.widget-panel（与 2x 卡面同壳），
+ * 2026-10-26 重新设计后与卡面同语言：计划 | 日程表 | 推进表 三 tab 全宽切换，不再双列堆叠——
+ * 旧双列（待办与日程表各占半屏定高、推进表沉底）一屏大半是空、推进表还要往下翻才看得到；
+ * tab 全宽后每视图独占整页宽度，自然滚动，卡面与全屏页共用同一 tab 记忆 key，进出一致）：
+ * - 数据与逻辑同源：与主页计划卡读写同一份 store（tasks/plans），页里改完回卡面即时一致、
+ *   反之亦然；本页不持有任何计划数据状态，唯一的本地状态是主视图 / AI 整理切换（与卡面同语言）。
+ * - 呈现沿用卡面材质：AI 整理视图仍是一面 .group-card-scope.widget-panel（与 2x 卡面同壳），
  *   专属底色与卡面同一份 widgetTints 分配；三档外观随 index.css 作用域规则自动适配，
- *   返回主页走顶栏 LOGO / 导航（子页惯例，顶栏不为本页加按钮）。卡内拖拽滚动复用
- *   TaskCard 导出的 useCardDragScroll，按落点滚对应列。
+ *   返回主页走顶栏 LOGO / 导航（子页惯例，顶栏不为本页加按钮）。
  */
 export default function PlanPage({
   store,
@@ -29,7 +27,6 @@ export default function PlanPage({
   onViewChange,
   hideHeader = false,
   hideAiButton = false,
-  flatPanels = false,
 }: {
   store: LocalStore;
   /** 受控视图（桌面版用：AI 整理按钮已移到同步条，视图状态由 plan-app 持有） */
@@ -39,10 +36,10 @@ export default function PlanPage({
   hideHeader?: boolean;
   /** 不渲染页头 AI 整理按钮（桌面版用：按钮已移到同步条） */
   hideAiButton?: boolean;
-  /** 平铺节区（桌面版用）：去掉圆角卡框，待办、日程表与推进表直接上下排、页面整体滚动 */
+  /** 平铺（桌面版用）：保留兼容，主视图本就不带卡框，此 prop 不再改变布局 */
   flatPanels?: boolean;
 }) {
-  const { tasks, plans } = store.data;
+  const { tasks } = store.data;
   /** 主视图 / AI 整理（与 2x 卡面头部同一对视图、同一切换语言） */
   const [innerView, setInnerView] = useState<'main' | 'ai'>('main');
   const curView = view ?? innerView;
@@ -50,17 +47,31 @@ export default function PlanPage({
     if (view === undefined) setInnerView(v);
     onViewChange?.(v);
   };
-  const dragScroll = useCardDragScroll();
+  /** 全屏页 tab：与卡面共用同一记忆 key（ainav-plan-card-tab），卡面切到哪页、全屏页就打开哪页 */
+  const [planTab, setPlanTab] = useState<'plan' | 'timeline' | 'month'>(() => {
+    try {
+      const saved = localStorage.getItem('ainav-plan-card-tab');
+      return saved === 'timeline' || saved === 'month' ? saved : 'plan';
+    } catch {
+      return 'plan';
+    }
+  });
+  const switchPlanTab = (tab: 'plan' | 'timeline' | 'month') => {
+    setPlanTab(tab);
+    try {
+      localStorage.setItem('ainav-plan-card-tab', tab);
+    } catch {
+      /* 忽略 */
+    }
+  };
 
   // 进度口径与卡面头部一致：组按子任务摊平（taskFlatStats）
   const { total, done } = taskFlatStats(tasks);
   const pct = total > 0 ? Math.round((done / total) * 100) : 0;
 
   /* 专属底色与卡面同一份分配（widgetCardKey('task')）；未分配（从未打开过主页）时为
-   * undefined、面板不叠底色层，与卡面同口径。水印沿用第八十七轮规则：双列都空才淡显 */
+   * undefined、面板不叠底色层，与卡面同口径 */
   const tint = widgetTintOf(store.data.widgetTints, widgetCardKey('task'));
-  const bothEmpty = tasks.length === 0 && plans.length === 0;
-
 
   const panelCls =
     'group-card-scope widget-panel relative rounded-[28px] overflow-hidden p-3.5 sm:p-4';
@@ -114,53 +125,41 @@ export default function PlanPage({
             <AiView store={store} onDone={() => setView('main')} />
           </div>
         </div>
-      ) : flatPanels ? (
-        /* 平铺（桌面版）：不要圆角卡框，待办、日程表、推进表直接上下排，页面整体滚动 */
-        <div className="flex flex-col gap-8">
-          <TasksSection store={store} />
-          <TimelineView store={store} />
-          <MonthView store={store} />
-        </div>
       ) : (
-        /* 工作区：待办与日程表双列（桌面吃满剩余视口高，手机单列上下排），
-           推进表全宽在下；拖拽滚动按指针落点找 [data-task-col-scroll] 接管对应列 */
+        /* 主视图：与卡面同一组 tab（计划 | 日程表 | 推进表），每视图独占整页宽度、自然滚动；
+           不再双列定高堆叠——旧布局一屏大半是空、推进表还要往下翻才看得到 */
         <div className="flex flex-col gap-4">
-          <div
-            ref={dragScroll.scrollRef}
-            onPointerDown={dragScroll.onPointerDown}
-            onClickCapture={dragScroll.onClickCapture}
-            data-task-scroll
-            data-nodrag
-          >
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <div
-                data-plan-panel="tasks"
-                className={`${panelCls} h-[68dvh] min-h-[24rem] md:h-[calc(100dvh-13.5rem)] md:min-h-[26rem]`}
-              >
-                {tint && (
-                  <WidgetTintLayer tint={tint} emoji="📋" watermarkOpacity={bothEmpty ? 0.1 : 0} />
-                )}
-                <div className="relative h-full min-h-0">
-                  <TasksSection store={store} pinned />
-                </div>
-              </div>
-              <div
-                data-plan-panel="timeline"
-                className={`${panelCls} h-[68dvh] min-h-[24rem] md:h-[calc(100dvh-13.5rem)] md:min-h-[26rem]`}
-              >
-                {tint && <WidgetTintLayer tint={tint} emoji="📋" watermarkOpacity={0} />}
-                <div className="relative h-full min-h-0 overflow-y-auto">
-                  <TimelineView store={store} />
-                </div>
-              </div>
+          <div className="flex items-center gap-1.5 shrink-0">
+            <div className="flex gap-0.5 p-0.5 rounded-xl bg-white/5 border border-white/10">
+              {([
+                ['plan', '计划', ListTodo],
+                ['timeline', '日程表', CalendarDays],
+                ['month', '推进表', CalendarRange],
+              ] as const).map(([tab, label, Icon]) => (
+                <button
+                  key={tab}
+                  type="button"
+                  data-plan-page-tab={tab}
+                  title={label}
+                  aria-label={label}
+                  onClick={() => switchPlanTab(tab)}
+                  className={`flex items-center gap-1 px-3 py-1.5 rounded-lg transition-colors text-xs ${
+                    planTab === tab ? 'bg-indigo-500/80 text-white font-medium' : 'text-white/55 hover:text-white/85'
+                  }`}
+                >
+                  <Icon size={13} />
+                  <span>{label}</span>
+                </button>
+              ))}
             </div>
           </div>
-          <div data-plan-panel="month" className={panelCls}>
-            {tint && <WidgetTintLayer tint={tint} emoji="📋" watermarkOpacity={0} />}
-            <div className="relative">
-              <MonthView store={store} />
-            </div>
-          </div>
+          {planTab === 'timeline' ? (
+            <TimelineView store={store} />
+          ) : planTab === 'month' ? (
+            <MonthView store={store} />
+          ) : (
+            <TasksSection store={store} />
+          )}
         </div>
       )}
     </div>

@@ -1,7 +1,7 @@
 import React, { useEffect, useRef, useState } from 'react';
-import { openUrl } from '@tauri-apps/plugin-opener';
-import { fetch as tauriFetch } from '@tauri-apps/plugin-http';
-import { ArrowLeft, Sparkles } from 'lucide-react';
+import { planWindow } from './planWindow';
+import { desktopBrowserLogin } from '../../services/desktopOAuth';
+import { ArrowLeft, CircleAlert, Github, Sparkles, X } from 'lucide-react';
 import type { LocalStore } from '../../store/localStore';
 import {
   ghGetFile,
@@ -12,26 +12,12 @@ import { packDataEnvelope, restoreWidgetStorage } from '../../store/widgetStorag
 import { reloadColorsData } from '../../store/colorsData';
 import type { PlanTheme } from '../../plan-app';
 
-/**
- * 桌面计划应用的同步条（第 3 轮）：与网站计划组件同源数据（tasks/plans），
- * 通过网站版同一套 GitHub 同步协议（ainav-data 私仓整份 store JSON）与网站互通。
- * GitHub Device Flow 登录：点「GitHub 登录」→ 界面显示 user_code → 点
- * 「去 GitHub 确认」在浏览器里确认一次 → 轮询拿到 token 后存本机。
- * 令牌只存本机独立 key（zabox-plan-sync-token），绝不进同步 JSON。
- * 第 3 轮修登录无反应：设备码与换 token 两次请求改走 @tauri-apps/plugin-http
- * （Rust 侧发请求，不受浏览器 CORS 限制——github.com 的 OAuth 接口不给浏览器
- * 跨域头，网页 fetch 拿不到响应）；状态文案在 420px 窄窗也不再隐藏
- * （之前 hidden sm:block 导致点完什么提示都看不见）。
- * 左侧「同步」二字已删（用户定）；行尾空白带是拖动区（第 3 轮新增）。
- * v1 口径不变：本应用供你自己用，同步仓固定为你自己的 0waitgoo/ainav-data；
- * 公开版需改成每人自己的仓（下一步）。
+/** Browser OAuth uses the website's existing callback and a state-checked loopback listener.
+ * This component stays mounted when the window is compact/hidden so login is not interrupted.
+ * Tokens remain in the existing local-only key and never enter exported store data.
  */
 const TOKEN_KEY = 'zabox-plan-sync-token';
 const SHA_KEY = 'zabox-plan-sync-sha';
-const CLIENT_ID = 'Ov23liLio2boISfRc36y'; // OAuth App 公开 Client ID，不是密钥
-const DEVICE_CODE_URL = 'https://github.com/login/device/code';
-const DEVICE_TOKEN_URL = 'https://github.com/login/oauth/access_token';
-
 function loadToken(): string {
   try {
     return localStorage.getItem(TOKEN_KEY) ?? '';
@@ -54,30 +40,6 @@ function errDetail(e: unknown): string {
   return msg.replace(/\s+/g, ' ').slice(0, 60) || '未知错误';
 }
 
-/** 把 GitHub 非 200 响应体缩成一句原因（第 6 轮：400 的 body 里有 device_flow_disabled
-    这类精确原因，之前只显示了状态码，等于没说） */
-function githubErrorSnippet(text: string): string {
-  const trimmed = text.trim();
-  if (!trimmed) return '';
-  try {
-    const parsed = JSON.parse(trimmed) as { error?: string; error_description?: string };
-    if (parsed.error) {
-      const desc = parsed.error_description ? `：${parsed.error_description}` : '';
-      return `（${parsed.error}${desc}）`.slice(0, 90);
-    }
-  } catch {
-    /* 非 JSON，走原文截断 */
-  }
-  return `（${trimmed.replace(/\s+/g, ' ').slice(0, 80)}）`;
-}
-
-type DeviceSession = {
-  deviceCode: string;
-  userCode: string;
-  verificationUri: string;
-  intervalSec: number;
-};
-
 export default function PlanSyncBar({
   store,
   theme,
@@ -97,24 +59,16 @@ export default function PlanSyncBar({
   const [token, setToken] = useState(loadToken);
   const [busy, setBusy] = useState(false);
   const [status, setStatus] = useState<string | null>(null);
-  const [device, setDevice] = useState<DeviceSession | null>(null);
-  const [openerFailed, setOpenerFailed] = useState(false);
+  const [showError, setShowError] = useState(false);
+  const [loggingIn, setLoggingIn] = useState(false);
+  const loginRef = useRef<AbortController | null>(null);
   const dataRef = useRef(store.data);
   dataRef.current = store.data;
   const shaRef = useRef<string | null>(loadSha());
-  const pollTimer = useRef<number | null>(null);
-  const deviceRef = useRef<DeviceSession | null>(null);
-  deviceRef.current = device;
-
   const light = theme === 'light';
-
-  const stopPolling = () => {
-    if (pollTimer.current !== null) {
-      window.clearTimeout(pollTimer.current);
-      pollTimer.current = null;
-    }
-  };
-  useEffect(() => stopPolling, []);
+  useEffect(() => () => {
+    loginRef.current?.abort();
+  }, []);
 
   const cfg = (t: string): GithubSyncConfig => ({
     owner: '0waitgoo',
@@ -191,229 +145,90 @@ export default function PlanSyncBar({
       }
       saveSha(remote.sha);
       setStatus('已是最新');
+    } catch (error) {
+      setStatus(`同步失败：${errDetail(error)}`);
     } finally {
       setBusy(false);
     }
   };
 
-  /** 轮询换 token：authorization_pending 继续等，slow_down 放慢，过期/拒绝即停。
-      第 5 轮：响应先按文本读再 JSON 解析（非 200 或非 JSON 时给明确原因，不再一律
-      「网络异常」——之前 scope 未配时请求直接被插件拒绝，信息全丢在 catch 里）。 */
-  const pollForToken = (session: DeviceSession, intervalSec: number) => {
-    stopPolling();
-    pollTimer.current = window.setTimeout(async () => {
-      try {
-        const res = await tauriFetch(DEVICE_TOKEN_URL, {
-          method: 'POST',
-          headers: { Accept: 'application/json', 'Content-Type': 'application/x-www-form-urlencoded' },
-          body: `client_id=${encodeURIComponent(CLIENT_ID)}&device_code=${encodeURIComponent(session.deviceCode)}&grant_type=${encodeURIComponent('urn:ietf:params:oauth:grant-type:device_code')}`,
-        });
-        if (!res.ok) {
-          const bodyText = await res.text().catch(() => '');
-          setDevice(null);
-          setStatus(`GitHub 返回 ${res.status}${githubErrorSnippet(bodyText)}，请重新点 GitHub 登录`);
-          return;
-        }
-        let json: { access_token?: string; error?: string };
-        try {
-          json = JSON.parse(await res.text()) as typeof json;
-        } catch {
-          setDevice(null);
-          setStatus('GitHub 返回格式异常，请重新点 GitHub 登录');
-          return;
-        }
-        if (json.access_token) {
-          saveToken(json.access_token);
-          setDevice(null);
-          setStatus('已连接 GitHub，点同步即互通');
-          return;
-        }
-        if (json.error === 'authorization_pending') {
-          pollForToken(session, intervalSec);
-          return;
-        }
-        if (json.error === 'slow_down') {
-          pollForToken(session, intervalSec + 5);
-          return;
-        }
-        setDevice(null);
-        setStatus(
-          json.error === 'expired_token'
-            ? '确认码已过期，请重新点 GitHub 登录'
-            : 'GitHub 确认未通过，请重新点 GitHub 登录',
-        );
-      } catch (e) {
-        setDevice(null);
-        setStatus(`网络异常，登录中断（${errDetail(e)}），请重新点 GitHub 登录`);
-      }
-    }, intervalSec * 1000);
-  };
-
   const startLogin = async () => {
-    stopPolling();
-    setOpenerFailed(false);
-    setStatus('正在向 GitHub 申请确认码…');
+    if (loginRef.current) return;
+    const controller = new AbortController();
+    loginRef.current = controller;
+    setLoggingIn(true);
+    setStatus('正在打开浏览器，请在 GitHub 授权后返回…');
     try {
-      const res = await tauriFetch(DEVICE_CODE_URL, {
-        method: 'POST',
-        headers: { Accept: 'application/json', 'Content-Type': 'application/x-www-form-urlencoded' },
-        body: `client_id=${encodeURIComponent(CLIENT_ID)}&scope=${encodeURIComponent('repo')}`,
-      });
-      if (!res.ok) {
-        const bodyText = await res.text().catch(() => '');
-        setStatus(`GitHub 返回 ${res.status}${githubErrorSnippet(bodyText)}，请稍后重试`);
-        return;
+      const token = await desktopBrowserLogin(controller.signal);
+      if (controller.signal.aborted) return;
+      saveToken(token);
+      saveSha(null);
+      setStatus('已连接 GitHub，点同步即互通');
+      const win = planWindow();
+      if (win) {
+        await win.unminimize();
+        await win.show();
+        await win.setFocus();
       }
-      let json: {
-        device_code?: string;
-        user_code?: string;
-        verification_uri?: string;
-        interval?: number;
-      };
-      try {
-        json = JSON.parse(await res.text()) as typeof json;
-      } catch {
-        setStatus('GitHub 返回格式异常，请稍后重试');
-        return;
+    } catch (error) {
+      if (!controller.signal.aborted) { setStatus(`登录失败：${errDetail(error)}`); setShowError(true); }
+    } finally {
+      if (loginRef.current === controller) {
+        loginRef.current = null;
+        setLoggingIn(false);
       }
-      if (!json.device_code || !json.user_code || !json.verification_uri) {
-        setStatus('GitHub 未返回确认码，请稍后重试');
-        return;
-      }
-      const session: DeviceSession = {
-        deviceCode: json.device_code,
-        userCode: json.user_code,
-        verificationUri: json.verification_uri,
-        intervalSec: json.interval ?? 5,
-      };
-      setDevice(session);
-      setStatus('请在 GitHub 确认一次，确认后自动连上');
-      pollForToken(session, session.intervalSec);
-    } catch (e) {
-      setStatus(`网络异常，拿不到确认码（${errDetail(e)}），请稍后重试`);
     }
   };
 
-  // 顶栏收起条点「GitHub 登录」后展开回完整版时自动开始一次登录（已有令牌则只消费标记）
   useEffect(() => {
     if (!autoLogin) return;
     onAutoLoginConsumed?.();
     if (!loadToken()) void startLogin();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [autoLogin]);
 
   const cancelLogin = () => {
-    stopPolling();
-    setDevice(null);
-    setStatus(null);
+    loginRef.current?.abort();
+    setStatus('登录已取消');
   };
-
   const relogin = () => {
-    try {
-      localStorage.removeItem(TOKEN_KEY);
-    } catch {
-      /* 忽略 */
-    }
+    try { localStorage.removeItem(TOKEN_KEY); } catch { /* local storage unavailable */ }
     setToken('');
+    saveSha(null);
     void startLogin();
   };
 
-  const openVerification = async () => {
-    if (!device) return;
-    try {
-      await openUrl(device.verificationUri);
-    } catch {
-      // 插件接不上时退化为页面内显示链接 + 码，用户手动打开，仍不出现贴令牌框
-      setOpenerFailed(true);
-    }
-  };
-
-  const syncBtnCls =
-    'shrink-0 px-3 py-1.5 rounded-lg text-xs font-medium bg-indigo-500 hover:bg-indigo-400 disabled:opacity-40 disabled:cursor-default text-white transition-colors';
-  const loginBtnCls = light
-    ? 'shrink-0 px-3 py-1.5 rounded-lg text-xs font-medium bg-black/[0.06] hover:bg-black/10 text-zinc-800 transition-colors'
-    : 'shrink-0 px-3 py-1.5 rounded-lg text-xs font-medium bg-white/10 hover:bg-white/[0.18] text-white transition-colors';
-  const faintCls = light ? 'text-zinc-500' : 'text-white/45';
-  const faintLinkCls = light
-    ? 'text-[11px] text-zinc-500 hover:text-zinc-800'
-    : 'text-[11px] text-white/40 hover:text-white/80';
-
-  const loginControl = token ? (
-    <span className="shrink-0 flex items-center gap-2">
-      <span className={`text-xs ${light ? 'text-emerald-700' : 'text-emerald-300/90'}`}>
-        已连接 GitHub
-      </span>
-      <button type="button" onClick={relogin} className={faintLinkCls}>
-        重新登录
-      </button>
-    </span>
-  ) : (
-    <button type="button" onClick={() => void startLogin()} className={loginBtnCls}>
-      GitHub 登录
-    </button>
-  );
-
-  const devicePanel = device ? (
-    <div
-      className={`mt-2 rounded-lg border px-3 py-2.5 flex flex-col gap-2 ${
-        light ? 'bg-black/[0.04] border-black/10' : 'bg-white/5 border-white/10'
-      }`}
-    >
-      <div className="flex items-center gap-2 flex-wrap">
-        <span className={`text-xs ${faintCls}`}>确认码</span>
-        <span
-          className={`text-lg font-bold tracking-[0.2em] select-all ${
-            light ? 'text-zinc-900' : 'text-white'
-          }`}
-        >
-          {device.userCode}
-        </span>
-        <button type="button" onClick={() => void openVerification()} className={loginBtnCls}>
-          去 GitHub 确认
-        </button>
-        <button type="button" onClick={cancelLogin} className={faintLinkCls}>
-          取消
-        </button>
-      </div>
-      <p className={`text-[11px] break-all ${faintCls}`}>
-        正在等你在 GitHub 确认{openerFailed ? '（未能自动打开浏览器，请手动打开下面链接并输入确认码）' : ''}
-        ：{device.verificationUri}
-      </p>
-    </div>
-  ) : null;
-
+  const buttonCls = light
+    ? 'h-6 rounded-md bg-black/[0.06] hover:bg-black/10 text-zinc-800'
+    : 'h-6 rounded-md bg-white/10 hover:bg-white/[0.18] text-white';
+  const iconCls = `shrink-0 w-6 flex items-center justify-center ${buttonCls}`;
+  const aiLabel = aiView === 'ai' ? '返回计划' : 'AI 整理';
   return (
-    <div
-      className={`sticky top-10 z-40 backdrop-blur border-b px-3 py-2 ${
-        light ? 'border-black/10' : 'border-white/10'
-      }`}
-    >
-      <div className="flex items-center gap-2">
-        {loginControl}
-        <button
-          type="button"
-          onClick={() => void sync()}
-          disabled={busy || !token.trim()}
-          className={syncBtnCls}
-        >
-          {busy ? '同步中…' : '同步'}
+    <div data-plan-dock-row className="flex items-center gap-1 min-w-0">
+      {token ? (
+        <button type="button" onClick={relogin} className={iconCls}
+          aria-label="重新登录 GitHub" title={status ?? '已连接 GitHub，点击重新登录'}><Github size={14} /></button>
+      ) : (
+        <button type="button" disabled={loggingIn} onClick={() => void startLogin()}
+          title={status ?? 'GitHub 登录'}
+          className={`min-w-0 px-2 text-xs font-medium truncate ${buttonCls}`}>
+          {loggingIn ? '授权中…' : 'GitHub 登录'}
         </button>
-        {/* AI 整理从计划页头移到本行（用户定：今日进度删、AI 整理放上面更简约） */}
-        <button type="button" onClick={onAiToggle} className={loginBtnCls}>
-          <span className="flex items-center gap-1">
-            {aiView === 'ai' ? <ArrowLeft size={12} /> : <Sparkles size={12} />}
-            {aiView === 'ai' ? '返回' : 'AI 整理'}
-          </span>
-        </button>
-        {status && (
-          <span className={`shrink-0 text-[11px] truncate max-w-[220px] ${faintCls}`}>
-            {status}
-          </span>
-        )}
-        {/* 拖动区：行尾空白带（按钮与文案不在拖动区内，点击不受影响） */}
-        <div data-tauri-drag-region className="flex-1 min-w-0 self-stretch" />
-      </div>
-      {devicePanel}
+      )}
+      {token.trim() && <button type="button" onClick={() => void sync()} disabled={busy}
+        title={status ?? '同步'} className="shrink-0 h-6 px-2 rounded-md text-xs font-medium bg-indigo-500 hover:bg-indigo-400 disabled:opacity-40 text-white">
+        {busy ? '同步中…' : '同步'}
+      </button>}
+      <button type="button" onClick={onAiToggle} className={iconCls} title={aiLabel} aria-label={aiLabel} aria-pressed={aiView === 'ai'}>
+        {aiView === 'ai' ? <ArrowLeft size={14} /> : <Sparkles size={14} />}
+      </button>
+      {loggingIn && <button type="button" onClick={cancelLogin} className={iconCls} title="取消登录" aria-label="取消登录"><X size={12} /></button>}
+      {status && (status.includes('失败')
+        ? <button type="button" title={status} aria-label="查看错误详情" onClick={() => setShowError((value) => !value)} className="shrink-0 text-red-400"><CircleAlert size={14} /></button>
+        : <span role="status" className="sr-only">{status}</span>)}
+      {showError && status?.includes('失败') && <div role="alert" className="fixed left-2 right-2 top-11 z-[120] flex items-start gap-2 rounded-lg border border-red-400/40 bg-[#1e1e26] px-3 py-2 text-xs text-white shadow-xl">
+        <span className="flex-1">{status}</span>
+        <button type="button" aria-label="关闭错误提示" onClick={() => setShowError(false)}><X size={14} /></button>
+      </div>}
     </div>
   );
 }

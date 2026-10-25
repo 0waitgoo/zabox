@@ -6,11 +6,11 @@
  * 服务端 /api 已带 Access-Control-Allow-Origin: *（含 OPTIONS 预检，2026-10-24 线上实查确认），
  * 且 manifest 已申请该域名的 host_permissions，双保险。
  */
-export const API_BASE: string = import.meta.env.VITE_API_BASE ?? '';
+export const API_BASE: string = import.meta.env?.VITE_API_BASE ?? '';
 
 /**
  * 是否为浏览器扩展构建（build:ext 注入 VITE_ZABOX_EXT=1）。
  * 扩展里 GitHub OAuth 回跳不可用（没有站点根地址可回跳）：数据菜单隐藏 OAuth 登录入口，
  * 改走方案 B「粘贴令牌」直连同步（见 DataMenu / githubSync）。网站版恒为 false，UI 零变化。
  */
-export const IS_EXTENSION_BUILD: boolean = import.meta.env.VITE_ZABOX_EXT === '1';
+export const IS_EXTENSION_BUILD: boolean = import.meta.env?.VITE_ZABOX_EXT === '1';

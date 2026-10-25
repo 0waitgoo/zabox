@@ -1,0 +1,36 @@
+/* Desktop-only: flat task sections do not use the website's card theme scope. */
+[data-plan-desktop][data-plan-theme="light"] {
+  color: #000;
+  color-scheme: light;
+}
+
+[data-plan-desktop][data-plan-theme="light"] :is(
+  [class*="text-white"],
+  [class*="text-zinc-"],
+  [class*="text-indigo-"],
+  [class*="text-emerald-"],
+  [class*="text-red-"]
+):not(.text-transparent) {
+  color: #000 !important;
+}
+
+[data-plan-desktop][data-plan-theme="light"] :is(input, textarea)::placeholder {
+  color: #000 !important;
+  opacity: 1;
+}
+
+[data-plan-desktop][data-plan-theme="light"] [class*="border-white"] {
+  border-color: rgb(0 0 0 / 0.3);
+}
+
+[data-plan-desktop][data-plan-theme="light"] :is(
+  [data-row-menu],
+  [class*="bg-[#1e1e26]"],
+  [data-task-drag-clone] > div
+) {
+  background-color: #fff;
+}
+
+[data-plan-desktop][data-plan-theme="light"] [data-plan-logo] {
+  filter: brightness(0);
+}

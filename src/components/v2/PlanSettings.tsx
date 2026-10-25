@@ -1,4 +1,7 @@
-import React, { useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
+import { openUrl } from '@tauri-apps/plugin-opener';
+import { isTauri } from './planWindow';
+import { captureShortcut, shortcutLabel } from './desktopShortcut';
 import {
   AI_PROVIDER_DEFAULTS,
   loadAiConfig,
@@ -19,21 +22,51 @@ import type { PlanTheme } from '../../plan-app';
 export default function PlanSettings({
   theme,
   onThemeChange,
+  customColor,
+  onCustomColorChange,
+  minimizeOnClose,
+  onMinimizeOnCloseChange,
+  shortcutEnabled,
+  shortcutBusy,
+  shortcutError,
+  shortcutBinding,
+  shortcutRecording,
+  onShortcutRecordingChange,
+  onShortcutBindingChange,
+  onShortcutEnabledChange,
   opacity,
   onOpacityChange,
   onBack,
 }: {
   theme: PlanTheme;
   onThemeChange: (t: PlanTheme) => void;
+  customColor: string | null;
+  onCustomColorChange: (color: string) => void;
+  minimizeOnClose: boolean;
+  onMinimizeOnCloseChange: (value: boolean) => void;
+  shortcutEnabled: boolean;
+  shortcutBusy: boolean;
+  shortcutError: string | null;
+  shortcutBinding: string;
+  shortcutRecording: boolean;
+  onShortcutRecordingChange: (recording: boolean) => void;
+  onShortcutBindingChange: (value: string) => void;
+  onShortcutEnabledChange: (enabled: boolean) => void;
   opacity: number;
   onOpacityChange: (v: number) => void;
   onBack: () => void;
 }) {
+  const shortcutButton = useRef<HTMLButtonElement>(null);
+  useEffect(() => { if (shortcutRecording) shortcutButton.current?.focus(); }, [shortcutRecording]);
   const [cfg, setCfg] = useState<AiConfig>(loadAiConfig);
   const [saved, setSaved] = useState(false);
+  const [websiteError, setWebsiteError] = useState(false);
   const light = theme === 'light';
 
   const faint = light ? 'text-zinc-500' : 'text-white/45';
+  const inactiveAppearanceButton = light
+    ? 'bg-black/[0.06] hover:bg-black/10 text-zinc-800'
+    : 'bg-white/10 hover:bg-white/[0.18] text-white';
   const inputCls = light
     ? 'w-full rounded-lg border border-black/10 bg-white px-3 py-2 text-sm text-zinc-900 placeholder:text-zinc-400 outline-none focus:border-indigo-400'
     : 'w-full rounded-lg border border-white/10 bg-white/5 px-3 py-2 text-sm text-white placeholder:text-white/30 outline-none focus:border-indigo-400';
@@ -78,14 +111,15 @@ export default function PlanSettings({
       {/* 外观 */}
       <section className="flex flex-col gap-3">
         <h3 className={sectionTitle}>外观</h3>
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-2 flex-wrap">
           <button
             type="button"
             onClick={() => onThemeChange('dark')}
+            aria-pressed={!customColor && !light}
             className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-colors ${
-              !light
+              !customColor && !light
                 ? 'bg-indigo-500 text-white'
-                : 'bg-black/[0.06] hover:bg-black/10 text-zinc-800'
+                : inactiveAppearanceButton
             }`}
           >
             ☾ 暗夜
@@ -93,14 +127,28 @@ export default function PlanSettings({
           <button
             type="button"
             onClick={() => onThemeChange('light')}
+            aria-pressed={!customColor && light}
             className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-colors ${
-              light
+              !customColor && light
                 ? 'bg-indigo-500 text-white'
-                : 'bg-white/10 hover:bg-white/[0.18] text-white'
+                : inactiveAppearanceButton
             }`}
           >
             ☀ 白天
           </button>
+          <label className={`relative flex items-center gap-2 px-3 py-1.5 rounded-lg text-xs font-medium cursor-pointer focus-within:ring-2 focus-within:ring-indigo-400 ${
+            customColor ? 'bg-indigo-500 text-white'
+              : light ? 'bg-black/[0.06] hover:bg-black/10 text-zinc-800'
+                : 'bg-white/10 hover:bg-white/[0.18] text-white'
+          }`}>
+            <span className="w-3.5 h-3.5 rounded-sm border border-current/30"
+              style={{ backgroundColor: customColor ?? (light ? '#f2f2f5' : '#17171d') }} />
+            自定义底色
+            <input type="color" aria-label="自定义窗口底色"
+              value={customColor ?? (light ? '#f2f2f5' : '#17171d')}
+              onChange={(event) => onCustomColorChange(event.target.value)}
+              className="absolute inset-0 w-full h-full opacity-0 cursor-pointer" />
+          </label>
         </div>
         <label className={`flex items-center gap-3 text-xs ${faint}`}>
           <span className="shrink-0">底色透明度</span>
@@ -115,6 +163,37 @@ export default function PlanSettings({
           <span className="tabular-nums w-8 shrink-0">{opacity}%</span>
         </label>
         <p className={`text-[11px] ${faint}`}>只改窗口底色透明度，字体保持不透明。</p>
+      </section>
+
+      <section className="flex flex-col gap-3">
+        <label className="flex items-center justify-between gap-4 cursor-pointer">
+          <span className={`text-xs ${light ? 'text-zinc-900' : 'text-white/90'}`}>点击关闭时收进托盘</span>
+          <input type="checkbox" role="switch" aria-label="点击关闭时收进托盘"
+            checked={minimizeOnClose}
+            onChange={(event) => onMinimizeOnCloseChange(event.target.checked)}
+            className="peer sr-only" />
+          <span aria-hidden="true" className="relative w-9 h-5 shrink-0 rounded-full bg-zinc-500/40 peer-checked:bg-indigo-500 peer-focus-visible:ring-2 peer-focus-visible:ring-indigo-400 after:absolute after:top-0.5 after:left-0.5 after:h-4 after:w-4 after:rounded-full after:bg-white after:transition-transform peer-checked:after:translate-x-4" />
+        </label>
+        <label className="flex items-center justify-between gap-4 cursor-pointer">
+          <span className={`text-xs ${light ? 'text-zinc-900' : 'text-white/90'}`}>启用展开 / 收起快捷键</span>
+          <input type="checkbox" aria-label="启用展开收起快捷键" checked={shortcutEnabled} disabled={shortcutBusy || shortcutRecording}
+            onChange={(event) => onShortcutEnabledChange(event.target.checked)}
+            className="h-4 w-4 accent-indigo-500 cursor-pointer disabled:opacity-50" />
+        </label>
+        <button ref={shortcutButton} type="button" aria-label="设置展开收起快捷键" disabled={shortcutBusy}
+          className={`self-start px-3 py-1.5 rounded-lg text-xs ${inactiveAppearanceButton} ${shortcutRecording ? 'ring-2 ring-indigo-400' : ''}`}
+          onClick={() => onShortcutRecordingChange(true)}
+          onBlur={() => { if (shortcutRecording && !shortcutBusy) onShortcutRecordingChange(false); }}
+          onKeyDown={(event) => {
+            if (!shortcutRecording) return;
+            event.preventDefault(); event.stopPropagation();
+            if (event.code === 'Escape') { onShortcutRecordingChange(false); return; }
+            const value = captureShortcut(event.nativeEvent);
+            if (value) onShortcutBindingChange(value);
+          }}>
+          {shortcutRecording ? '请按下组合键，Esc 取消' : shortcutLabel(shortcutBinding)}
+        </button>
+        {shortcutError && <p role="alert" className={`text-[11px] ${faint}`}>{shortcutError}</p>}
       </section>
 
       {/* AI 接口 */}
@@ -194,6 +273,24 @@ export default function PlanSettings({
           </button>
           {saved && <span className="text-xs text-emerald-500">已保存，只存本机</span>}
         </div>
+      </section>
+      <section className="flex flex-col gap-3">
+        <h3 className={sectionTitle}>关于</h3>
+        <div className="flex items-center gap-2">
+          <img data-plan-logo src="logo.svg" alt="" className="w-6 h-6 shrink-0" />
+          <span className={sectionTitle}>杂盒计划</span>
+        </div>
+        <p className={`text-xs ${faint}`}>
+          官网：<a href="https://zahe.hiitun.top/" target="_blank" rel="noopener noreferrer"
+            className="underline underline-offset-2 hover:text-indigo-400"
+            onClick={(event) => {
+              if (!isTauri()) return;
+              event.preventDefault();
+              setWebsiteError(false);
+              void openUrl('https://zahe.hiitun.top/').catch(() => setWebsiteError(true));
+            }}>https://zahe.hiitun.top/</a>
+        </p>
+        {websiteError && <p role="alert" className={`text-xs ${faint}`}>无法打开浏览器，请复制上方网址访问官网。</p>}
       </section>
     </div>
   );

@@ -1181,12 +1181,31 @@ export function validateStoreData(raw: unknown): StoreData | null {
   };
 }
 
+/** 长期计划分类删除的一次性清空标记（2026-10-26 用户定：旧计划全部删掉）：
+    独立 key，不进同步 JSON；只在首次加载新版时清一次，之后新计划正常读写 */
+const PLANS_RESET_KEY = 'ainav-plans-reset-20261026';
+
 function loadInitial(): StoreData {
   try {
     const raw = localStorage.getItem(STORAGE_KEY);
     if (raw) {
       const parsed = validateStoreData(JSON.parse(raw));
-      if (parsed) return parsed;
+      if (parsed) {
+        // 首次加载新版：旧计划（日期型 + 次数型）全部清空，待办与其它数据不动；
+        // 清空结果立即落盘，后续同步也会把空计划推上去；标记写失败时下次加载再清
+        try {
+          if (!localStorage.getItem(PLANS_RESET_KEY)) {
+            localStorage.setItem(PLANS_RESET_KEY, '1');
+            if (parsed.plans.length > 0) {
+              parsed.plans = [];
+              localStorage.setItem(STORAGE_KEY, JSON.stringify(parsed));
+            }
+          }
+        } catch {
+          /* 忽略，下次加载再清，不影响本次显示 */
+        }
+        return parsed;
+      }
     }
   } catch {
     // 存储损坏/不可用时回落种子

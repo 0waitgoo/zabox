@@ -1,6 +1,6 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { motion } from 'motion/react';
-import { ArrowLeft, CalendarDays, CalendarRange, Check, Layers, ListTodo, Maximize2, Sparkles, Target } from 'lucide-react';
+import { ArrowLeft, CalendarDays, CalendarRange, Check, Layers, ListTodo, Maximize2, Sparkles } from 'lucide-react';
 import {
   cardFaceStyleOf,
   isTaskGroup,
@@ -13,8 +13,8 @@ import {
   type TaskItem,
   type WidgetTint,
 } from '../../store/localStore';
-import { AiView, PlansSection, TasksSection } from './TaskSections';
-import { TimelineView, WeekGridView } from './PlanScheduleViews';
+import { AiView, TasksSection } from './TaskSections';
+import { MonthView, TimelineView } from './PlanScheduleViews';
 import WidgetTintLayer from './WidgetTint';
 
 /**
@@ -25,7 +25,7 @@ import WidgetTintLayer from './WidgetTint';
  * - focus 焦点式：只突出第一条未完成待办（大字）+「还有 N 件」
  * 进度计数口径（第十九轮）：组按子任务摊平计数（见 localStore.taskFlatStats）。
  * 第二十五轮（尺寸布局）：高 1x 简洁卡面只展示进度与待办行；高 2x 面板式布局——
- * 复用 TaskSections 的 TasksSection/PlansSection，勾选/添加/计划 +1 与完成在卡内直接可用。
+ * 复用 TaskSections 的 TasksSection，勾选/添加在卡内直接可用。
  * 第六十九轮（展开面板取消）：
  * - 「展开」按钮与展开面板（TaskPanel）删除，全部操作回到卡面：2x 卡面全功能（建组、
  *   新建计划表单、行右键编辑/删除、已完成管理、拖拽合并），AI 整理改为头部按钮切换卡内视图；
@@ -72,18 +72,18 @@ export default function TaskCard({
   const [focusExpanded, setFocusExpanded] = useState(false);
   /** 2x 卡面视图：主视图（待办+计划）/ AI 整理（第六十九轮从面板迁入卡内切换） */
   const [cardView, setCardView] = useState<'main' | 'ai'>('main');
-  /** 2x 卡面 tab（本轮改成标题 tab）：计划（待办）| 长期计划 | 日程表 | 推进表——只在卡内切换视图，不开新页面；
-      当前 tab 记本地（显示偏好，不进同步），下次打开还是这个 tab；
+  /** 2x 卡面 tab（2026-10-26 重新设计）：计划（待办）| 日程表（单日）| 推进表（多日区间 month 格）——
+      只在卡内切换视图，不开新页面；当前 tab 记本地（显示偏好，不进同步），下次打开还是这个 tab；
       1 栏（colSpan 1）时 tab 只留图标（窄卡放不下文字时同口径） */
-  const [planTab, setPlanTab] = useState<'plan' | 'plans' | 'timeline' | 'week'>(() => {
+  const [planTab, setPlanTab] = useState<'plan' | 'timeline' | 'month'>(() => {
     try {
       const saved = localStorage.getItem('ainav-plan-card-tab');
-      return saved === 'plans' || saved === 'timeline' || saved === 'week' ? saved : 'plan';
+      return saved === 'timeline' || saved === 'month' ? saved : 'plan';
     } catch {
       return 'plan';
     }
   });
-  const switchPlanTab = (tab: 'plan' | 'plans' | 'timeline' | 'week') => {
+  const switchPlanTab = (tab: 'plan' | 'timeline' | 'month') => {
     setPlanTab(tab);
     try {
       localStorage.setItem('ainav-plan-card-tab', tab);
@@ -139,7 +139,7 @@ export default function TaskCard({
   const restCount = Math.max(0, open.length - 1);
 
   /** 专属底色层（第二十三轮）：1x/2x 两壳共用，内容以 relative 层级盖在其上；
-   * 水印单独调低（第五十二轮）：2x 时 📋 正压在长期计划区，0.16 会干扰阅读，降到 0.1；
+   * 水印单独调低（第五十二轮）：2x 时 📋 正压在内容区，0.16 会干扰阅读，降到 0.1；
    * 第八十七轮：水印只在待办与计划都为空时淡显（0.1），有任何条目即隐藏，不占视觉 */
   const bothEmpty = tasks.length === 0 && plans.length === 0;
   const tintLayer = tint ? <WidgetTintLayer tint={tint} emoji="📋" watermarkOpacity={bothEmpty ? 0.1 : 0} /> : null;
@@ -171,15 +171,14 @@ export default function TaskCard({
       >
         {tintLayer}
         <div className="relative flex flex-col flex-1 min-h-0">
-        {/* 头部（本轮改成标题 tab）：计划 | 长期计划 | 日程表 | 推进表 + 今日进度 + 展开图标 + AI 整理图标；
+        {/* 头部（本轮改成标题 tab）：计划 | 日程表 | 推进表 + 今日进度 + 展开图标 + AI 整理图标；
             1 栏时 tab 只留图标（窄卡放不下文字时同口径），2 栏时图标 + 文字 */}
         <div className="flex items-center gap-1.5 mb-2 shrink-0">
           <div className="flex gap-0.5 p-0.5 rounded-xl bg-white/5 border border-white/10">
             {([
               ['plan', '计划', ListTodo],
-              ['plans', '长期计划', Target],
               ['timeline', '日程表', CalendarDays],
-              ['week', '推进表', CalendarRange],
+              ['month', '推进表', CalendarRange],
             ] as const).map(([tab, label, Icon]) => (
               <button
                 key={tab}
@@ -222,22 +221,11 @@ export default function TaskCard({
           </div>
         ) : planTab === 'timeline' ? (
           <div data-nodrag className="flex-1 min-h-0 overflow-y-auto pr-0.5">
-            <TimelineView store={store} onAddPlan={() => switchPlanTab('plans')} />
+            <TimelineView store={store} />
           </div>
-        ) : planTab === 'week' ? (
+        ) : planTab === 'month' ? (
           <div data-nodrag className="flex-1 min-h-0 overflow-y-auto pr-0.5">
-            <WeekGridView store={store} onGoPlan={() => switchPlanTab('plans')} />
-          </div>
-        ) : planTab === 'plans' ? (
-          <div
-            ref={dragScroll.scrollRef}
-            onPointerDown={dragScroll.onPointerDown}
-            onClickCapture={dragScroll.onClickCapture}
-            data-task-scroll
-            data-nodrag
-            className="flex-1 min-h-0 flex flex-col"
-          >
-            <PlansSection store={store} pinned />
+            <MonthView store={store} />
           </div>
         ) : (
           <div

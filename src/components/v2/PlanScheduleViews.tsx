@@ -1,26 +1,26 @@
-import React, { useMemo, useState } from 'react';
-import { Check, ChevronLeft, ChevronRight, Minus, Plus, X } from 'lucide-react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
+import { ChevronLeft, ChevronRight, Plus, X } from 'lucide-react';
 import {
   formatMonthDay,
   toDateStr,
   type LocalStore,
   type PlanItem,
 } from '../../store/localStore';
-import { PlanEditForm } from './TaskSections';
 
 /**
- * 计划新视图（本轮新增，与 2x 计划卡的「计划 | 日程表 | 推进表」tab 配合）：
- * - 数据只读现有 plans：只有日期型计划（有 deadline）才进表；没日期的待办/次数型计划
- *   只留在「计划」视图，绝不为填表编日期。
- * - 视觉不另起一套：块与卡片沿用计划行同一套 token（白字/淡边/靛蓝主色），状态只用
- *   左侧色条区分（进行中靛蓝 / 3 天内到期琥珀 / 已逾期红 / 已完成绿）。
- * - 时间是可选字段：日期型计划可填开始/结束时间（HH:MM），有时间才落时间轴，没填
- *   的一律进全天区；数据里没有「个人/小组」类型字段，块上标的是计划状态，不编类型。
+ * 日程表 / 推进表（2026-10-26 重新设计，用户定）：
+ * - 长期计划分类删除：不再有长期计划 tab 与计划行，计划只按跨度分流——
+ *   单日计划（开始日 = 结束日）进日程表，多日计划（2 天及以上）进推进表。
+ * - 日程表：按日分组的竖向时间线，只显示有计划的日期；每天可建一个或多个；
+ *   新建只要标题 + 日期，全天，不问具体时间。
+ * - 推进表：只留 month 日历格（Day/Week 分段删除）；多日计划在覆盖的每一天
+ *   各画一段色块，拼成一条颜色区间；单日计划在当天格里显示为小标记（日程表新建
+ *   的计划也会出现在月格里）。格子左键点击新建单日，拖过一段日期新建多日，
+ *   两种新建都弹出同一个编辑框（标题 + 开始日 + 结束日）。
+ * - 旧计划数据：新版首次加载时一次性清空（待办不动），见 localStore.loadInitial。
  */
 
 const WEEKDAY = ['日', '一', '二', '三', '四', '五', '六'];
-const ROW_H = 44; // 时间轴一小时行高（px）
-const TIME_LABEL_COL = 44;
 
 function isDateKey(s: unknown): s is string {
   if (typeof s !== 'string' || !/^\d{4}-\d{2}-\d{2}$/.test(s)) return false;
@@ -66,74 +66,152 @@ function monthDays(year: number, month: number): string[] {
   return days;
 }
 
-function minutesOf(t: string): number {
-  const [h, m] = t.split(':').map(Number);
-  return h * 60 + m;
+/** 区间起止：开始日非法时回落结束日；起止颠倒时自动排正序（保存时同口径） */
+function spanOf(p: PlanItem): { start: string; end: string } {
+  const end = isDateKey(p.deadline) ? p.deadline! : toDateStr(new Date());
+  const start = isDateKey(p.startDate) ? p.startDate! : end;
+  return start <= end ? { start, end } : { start: end, end: start };
 }
 
-function isTimed(p: PlanItem): boolean {
-  return typeof p.startTime === 'string' && /^([01]\d|2[0-3]):[0-5]\d$/.test(p.startTime);
-}
-
-/** 日程排位日：事件日优先，不填事件日则用截止日（老计划无事件日，行为不变） */
-function placeDate(p: PlanItem): string {
-  return isDateKey(p.eventDate) ? p.eventDate! : p.deadline!;
-}
-
-/** 只取日期型且排位日合法的计划，按排位日正序、开始时间排 */
-function datedPlans(plans: PlanItem[]): PlanItem[] {
+/** 只取日期型且截止日合法的计划，按开始日正序 */
+function datePlans(plans: PlanItem[]): PlanItem[] {
   return plans
-    .filter((p) => p.mode === 'date' && isDateKey(placeDate(p)))
-    .sort((a, b) => {
-      const d = parseDay(placeDate(a)).getTime() - parseDay(placeDate(b)).getTime();
-      if (d !== 0) return d;
-      return (a.startTime ?? '') < (b.startTime ?? '') ? -1 : 1;
-    });
+    .filter((p) => p.mode === 'date' && isDateKey(p.deadline))
+    .sort((a, b) => spanOf(a).start.localeCompare(spanOf(b).start));
 }
 
-type PlanState = 'active' | 'soon' | 'overdue' | 'past' | 'done';
+/** 单日计划（进日程表）与多日计划（进推进表，2 天及以上） */
+function singlePlans(plans: PlanItem[]): PlanItem[] {
+  return datePlans(plans).filter((p) => spanOf(p).start === spanOf(p).end);
+}
+function multiPlans(plans: PlanItem[]): PlanItem[] {
+  return datePlans(plans).filter((p) => spanOf(p).start !== spanOf(p).end);
+}
+
+type PlanState = 'active' | 'soon' | 'overdue' | 'done';
 
 function planState(p: PlanItem, today: string): PlanState {
   if (p.done) return 'done';
-  const anchor = placeDate(p);
-  const left = dayDiff(today, anchor);
-  if (left < 0) {
-    // 事件型：日子过了只是已过去（灰），不是逾期（红）；截止型才算逾期
-    return isDateKey(p.eventDate) ? 'past' : 'overdue';
-  }
+  const left = dayDiff(today, spanOf(p).end);
+  if (left < 0) return 'overdue';
   if (left <= 3) return 'soon';
   return 'active';
 }
 
-const STATE_META: Record<PlanState, { label: string; bar: string; text: string }> = {
-  active: { label: '进行中', bar: 'border-indigo-400', text: 'text-indigo-200' },
-  soon: { label: '即将到期', bar: 'border-amber-400', text: 'text-amber-200' },
-  overdue: { label: '已逾期', bar: 'border-red-400', text: 'text-red-200' },
-  past: { label: '已过去', bar: 'border-zinc-400', text: 'text-zinc-300' },
-  done: { label: '已完成', bar: 'border-emerald-400', text: 'text-emerald-200' },
+const STATE_META: Record<PlanState, { label: string; bar: string; fill: string; text: string }> = {
+  active: { label: '进行中', bar: 'border-indigo-400', fill: 'bg-indigo-500/70', text: 'text-indigo-200' },
+  soon: { label: '即将到期', bar: 'border-amber-400', fill: 'bg-amber-500/70', text: 'text-amber-200' },
+  overdue: { label: '已逾期', bar: 'border-red-400', fill: 'bg-red-500/70', text: 'text-red-200' },
+  done: { label: '已完成', bar: 'border-emerald-400', fill: 'bg-emerald-500/70', text: 'text-emerald-200' },
 };
 
-/** 状态文案：事件型的 soon 是「即将开始」，不是「即将到期」 */
-function stateLabel(p: PlanItem, st: PlanState): string {
-  if (st === 'soon' && isDateKey(p.eventDate)) return '即将开始';
-  return STATE_META[st].label;
-}
-
-function timeLabel(p: PlanItem): string {
-  if (!isTimed(p)) return '全天';
-  return p.endTime ? `${p.startTime}–${p.endTime}` : `${p.startTime}起`;
-}
-
 function rangeLabel(p: PlanItem): string {
-  const place = placeDate(p);
-  // 跨天条：开始日（用户可改，默认创建日）→ 排位日；开始日不早于排位日时只显示单日
-  if (p.startDate && isDateKey(p.startDate) && dayDiff(p.startDate, place) > 0) {
-    return `${formatMonthDay(p.startDate)}–${formatMonthDay(place)}`;
-  }
-  return formatMonthDay(place);
+  const { start, end } = spanOf(p);
+  return start === end ? formatMonthDay(end) : `${formatMonthDay(start)}–${formatMonthDay(end)}`;
 }
 
-/** 块详情：复用 store 方法（完成/删除）与现有编辑表单，不另起编辑 UI */
+/* ================= 计划编辑框：标题 + 开始日 + 结束日（单日/多日共用） ================= */
+
+function PlanRangeEditor({
+  store,
+  plan,
+  initialStart,
+  initialEnd,
+  singleDay,
+  onClose,
+}: {
+  store: LocalStore;
+  plan?: PlanItem;
+  initialStart: string;
+  initialEnd: string;
+  /** 单日模式（日程表新建）：只显示一个日期，结束日 = 开始日 */
+  singleDay?: boolean;
+  onClose: () => void;
+}) {
+  const [title, setTitle] = useState(plan?.title ?? '');
+  const [start, setStart] = useState(initialStart);
+  const [end, setEnd] = useState(initialEnd);
+  // 起止颠倒时显示与保存都按正序算，不报错、不拦保存；
+  // 单日模式（日程表新建）：结束日恒等于开始日，不跟初始结束日走
+  const rawS = start <= end ? start : end;
+  const rawE = start <= end ? end : start;
+  const s = singleDay ? start : rawS;
+  const e = singleDay ? start : rawE;
+  const isSingle = singleDay || s === e;
+
+  const submit = () => {
+    const t = title.trim();
+    if (!t || !isDateKey(s) || !isDateKey(e)) return;
+    if (plan) {
+      // 编辑：起止日 + 标题；旧的时间/事件日字段一并清掉（新模型不再用时间）
+      store.updatePlan(plan.id, { title: t, deadline: e, startDate: s, startTime: '', endTime: '', eventDate: '' });
+    } else {
+      store.addPlan(t, { mode: 'date', deadline: e, startDate: s });
+    }
+    onClose();
+  };
+
+  return (
+    <div className="rounded-2xl border border-white/12 bg-white/[0.03] p-3" data-plan-range-editor>
+      <input
+        value={title}
+        autoFocus
+        onChange={(e) => setTitle(e.target.value)}
+        placeholder="计划内容，如 交设计稿 / 健身周"
+        data-plan-range-title
+        className="w-full min-w-0 bg-white/5 border border-white/12 rounded-xl px-3 py-2 text-sm outline-none focus:border-indigo-400/50 placeholder:text-zinc-400"
+      />
+      <div className="mt-2 flex items-center gap-2">
+        <label className="flex items-center gap-2 flex-1 min-w-0">
+          <span className="text-[11px] text-zinc-300 shrink-0">{singleDay ? '日期' : '开始日'}</span>
+          <input
+            type="date"
+            value={start}
+            onChange={(e) => setStart(e.target.value)}
+            data-plan-range-start
+            className="flex-1 min-w-0 bg-white/5 border border-white/12 rounded-xl px-2.5 py-1.5 text-sm outline-none focus:border-indigo-400/50 [color-scheme:dark]"
+          />
+        </label>
+        {!singleDay && (
+          <label className="flex items-center gap-2 flex-1 min-w-0">
+            <span className="text-[11px] text-zinc-300 shrink-0">结束日</span>
+            <input
+              type="date"
+              value={end}
+              onChange={(e) => setEnd(e.target.value)}
+              data-plan-range-end
+              className="flex-1 min-w-0 bg-white/5 border border-white/12 rounded-xl px-2.5 py-1.5 text-sm outline-none focus:border-indigo-400/50 [color-scheme:dark]"
+            />
+          </label>
+        )}
+      </div>
+      <p className="mt-2 text-[11px] text-zinc-400">
+        {isSingle ? '单日计划，会显示在日程表' : '多日计划，会显示在推进表为颜色区间'}
+      </p>
+      <div className="mt-2.5 flex gap-2">
+        <button
+          type="button"
+          onClick={submit}
+          disabled={!title.trim()}
+          data-plan-range-save
+          className="px-3.5 py-1.5 rounded-lg bg-indigo-500/80 hover:bg-indigo-500 disabled:opacity-40 text-white text-xs font-medium transition-colors"
+        >
+          {plan ? '保存' : '添加计划'}
+        </button>
+        <button
+          type="button"
+          onClick={onClose}
+          className="px-3.5 py-1.5 rounded-lg bg-white/8 text-white/70 text-xs hover:bg-white/12 transition-colors"
+        >
+          取消
+        </button>
+      </div>
+    </div>
+  );
+}
+
+/* ================= 块详情：范围 + 状态 + 多日进度（编辑复用同一个编辑框） ================= */
+
 function PlanDetail({
   plan,
   store,
@@ -149,9 +227,11 @@ function PlanDetail({
   const [confirmDelete, setConfirmDelete] = useState(false);
   const st = planState(plan, today);
   const meta = STATE_META[st];
-  // 日期型进度：startDate→deadline 已流逝比例（与计划行同口径）
-  const total = plan.startDate && plan.deadline ? Math.max(1, dayDiff(plan.startDate, plan.deadline)) : 1;
-  const elapsed = plan.startDate ? Math.min(Math.max(0, dayDiff(plan.startDate, today)), total) : 0;
+  const { start, end } = spanOf(plan);
+  const multi = start !== end;
+  // 多日进度：开始日→结束日已流逝比例（与旧计划行同口径）；单日不画进度条
+  const total = Math.max(1, dayDiff(start, end));
+  const elapsed = Math.min(Math.max(0, dayDiff(start, today)), total);
   const ratio = plan.done ? 1 : elapsed / total;
 
   return (
@@ -160,17 +240,16 @@ function PlanDetail({
         <div className="flex-1 min-w-0">
           <p className="text-sm font-medium text-white/90 break-words">{plan.title}</p>
           <p className="mt-1 text-[11px] text-zinc-300">
-            {rangeLabel(plan)} · {timeLabel(plan)} · <span className={meta.text}>{stateLabel(plan, st)}</span>
-            {isDateKey(plan.eventDate) && plan.eventDate !== plan.deadline && (
-              <> · 截止 {formatMonthDay(plan.deadline!)}</>
-            )}
+            {rangeLabel(plan)} · <span className={meta.text}>{meta.label}</span>
           </p>
-          <div className="mt-2 h-1 rounded-full bg-white/20 overflow-hidden">
-            <div
-              className={`h-full rounded-full transition-all duration-300 ${st === 'overdue' ? 'bg-red-400' : 'bg-indigo-400'}`}
-              style={{ width: `${Math.round(ratio * 100)}%` }}
-            />
-          </div>
+          {multi && (
+            <div className="mt-2 h-1 rounded-full bg-white/20 overflow-hidden">
+              <div
+                className={`h-full rounded-full transition-all duration-300 ${st === 'overdue' ? 'bg-red-400' : 'bg-indigo-400'}`}
+                style={{ width: `${Math.round(ratio * 100)}%` }}
+              />
+            </div>
+          )}
         </div>
         <button
           type="button"
@@ -183,7 +262,13 @@ function PlanDetail({
       </div>
       {editing ? (
         <div className="mt-3">
-          <PlanEditForm plan={plan} store={store} onClose={() => setEditing(false)} />
+          <PlanRangeEditor
+            store={store}
+            plan={plan}
+            initialStart={start}
+            initialEnd={end}
+            onClose={() => setEditing(false)}
+          />
         </div>
       ) : (
         <div className="mt-2.5 flex gap-2 flex-wrap">
@@ -225,7 +310,7 @@ function PlanDetail({
             <button
               type="button"
               onClick={() => setConfirmDelete(true)}
-              className="px-3 py-1.5 rounded-lg bg-white/10 hover:bg-red-500/30 text-white/85 text-xs transition-colors"
+              className="px-3 py-1.5 rounded-lg bg-white/10 hover:bg-white/20 text-white/85 text-xs transition-colors"
             >
               删除
             </button>
@@ -236,388 +321,62 @@ function PlanDetail({
   );
 }
 
-const NAV_BTN =
-  'w-7 h-7 rounded-lg bg-white/10 hover:bg-white/20 text-zinc-100 flex items-center justify-center shrink-0 transition-colors';
-const SEG_BTN = (active: boolean) =>
-  `px-2.5 py-1 rounded-lg text-xs transition-colors ${active ? 'bg-indigo-500/80 text-white font-medium' : 'text-white/55 hover:text-white/85'}`;
+/* ================= 日程表：只显示单日计划，按日分组 ================= */
 
-const COUNT_STEP_BTN =
-  'w-6 h-6 rounded-lg bg-white/10 text-zinc-100 hover:bg-white/20 hover:text-white disabled:opacity-40 disabled:hover:bg-white/10 flex items-center justify-center transition-colors shrink-0';
-
-/** 打卡区（第 4 项）：按次数的计划没有固定日期，进不了按日的表，单独列在这里推进；
-    进度条 + −/+ 直接复用 store.bumpPlanCount，与长期计划行同一套 */
-function CountPlansSection({ store }: { store: LocalStore }) {
-  const counts = store.data.plans.filter((p) => p.mode === 'count');
-  if (counts.length === 0) return null;
-  return (
-    <div data-count-section className="mt-4">
-      <p className="text-xs text-zinc-400 mb-2">打卡进行中 · 按次数的计划没有固定日期，在这里推进</p>
-      <div className="flex flex-col gap-2">
-        {counts.map((p) => {
-          const cur = p.currentCount ?? 0;
-          const target = p.targetCount ?? 0;
-          const unit = p.unit ?? '次';
-          const full = target > 0 && cur >= target;
-          const ratio = target > 0 ? cur / target : 0;
-          return (
-            <div key={p.id} data-count-plan={p.id} className="rounded-2xl border border-white/20 bg-white/10 px-3 py-2.5">
-              <div className="flex items-center gap-2">
-                <span className="flex-1 min-w-0 truncate text-sm font-medium text-white/90">{p.title}</span>
-                <span data-count-progress className="text-[11px] text-zinc-200 tabular-nums shrink-0">
-                  {cur}/{target} {unit}
-                </span>
-                {full && <Check size={13} className="text-indigo-200 shrink-0" />}
-              </div>
-              <div className="mt-1.5 flex items-center gap-2">
-                <div className="flex-1 h-1 rounded-full bg-white/20 overflow-hidden">
-                  <div className="h-full rounded-full bg-indigo-400 transition-all duration-300" style={{ width: `${Math.round(ratio * 100)}%` }} />
-                </div>
-                <button
-                  type="button"
-                  aria-label="减少一次"
-                  data-count-minus
-                  disabled={cur <= 0}
-                  onClick={() => store.bumpPlanCount(p.id, -1)}
-                  className={COUNT_STEP_BTN}
-                >
-                  <Minus size={12} />
-                </button>
-                <button
-                  type="button"
-                  aria-label="增加一次"
-                  data-count-plus
-                  disabled={full}
-                  onClick={() => store.bumpPlanCount(p.id, 1)}
-                  className={COUNT_STEP_BTN}
-                >
-                  <Plus size={12} />
-                </button>
-              </div>
-            </div>
-          );
-        })}
-      </div>
-    </div>
-  );
-}
-
-/* ================= 推进表：Day / Week / Month ================= */
-
-export function WeekGridView({ store, onGoPlan }: { store: LocalStore; onGoPlan: () => void }) {
-  const today = toDateStr(new Date());
-  const [mode, setMode] = useState<'day' | 'week' | 'month'>('week');
-  const [anchor, setAnchor] = useState(today);
-  const [selectedId, setSelectedId] = useState<string | null>(null);
-  const plans = datedPlans(store.data.plans);
-  const selected = plans.find((p) => p.id === selectedId) ?? null;
-
-  const days: string[] = useMemo(() => {
-    if (mode === 'day') return [anchor];
-    if (mode === 'week') {
-      const start = weekStart(anchor);
-      return Array.from({ length: 7 }, (_, i) => addDays(start, i));
-    }
-    const d = parseDay(anchor);
-    return monthDays(d.getFullYear(), d.getMonth() + 1);
-  }, [mode, anchor]);
-
-  const periodLabel =
-    mode === 'day'
-      ? `${formatMonthDay(anchor)} 星期${WEEKDAY[parseDay(anchor).getDay()]}`
-      : mode === 'week'
-        ? `${formatMonthDay(days[0])}–${formatMonthDay(days[days.length - 1])}`
-        : `${parseDay(anchor).getFullYear()}年${parseDay(anchor).getMonth() + 1}月`;
-
-  const step = (dir: 1 | -1) => {
-    if (mode === 'day') setAnchor(addDays(anchor, dir));
-    else if (mode === 'week') setAnchor(addDays(anchor, dir * 7));
-    else {
-      const d = parseDay(anchor);
-      setAnchor(toDateStr(new Date(d.getFullYear(), d.getMonth() + dir, 1)));
-    }
-  };
-
-  // 全天区：跨天计划（开始日→排位日）按区间分 lane 排布，避免重叠压在一起
-  const allDayLanes = useMemo(() => {
-    const items = plans.filter((p) => !isTimed(p));
-    const lanes: { plan: PlanItem; start: number; end: number }[][] = [];
-    for (const p of items) {
-      const s = p.startDate && isDateKey(p.startDate) ? p.startDate : placeDate(p);
-      const e = placeDate(p);
-      const si = days.indexOf(s);
-      const ei = days.indexOf(e);
-      if (ei < 0 && si < 0) continue; // 本期外不画（跨期只画可见部分）
-      const vs = Math.max(0, si < 0 ? 0 : si);
-      const ve = ei < 0 ? days.length - 1 : ei;
-      if (ve < vs) continue;
-      let lane = lanes.find((l) => l.every((it) => it.end < vs || it.start > ve));
-      if (!lane) {
-        lane = [];
-        lanes.push(lane);
-      }
-      lane.push({ plan: p, start: vs, end: ve });
-    }
-    return lanes;
-  }, [plans, days]);
-
-  const timedByDay = useMemo(() => {
-    const map = new Map<string, PlanItem[]>();
-    for (const p of plans.filter(isTimed)) {
-      const arr = map.get(placeDate(p)) ?? [];
-      arr.push(p);
-      map.set(placeDate(p), arr);
-    }
-    return map;
-  }, [plans]);
-
-  const blockCls = (p: PlanItem) =>
-    `rounded-lg border border-white/20 bg-white/10 px-2 py-1.5 cursor-pointer hover:bg-white/[0.16] transition-colors border-l-4 ${STATE_META[planState(p, today)].bar}`;
-
-  // 时间轴空态（第 3 项）：本期没有带时间的计划时直说原因，不让用户以为表坏了
-  const hasTimedInPeriod = plans.some((p) => isTimed(p) && days.includes(placeDate(p)));
-  const hasCountPlans = store.data.plans.some((p) => p.mode === 'count');
-
-  return (
-    <div data-schedule-view="week" className="flex flex-col min-h-0">
-      {/* 顶部：模式切换 + Today + 前后翻 */}
-      <div className="flex items-center gap-2 flex-wrap shrink-0 mb-2">
-        <div className="flex gap-0.5 p-0.5 rounded-xl bg-white/5 border border-white/10">
-          {(['day', 'week', 'month'] as const).map((m) => (
-            <button key={m} type="button" onClick={() => setMode(m)} className={SEG_BTN(mode === m)}>
-              {m === 'day' ? 'Day' : m === 'week' ? 'Week' : 'Month'}
-            </button>
-          ))}
-        </div>
-        <button type="button" onClick={() => setAnchor(today)} className="px-2.5 py-1.5 rounded-lg bg-white/10 hover:bg-white/20 text-xs text-white/85 transition-colors shrink-0">
-          Today
-        </button>
-        <button type="button" aria-label="上一期" onClick={() => step(-1)} className={NAV_BTN}>
-          <ChevronLeft size={14} />
-        </button>
-        <button type="button" aria-label="下一期" onClick={() => step(1)} className={NAV_BTN}>
-          <ChevronRight size={14} />
-        </button>
-        <span className="text-xs text-zinc-300 tabular-nums">{periodLabel}</span>
-      </div>
-
-      {selected && (
-        <PlanDetail plan={selected} store={store} today={today} onClose={() => setSelectedId(null)} />
-      )}
-
-      {plans.length === 0 && !hasCountPlans ? (
-        <p className="text-[13px] text-zinc-300 py-6 text-center">
-          还没有带日期的长期计划，去「长期计划」里新建一个按日期的计划，就会出现在这里。
-        </p>
-      ) : (
-        <>
-          {mode === 'month' ? (
-        /* 月视图：日历格，只画排位日当天的块；点日期数字跳到该周 */
-        <div className="grid grid-cols-7 gap-1" data-month-grid>
-          {['一', '二', '三', '四', '五', '六', '日'].map((w) => (
-            <div key={w} className="text-center text-[11px] text-zinc-400 py-1">
-              {w}
-            </div>
-          ))}
-          {days.map((key) => {
-            const inMonth = parseDay(key).getMonth() === parseDay(anchor).getMonth();
-            const dayPlans = plans.filter((p) => placeDate(p) === key);
-            return (
-              <div
-                key={key}
-                className={`rounded-xl border px-1.5 py-1 min-h-[64px] ${key === today ? 'border-indigo-400/50 bg-indigo-500/[0.08]' : 'border-white/10 bg-white/[0.03]'} ${inMonth ? '' : 'opacity-40'}`}
-              >
-                <button
-                  type="button"
-                  onClick={() => {
-                    setAnchor(key);
-                    setMode('week');
-                  }}
-                  className={`text-[11px] tabular-nums ${key === today ? 'text-indigo-200 font-medium' : 'text-zinc-300'}`}
-                >
-                  {parseDay(key).getDate()}
-                </button>
-                <div className="mt-1 flex flex-col gap-1">
-                  {dayPlans.slice(0, 3).map((p) => (
-                    <button
-                      key={p.id}
-                      type="button"
-                      data-week-block={p.id}
-                      onClick={() => setSelectedId(p.id)}
-                      className={`text-left truncate text-[11px] px-1.5 py-0.5 rounded-md border border-white/15 bg-white/10 text-white/85 border-l-2 ${STATE_META[planState(p, today)].bar}`}
-                    >
-                      {isTimed(p) ? `${p.startTime} ` : ''}
-                      {p.title}
-                    </button>
-                  ))}
-                  {dayPlans.length > 3 && <span className="text-[11px] text-zinc-400 px-1">＋{dayPlans.length - 3}</span>}
-                </div>
-              </div>
-            );
-          })}
-        </div>
-      ) : (
-        <>
-        {/* 时间轴空态（第 3 项）：本期没有带时间的计划时直说原因 + 去补时间入口 */}
-        {!hasTimedInPeriod && (
-          <div data-week-time-hint className="rounded-2xl border border-white/15 bg-white/[0.04] px-3 py-2 mb-2 flex items-center gap-2">
-            <p className="flex-1 min-w-0 text-[11px] text-zinc-300">
-              本期时间轴还是空的：没有带时间的计划，在长期计划里给计划填上时间，就会落到这里。
-            </p>
-            <button
-              type="button"
-              onClick={onGoPlan}
-              className="px-2.5 py-1.5 rounded-lg bg-indigo-500/80 hover:bg-indigo-500 text-white text-[11px] font-medium transition-colors shrink-0"
-            >
-              去长期计划
-            </button>
-          </div>
-        )}
-        {/* 日 / 周视图：全天区 + 时间轴（手机端横向滑动看全周） */}
-        <div className="overflow-x-auto pb-1" data-week-grid>
-          <div style={{ minWidth: mode === 'day' ? '100%' : 840 }}>
-            {/* 表头：星期 + 日期 */}
-            <div className="grid" style={{ gridTemplateColumns: `${TIME_LABEL_COL}px repeat(${days.length}, minmax(0, 1fr))` }}>
-              <div />
-              {days.map((key) => (
-                <div key={key} className="text-center pb-1.5">
-                  <p className={`text-[11px] ${key === today ? 'text-indigo-200' : 'text-zinc-400'}`}>
-                    星期{WEEKDAY[parseDay(key).getDay()]}
-                  </p>
-                  <p className={`text-sm tabular-nums ${key === today ? 'text-indigo-200 font-semibold' : 'text-white/85'}`}>
-                    {formatMonthDay(key)}
-                    {key === today && <span className="ml-1 text-[10px] px-1 py-0.5 rounded bg-indigo-500/70 text-white align-middle">今天</span>}
-                  </p>
-                </div>
-              ))}
-            </div>
-            {/* 全天区：跨天条按区间分 lane 排布，避免重叠压在一起；
-                grid 自动按列找空行放，未重叠的条会紧凑排布 */}
-            <div className="grid" style={{ gridTemplateColumns: `${TIME_LABEL_COL}px repeat(${days.length}, minmax(0, 1fr))` }}>
-              <div className="text-[11px] text-zinc-400 pt-1.5 pr-1">全天</div>
-              <div
-                className="grid gap-1"
-                style={{ gridColumn: `2 / span ${days.length}`, gridTemplateColumns: `repeat(${days.length}, minmax(0, 1fr))` }}
-              >
-                {allDayLanes.length === 0 && <p className="text-[11px] text-zinc-500 py-1">本期没有全天计划</p>}
-                {allDayLanes.map((lane, li) => (
-                  <React.Fragment key={li}>
-                    {lane.map(({ plan, start, end }) => (
-                      <button
-                        key={plan.id}
-                        type="button"
-                        data-week-block={plan.id}
-                        onClick={() => setSelectedId(plan.id)}
-                        className={blockCls(plan)}
-                        style={{ gridColumn: `${start + 1} / span ${end - start + 1}` }}
-                      >
-                        <p className="truncate text-xs font-medium text-white/90">{plan.title}</p>
-                        <p className="truncate text-[11px] text-zinc-300">
-                          {rangeLabel(plan)} · {stateLabel(plan, planState(plan, today))}
-                        </p>
-                      </button>
-                    ))}
-                  </React.Fragment>
-                ))}
-              </div>
-            </div>
-            {/* 时间轴：小时行 + 按开始/结束时间落块 */}
-            <div className="grid mt-1" style={{ gridTemplateColumns: `${TIME_LABEL_COL}px repeat(${days.length}, minmax(0, 1fr))` }}>
-              <div className="relative" style={{ height: 24 * ROW_H }}>
-                {Array.from({ length: 24 }, (_, h) => (
-                  <div key={h} className="absolute left-0 right-0 text-[10px] text-zinc-500 tabular-nums" style={{ top: h * ROW_H }}>
-                    {String(h).padStart(2, '0')}:00
-                  </div>
-                ))}
-              </div>
-              {days.map((key) => {
-                const timed = timedByDay.get(key) ?? [];
-                return (
-                  <div key={key} className="relative border-l border-white/5" style={{ height: 24 * ROW_H }}>
-                    {Array.from({ length: 24 }, (_, h) => (
-                      <div key={h} className="absolute left-0 right-0 border-t border-white/5" style={{ top: h * ROW_H }} />
-                    ))}
-                    {timed.map((p) => {
-                      const startMin = minutesOf(p.startTime!);
-                      const endMin = p.endTime ? minutesOf(p.endTime) : startMin + 60;
-                      const top = (startMin / 60) * ROW_H;
-                      const height = Math.max(24, ((endMin - startMin) / 60) * ROW_H - 2);
-                      return (
-                        <button
-                          key={p.id}
-                          type="button"
-                          data-week-block={p.id}
-                          onClick={() => setSelectedId(p.id)}
-                          className={`absolute left-1 right-1 overflow-hidden ${blockCls(p)}`}
-                          style={{ top, height }}
-                        >
-                          <p className="truncate text-xs font-medium text-white/90">{p.title}</p>
-                          <p className="truncate text-[11px] text-zinc-300">{timeLabel(p)}</p>
-                        </button>
-                      );
-                    })}
-                  </div>
-                );
-              })}
-            </div>
-          </div>
-        </div>
-        </>
-      )}
-      <CountPlansSection store={store} />
-    </>
-  )}
-</div>
-  );
-}
-
-/* ================= 竖向日程表：只显示有计划的日期 ================= */
-
-export function TimelineView({ store, onAddPlan }: { store: LocalStore; onAddPlan: () => void }) {
+export function TimelineView({ store }: { store: LocalStore }) {
   const today = toDateStr(new Date());
   const [selectedId, setSelectedId] = useState<string | null>(null);
-  const plans = datedPlans(store.data.plans);
+  const [showCreate, setShowCreate] = useState(false);
+  const plans = singlePlans(store.data.plans);
   const selected = plans.find((p) => p.id === selectedId) ?? null;
 
-  // 按排位日分组，正序；没计划的日期天然不存在，不占位
+  // 按单日分组，正序；没计划的日期天然不存在，不占位
   const groups = useMemo(() => {
     const map = new Map<string, PlanItem[]>();
     for (const p of plans) {
-      const arr = map.get(placeDate(p)) ?? [];
+      const key = spanOf(p).end;
+      const arr = map.get(key) ?? [];
       arr.push(p);
-      map.set(placeDate(p), arr);
+      map.set(key, arr);
     }
     return [...map.entries()].sort((a, b) => parseDay(a[0]).getTime() - parseDay(b[0]).getTime());
   }, [plans]);
-  const hasCountPlans = store.data.plans.some((p) => p.mode === 'count');
 
   return (
     <div data-schedule-view="timeline" className="flex flex-col min-h-0">
-      <div className="flex items-center justify-between shrink-0 mb-3">
-        <p className="text-xs text-zinc-400">只显示有计划的日期，没计划的日子直接跳过</p>
+      <div className="flex items-center justify-between gap-2 mb-2">
+        <p className="text-[11px] text-zinc-400">每天可建一个或多个，单日计划都在这里</p>
         <button
           type="button"
-          onClick={onAddPlan}
+          data-timeline-new
+          onClick={() => setShowCreate((v) => !v)}
           className="flex items-center gap-1 px-2.5 py-1.5 rounded-lg bg-indigo-500/80 hover:bg-indigo-500 text-white text-xs font-medium transition-colors shrink-0"
         >
           <Plus size={12} /> 新建
         </button>
       </div>
 
+      {showCreate && (
+        <div className="mb-3">
+          <PlanRangeEditor
+            store={store}
+            initialStart={today}
+            initialEnd={today}
+            singleDay
+            onClose={() => setShowCreate(false)}
+          />
+        </div>
+      )}
+
       {selected && (
         <PlanDetail plan={selected} store={store} today={today} onClose={() => setSelectedId(null)} />
       )}
 
-      {groups.length === 0 && !hasCountPlans ? (
-        <p className="text-[13px] text-zinc-300 py-6 text-center">
-          还没有带日期的长期计划，去「长期计划」里新建一个按日期的计划，就会出现在这里。
-        </p>
+      {groups.length === 0 ? (
+        <p className="text-[13px] text-zinc-300 py-6 text-center">还没有单日计划，点右上角新建一个吧。</p>
       ) : (
-        <>
-        {groups.length === 0 ? (
-          <p className="text-[13px] text-zinc-300 py-2">还没有带日期的长期计划。</p>
-        ) : (
         <div className="flex flex-col">
-          {groups.map(([key, dayPlans], gi) => (
+          {groups.map(([key, dayPlans]) => (
             <div key={key} className="flex gap-3">
               {/* 左侧：大号日期 + 星期 */}
               <div className="w-12 shrink-0 text-center pt-1">
@@ -630,27 +389,26 @@ export function TimelineView({ store, onAddPlan }: { store: LocalStore; onAddPla
                 </p>
               </div>
               {/* 竖线 + 圆点 */}
-              <div className="relative w-4 shrink-0">
-                <span className="absolute left-1/2 -translate-x-1/2 top-2 w-2 h-2 rounded-full bg-indigo-400" />
-                {gi < groups.length - 1 && (
-                  <span className="absolute left-1/2 -translate-x-1/2 top-4 bottom-0 w-px bg-white/15" />
-                )}
+              <div className="flex flex-col items-center">
+                <div className="w-2.5 h-2.5 rounded-full bg-indigo-400 mt-1.5 shrink-0" />
+                <div className="w-px flex-1 bg-white/15" />
               </div>
-              {/* 右侧：当天事件卡 */}
-              <div className="flex-1 min-w-0 flex flex-col gap-2 pb-5">
+              {/* 当天计划卡 */}
+              <div className="flex-1 min-w-0 flex flex-col gap-2 pb-4">
                 {dayPlans.map((p) => {
-                  const meta = STATE_META[planState(p, today)];
+                  const st = planState(p, today);
+                  const meta = STATE_META[st];
                   return (
                     <button
                       key={p.id}
                       type="button"
                       data-timeline-card={p.id}
                       onClick={() => setSelectedId(p.id)}
-                      className={`text-left rounded-2xl border border-white/20 bg-white/10 px-3 py-2.5 hover:bg-white/[0.16] transition-colors border-l-4 ${meta.bar}`}
+                      className={`rounded-2xl border border-white/20 bg-white/10 px-3 py-2.5 text-left hover:bg-white/[0.16] transition-colors border-l-4 ${meta.bar}`}
                     >
                       <p className="text-sm font-medium text-white/90 break-words">{p.title}</p>
                       <p className="mt-0.5 text-[11px] text-zinc-300">
-                        {timeLabel(p)} · {rangeLabel(p)} · <span className={meta.text}>{stateLabel(p, planState(p, today))}</span>
+                        全天 · <span className={meta.text}>{meta.label}</span>
                       </p>
                     </button>
                   );
@@ -659,9 +417,225 @@ export function TimelineView({ store, onAddPlan }: { store: LocalStore; onAddPla
             </div>
           ))}
         </div>
-        )}
-        <CountPlansSection store={store} />
-      </>
+      )}
+    </div>
+  );
+}
+
+/* ================= 推进表：只留 month 日历格（Day/Week 分段删除） ================= */
+
+export function MonthView({ store }: { store: LocalStore }) {
+  const today = toDateStr(new Date());
+  const now = new Date();
+  const [ym, setYm] = useState({ y: now.getFullYear(), m: now.getMonth() + 1 });
+  const [selectedId, setSelectedId] = useState<string | null>(null);
+  // 新建弹框：null = 关闭，否则为预填的起止日（点击格子 = 单日，拖拉 = 区间）
+  const [editor, setEditor] = useState<{ start: string; end: string } | null>(null);
+  // 拖拉选段：pointerdown 的格子起，pointerenter 经过的格子止；松手才开弹框
+  const [drag, setDrag] = useState<{ start: string; end: string } | null>(null);
+  const draggingRef = useRef(false);
+  // 拖止格子同步记 ref：松手那刻 state 未必已提交，收尾以 ref 为准，避免最后进的格子被吞掉
+  const dragEndRef = useRef<string | null>(null);
+  // 最近一次格子指针类型：鼠标走 pointerdown→pointerup 拖选；触屏/触控笔走 click（点按才新建，
+  // 滑动不触发，避免滚动中途误弹编辑框）
+  const pointerTypeRef = useRef('');
+
+  const days = useMemo(() => monthDays(ym.y, ym.m), [ym]);
+  const multi = multiPlans(store.data.plans);
+  const single = singlePlans(store.data.plans);
+  const all = datePlans(store.data.plans);
+  const selected = all.find((p) => p.id === selectedId) ?? null;
+
+  // 拖拉松手：window 上收尾（指针滑出格子也能收尾）；点击格子（起止同一天）= 新建单日
+  useEffect(() => {
+    if (!drag) return;
+    const finish = () => {
+      draggingRef.current = false;
+      const endKey = dragEndRef.current ?? drag.end;
+      const s = drag.start <= endKey ? drag.start : endKey;
+      const e = drag.start <= endKey ? endKey : drag.start;
+      dragEndRef.current = null;
+      setDrag(null);
+      setEditor({ start: s, end: e });
+    };
+    window.addEventListener('pointerup', finish);
+    return () => window.removeEventListener('pointerup', finish);
+  }, [drag]);
+
+  const inDragRange = (key: string) => {
+    if (!drag) return false;
+    const s = drag.start <= drag.end ? drag.start : drag.end;
+    const e = drag.start <= drag.end ? drag.end : drag.start;
+    return key >= s && key <= e;
+  };
+
+  const shiftMonth = (delta: number) => {
+    setYm(({ y, m }) => {
+      const d = new Date(y, m - 1 + delta, 1);
+      return { y: d.getFullYear(), m: d.getMonth() + 1 };
+    });
+  };
+
+  return (
+    <div data-schedule-view="month" className="flex flex-col min-h-0">
+      {/* 月份导航：上一月 / 今天 / 下一月 */}
+      <div className="flex items-center gap-1.5 mb-2">
+        <button
+          type="button"
+          aria-label="上一月"
+          onClick={() => shiftMonth(-1)}
+          className="w-7 h-7 rounded-lg bg-white/10 hover:bg-white/[0.18] text-zinc-200 flex items-center justify-center transition-colors shrink-0"
+        >
+          <ChevronLeft size={14} />
+        </button>
+        <button
+          type="button"
+          onClick={() => {
+            const d = new Date();
+            setYm({ y: d.getFullYear(), m: d.getMonth() + 1 });
+          }}
+          className="px-2.5 py-1.5 rounded-lg bg-white/10 hover:bg-white/[0.18] text-white/85 text-xs font-medium transition-colors shrink-0"
+        >
+          今天
+        </button>
+        <button
+          type="button"
+          aria-label="下一月"
+          onClick={() => shiftMonth(1)}
+          className="w-7 h-7 rounded-lg bg-white/10 hover:bg-white/[0.18] text-zinc-200 flex items-center justify-center transition-colors shrink-0"
+        >
+          <ChevronRight size={14} />
+        </button>
+        <span data-month-label className="text-xs text-zinc-300 tabular-nums ml-1">
+          {ym.y}年{ym.m}月
+        </span>
+      </div>
+
+      {selected && (
+        <PlanDetail plan={selected} store={store} today={today} onClose={() => setSelectedId(null)} />
+      )}
+
+      {all.length === 0 && (
+        <p className="text-[13px] text-zinc-300 py-2 text-center">
+          点任意一天新建单日计划，拖过几天新建多日区间。
+        </p>
+      )}
+
+      {/* 月格：格子左键点 = 新建单日，拖过一段 = 新建多日区间（弹框编辑）；
+          格子里的色块/小标记是已有计划，点它们是看详情，不触发新建；
+          touch 上下滑动仍可滚动卡片（touch-pan-y），拖选主要面向鼠标 */}
+      <div data-month-grid className="grid grid-cols-7 gap-1 touch-pan-y" data-nodrag>
+        {['一', '二', '三', '四', '五', '六', '日'].map((w) => (
+          <div key={w} className="text-center text-[11px] text-zinc-400 py-1">
+            {w}
+          </div>
+        ))}
+        {days.map((key) => {
+          const inMonth = parseDay(key).getMonth() === ym.m - 1;
+          const dayMulti = multi.filter((p) => {
+            const { start, end } = spanOf(p);
+            return key >= start && key <= end;
+          });
+          const daySingle = single.filter((p) => spanOf(p).end === key);
+          const highlighted = inDragRange(key);
+          return (
+            <div
+              key={key}
+              data-month-cell={key}
+              onPointerDown={(e) => {
+                // 点在已有计划的色块/标记上 = 看详情，不开始拖选
+                if ((e.target as HTMLElement).closest('button')) return;
+                pointerTypeRef.current = e.pointerType;
+                if (e.pointerType !== 'mouse') return; // 触屏/触控笔不拖选，点按走 onClick
+                draggingRef.current = true;
+                dragEndRef.current = key;
+                setDrag({ start: key, end: key });
+              }}
+              onClick={(e) => {
+                // 鼠标已由 pointerup 收尾开过弹框，这里只处理触屏/触控笔的点按新建
+                if ((e.target as HTMLElement).closest('button')) return;
+                if (pointerTypeRef.current === 'mouse') return;
+                setEditor({ start: key, end: key });
+              }}
+              onPointerEnter={() => {
+                if (draggingRef.current) {
+                  dragEndRef.current = key;
+                  setDrag((d) => (d ? { ...d, end: key } : d));
+                }
+              }}
+              className={`rounded-xl border px-1.5 py-1 min-h-[64px] cursor-pointer transition-colors ${
+                key === today
+                  ? 'border-indigo-400/50 bg-indigo-500/[0.08]'
+                  : highlighted
+                    ? 'border-indigo-400/40 bg-indigo-500/[0.16]'
+                    : 'border-white/10 bg-white/[0.03]'
+              } ${inMonth ? '' : 'opacity-40'}`}
+            >
+              <p className={`text-[11px] tabular-nums ${key === today ? 'text-indigo-200 font-medium' : 'text-zinc-300'}`}>
+                {parseDay(key).getDate()}
+                {key === today && <span className="ml-1 text-[10px] px-1 py-0.5 rounded bg-indigo-500/70 text-white align-middle">今天</span>}
+              </p>
+              <div className="mt-1 flex flex-col gap-1">
+                {/* 多日区间：覆盖的每一天各画一段，拼成颜色区间；标题只写在区间起点格
+                    （区间从上月开始时，标题写在本月第一格） */}
+                {dayMulti.map((p) => {
+                  const { start, end } = spanOf(p);
+                  const st = planState(p, today);
+                  const meta = STATE_META[st];
+                  const showTitle = key === start || (start < days[0] && key === days[0]);
+                  return (
+                    <button
+                      key={p.id}
+                      type="button"
+                      data-month-segment={`${p.id}:${key}`}
+                      title={p.title}
+                      onClick={() => setSelectedId(p.id)}
+                      className={`h-5 rounded-md ${meta.fill} text-white text-[11px] leading-5 truncate text-left px-1.5 hover:brightness-110 transition ${
+                        key === start ? 'rounded-l-md' : 'rounded-l-sm'
+                      } ${key === end ? 'rounded-r-md' : 'rounded-r-sm'}`}
+                    >
+                      {showTitle ? p.title : ''}
+                    </button>
+                  );
+                })}
+                {/* 单日计划：当天格里的小标记（日程表新建的计划也会出现在这里） */}
+                {daySingle.map((p) => {
+                  const st = planState(p, today);
+                  const meta = STATE_META[st];
+                  return (
+                    <button
+                      key={p.id}
+                      type="button"
+                      data-month-marker={p.id}
+                      title={p.title}
+                      onClick={() => setSelectedId(p.id)}
+                      className={`rounded-md border border-white/20 bg-white/10 px-1.5 py-0.5 text-[11px] text-white/85 truncate text-left hover:bg-white/[0.16] transition-colors border-l-2 ${meta.bar}`}
+                    >
+                      {p.title}
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+          );
+        })}
+      </div>
+
+      {/* 新建弹框：点击格子 / 拖拉选段后弹出，标题 + 开始日 + 结束日 */}
+      {editor && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4"
+          onClick={() => setEditor(null)}
+        >
+          <div className="w-full max-w-sm" onClick={(e) => e.stopPropagation()} data-month-editor>
+            <PlanRangeEditor
+              store={store}
+              initialStart={editor.start}
+              initialEnd={editor.end}
+              onClose={() => setEditor(null)}
+            />
+          </div>
+        </div>
       )}
     </div>
   );

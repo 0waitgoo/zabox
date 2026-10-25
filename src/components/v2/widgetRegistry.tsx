@@ -137,7 +137,7 @@ export const WIDGET_DEFINITIONS: WidgetDefinition[] = [
     id: 'task',
     // 规范第 7 节收编口径：注册名「今日任务」与卡面标题「计划」统一为卡面名「计划」
     name: '计划',
-    desc: '待办与长期计划小工具',
+    desc: '待办、日程表与推进表小工具',
     category: 'tools',
     icon: ListTodo,
     watermark: '📋',

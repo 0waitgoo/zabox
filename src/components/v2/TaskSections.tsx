@@ -14,21 +14,20 @@ import {
   type PlanItem,
   type TaskItem,
 } from '../../store/localStore';
-import { splitTasksText, type SplitPlanDraft } from '../../utils/taskSplit';
+import { splitTasksText } from '../../utils/taskSplit';
 
 /**
  * 计划任务内容区（原 TaskPanel.tsx；第六十九轮起展开面板取消，本文件只剩内容组件，由 2x 计划卡卡面直接承载）：
- * 待办列 TasksSection / 长期计划列 PlansSection / AI 整理视图 AiView。
+ * 待办列 TasksSection / AI 整理视图 AiView。
  * 历史沿革（第十八轮起，本文件前身为计划任务面板）：
- * - 主视图双列（移动端上下堆叠）：左「待办」可勾选/添加，已完成折叠；待办可建「组」——子任务可勾，
+ * - 主视图：待办可勾选/添加，已完成折叠；待办可建「组」——子任务可勾，
  *   组本身不单独勾选，完成态由子任务全勾推导；组计数在头部按子任务摊平（与卡面同一口径）
- * - 右「长期计划」两型：次数型（执行了多少次：进度 = 已执行/目标，行上克制的 +1/−1）与
- *   日期型（设一个完成时间：剩余天数 + 时间进度条，逾期标红，可手动点「完成」）
  * - 行操作走右键菜单（范式同 SiteContextMenu）：编辑 / 删除（菜单内两步确认）；子任务右键只有删除
  * - 头部「AI 整理」切换到整理视图：一句话杂事 → 本地规则拆分预览（可勾选、可改字）→ 确认落库
  *   AI 只做拆分归类，不改动已有事项；拆分实现见 utils/taskSplit.ts（可替换为真 AI）
- * - 第二十五轮：待办/计划两列抽成 TasksSection / PlansSection 共享组件，本面板（variant='panel'）与
- *   2x 任务卡卡面（variant='card'，仅核心交互）共用同一套渲染逻辑；本面板行为不变
+ * - 2026-10-26 长期计划分类删除（用户定）：PlansSection / 计划行 / 新建与编辑表单整段删除，
+ *   计划只剩日程表（单日）与推进表（多日区间），见 PlanScheduleViews.tsx；AI 整理拆出的
+ *   长期事项直接并入待办，不再单独立项
  * - 第五十二轮（只动配色，功能/结构不动）：计划条目浮起（bg-white/10 + border-white/20）、
  *   进度轨道 white/20、计数提到 zinc-200、−/+ 钮做实（white/10 底）、待办区次级文字统一 zinc-300 档、
  *   复选框边框 white/50、输入 placeholder zinc-400；本节区与 TaskCard 共用，卡面同步生效
@@ -630,80 +629,6 @@ export function TasksSection({ store, pinned = false }: { store: LocalStore; pin
     </section>
   );
 }
-
-/**
- * 长期计划列（第二十五轮抽成共享组件，理由同 TasksSection；第六十九轮起只由卡面承载）：
- * 核心交互（次数型 −1/+1、日期型「完成」）与新建/编辑表单都在卡面直接完成，
- * 新建入口原先只在展开面板里，本轮按用户要求搬到卡面（见 PlansSection 末尾「+ 新计划」）
- */
-export function PlansSection({ store, pinned = false }: { store: LocalStore; pinned?: boolean }) {
-  const { plans } = store.data;
-  const [menu, setMenu] = useState<RowMenuState | null>(null);
-  const [editingPlanId, setEditingPlanId] = useState<string | null>(null);
-  const [showPlanForm, setShowPlanForm] = useState(false);
-
-  const openMenu = (e: React.MouseEvent, plan: PlanItem) => {
-    e.preventDefault();
-    e.stopPropagation();
-    setMenu({ ...rowMenuPosition(e), kind: 'plan', id: plan.id, title: plan.title });
-  };
-
-  return (
-    <section className={pinned ? 'flex flex-col h-full min-h-0' : undefined}>
-      <div className="flex items-baseline gap-2 mb-1 shrink-0">
-        <h4 className="text-sm font-semibold">长期计划</h4>
-        <span className="text-[11px] text-zinc-400 tabular-nums">{plans.length} 个</span>
-      </div>
-      {/* 列表区：pinned 时自成滚动区吃满列高（空状态不再单列文案，入口就是列底的按钮本身） */}
-      <div
-        data-task-col-scroll={pinned ? 'plans' : undefined}
-        className={pinned ? 'flex-1 min-h-0 overflow-y-auto' : undefined}
-      >
-        <div className="flex flex-col gap-1.5" data-nodrag>
-          {plans.map((plan) =>
-            editingPlanId === plan.id ? (
-              <PlanEditForm key={plan.id} plan={plan} store={store} onClose={() => setEditingPlanId(null)} />
-            ) : (
-              <PlanRow key={plan.id} plan={plan} store={store} onContextMenu={(e) => openMenu(e, plan)} />
-            ),
-          )}
-        </div>
-      </div>
-      {/* 底部块（第八十七轮）：pinned 时钉在列底——新建入口恒为单行紧凑按钮，
-          表单展开时在本块原地替换按钮（第六十九轮：表单从展开面板搬到卡面） */}
-      <div className={pinned ? 'shrink-0 pt-2' : 'mt-2'}>
-        {showPlanForm ? (
-          <PlanCreateForm store={store} onClose={() => setShowPlanForm(false)} />
-        ) : (
-          <button
-            type="button"
-            data-plan-new
-            onClick={() => setShowPlanForm(true)}
-            className="w-full py-1.5 rounded-xl border border-dashed border-white/25 text-xs text-zinc-300 hover:text-white hover:border-white/45 transition-colors"
-          >
-            + 新计划
-          </button>
-        )}
-      </div>
-
-      {/* 行右键菜单（编辑/删除） */}
-      {menu && (
-        <RowContextMenu
-          state={menu}
-          onClose={() => setMenu(null)}
-          onPick={(action) => {
-            if (action === 'edit') setEditingPlanId(menu.id);
-            else if (action === 'delete') store.deletePlan(menu.id);
-            else if (action === 'markDone') store.setPlanDone(menu.id, true);
-            else if (action === 'unmarkDone') store.setPlanDone(menu.id, false);
-            setMenu(null);
-          }}
-        />
-      )}
-    </section>
-  );
-}
-
 /** 组块：标题行（展开箭头 + 标题 + n/m）+ 子任务列表 + 组内添加行；全勾时标题划线。
  * 拖拽合并（第五十四轮）：entryId 存在时整块是落点（[data-task-entry]），头部行是起手区
  * （[data-task-grip]，子任务行与组内添加表单不作起手）；dragVisual 渲染源行半透明/落点高亮 */
@@ -864,477 +789,7 @@ const GroupBlock: React.FC<{
   );
 };
 
-/** 长期计划行：次数型（n/m 单位 + 进度条 + −1/+1）/ 日期型（剩余天数 + 目标日 + 时间进度条 + 完成按钮） */
-const PlanRow: React.FC<{
-  plan: PlanItem;
-  store: LocalStore;
-  onContextMenu: (e: React.MouseEvent) => void;
-}> = ({ plan, store, onContextMenu }) => {
-  if (plan.mode === 'date') {
-    const daysLeft = plan.deadline ? dateStrDiffDays(todayDateStr(), plan.deadline) : 0;
-    const overdue = !plan.done && daysLeft < 0;
-    const ratio = plan.done ? 1 : planDateRatio(plan);
-    return (
-      <div data-plan-item data-plan-mode="date" className="rounded-2xl border border-white/20 bg-white/10 px-2.5 py-2" onContextMenu={onContextMenu}>
-        <div className="flex items-center gap-2">
-          <span className={`flex-1 min-w-0 truncate text-sm font-medium ${plan.done ? 'line-through text-white/40' : 'text-white/90'}`}>
-            {plan.title}
-          </span>
-          {plan.done ? (
-            <span className="flex items-center gap-1 text-[11px] text-indigo-200 shrink-0">
-              <Check size={12} /> 已完成
-            </span>
-          ) : (
-            <button
-              type="button"
-              data-plan-finish
-              onClick={() => store.setPlanDone(plan.id, true)}
-              className="text-[11px] px-2 py-1 rounded-md bg-white/10 text-zinc-200 hover:bg-indigo-500/70 hover:text-white transition-colors shrink-0"
-            >
-              完成
-            </button>
-          )}
-        </div>
-        <div className="mt-1 flex items-baseline gap-2 text-[11px]">
-          {plan.done ? (
-            <span className="text-zinc-400">目标 {plan.deadline ? formatMonthDay(plan.deadline) : ''}</span>
-          ) : overdue ? (
-            <span data-plan-status className="text-red-200 font-medium">
-              已逾期 {-daysLeft} 天
-            </span>
-          ) : (
-            <span data-plan-status className="text-zinc-200">
-              {daysLeft === 0 ? '今天到期' : `还剩 ${daysLeft} 天`}
-            </span>
-          )}
-          {!plan.done && plan.deadline && <span className="text-zinc-400">· 目标 {formatMonthDay(plan.deadline)}</span>}
-          {plan.eventDate && <span className="text-zinc-400">· 事件 {formatMonthDay(plan.eventDate)}</span>}
-        </div>
-        <div className="mt-1.5 h-1 rounded-full bg-white/20 overflow-hidden">
-          <div
-            className={`h-full rounded-full transition-all duration-300 ${overdue ? 'bg-red-400' : 'bg-indigo-400'}`}
-            style={{ width: `${Math.round(ratio * 100)}%` }}
-          />
-        </div>
-      </div>
-    );
-  }
 
-  const cur = plan.currentCount ?? 0;
-  const target = plan.targetCount ?? 0;
-  const unit = plan.unit ?? '次';
-  const full = target > 0 && cur >= target;
-  const ratio = planCountRatio(plan);
-  const stepBtn =
-    'w-6 h-6 rounded-lg bg-white/10 text-zinc-100 hover:bg-white/20 hover:text-white disabled:opacity-40 disabled:hover:bg-white/10 flex items-center justify-center transition-colors shrink-0';
-  return (
-    <div data-plan-item data-plan-mode="count" className="rounded-2xl border border-white/20 bg-white/10 px-2.5 py-2" onContextMenu={onContextMenu}>
-      <div className="flex items-center gap-2">
-        <span className={`flex-1 min-w-0 truncate text-sm font-medium ${full ? 'text-indigo-200' : 'text-white/90'}`}>
-          {plan.title}
-        </span>
-        <span data-plan-progress className="text-[11px] text-zinc-200 tabular-nums shrink-0">
-          {cur}/{target} {unit}
-        </span>
-        {full && <Check size={13} className="text-indigo-200 shrink-0" />}
-      </div>
-      <div className="mt-1.5 flex items-center gap-2">
-        <div className="flex-1 h-1 rounded-full bg-white/20 overflow-hidden">
-          <div className="h-full rounded-full bg-indigo-400 transition-all duration-300" style={{ width: `${Math.round(ratio * 100)}%` }} />
-        </div>
-        <button
-          type="button"
-          aria-label="减少一次"
-          data-plan-minus
-          disabled={cur <= 0}
-          onClick={() => store.bumpPlanCount(plan.id, -1)}
-          className={stepBtn}
-        >
-          <Minus size={12} />
-        </button>
-        <button
-          type="button"
-          aria-label="增加一次"
-          data-plan-plus
-          disabled={full}
-          onClick={() => store.bumpPlanCount(plan.id, 1)}
-          className={stepBtn}
-        >
-          <Plus size={12} />
-        </button>
-      </div>
-    </div>
-  );
-};
-
-const planInputCls =
-  'w-full bg-white/5 border border-white/12 rounded-xl px-3 py-2 text-sm outline-none focus:border-indigo-400/50 placeholder:text-zinc-400';
-
-/** 新建计划表单：标题 + 类型切换（按次数/按日期）+ 对应字段；
-    日期型可填可选开始/结束时间（推进表时间轴用，不填即全天） */
-function PlanCreateForm({ store, onClose }: { store: LocalStore; onClose: () => void }) {
-  const [title, setTitle] = useState('');
-  const [mode, setMode] = useState<'count' | 'date'>('count');
-  const [target, setTarget] = useState('10');
-  const [unit, setUnit] = useState('次');
-  // 简化版日期模式（本轮）：只留一个日期（默认今天）+ 全天/指定时间开关 + 更多里的开始日；
-  // 旧 4 行（完成时间/开始日/事件日/时间）压缩成默认 2 行；缺失项一律默认补齐，不拦保存
-  const [deadline, setDeadline] = useState(todayDateStr());
-  const [startDate, setStartDate] = useState(todayDateStr());
-  const [timeMode, setTimeMode] = useState<'allday' | 'custom'>('allday');
-  const [startTime, setStartTime] = useState('');
-  const [endTime, setEndTime] = useState('');
-  const [more, setMore] = useState(false);
-  /** 「点表单外 = 确认」判定（第七十五轮） */
-  const outsideConfirm = useOutsidePressConfirm();
-
-  const canSubmit =
-    title.trim().length > 0 && (mode === 'count' ? parseInt(target, 10) > 0 : deadline.length > 0);
-
-  const submit = () => {
-    if (!canSubmit) return;
-    if (mode === 'count') {
-      store.addPlan(title, { mode, targetCount: parseInt(target, 10) || 10, unit });
-    } else {
-      store.addPlan(title, {
-        mode,
-        deadline,
-        startDate,
-        startTime: timeMode === 'custom' ? startTime || undefined : undefined,
-        endTime: timeMode === 'custom' ? endTime || undefined : undefined,
-      });
-    }
-    onClose();
-  };
-
-  const modeBtn = (m: 'count' | 'date', label: string) => (
-    <button
-      type="button"
-      data-plan-mode-btn={m}
-      onClick={() => setMode(m)}
-      className={`flex-1 text-xs py-1.5 rounded-lg transition-colors ${
-        mode === m ? 'bg-indigo-500/70 text-white font-medium' : 'text-white/50 hover:text-white/85'
-      }`}
-    >
-      {label}
-    </button>
-  );
-
-  return (
-    <div
-      ref={outsideConfirm.setEl}
-      className="rounded-2xl border border-white/12 bg-white/[0.03] p-3"
-      data-plan-form
-      onBlur={(e) => {
-        // 点表单外 = 确认（第七十五轮）：可提交就添加并关闭；标题为空等无效状态直接收起不落库
-        if (!outsideConfirm.consumeBlur(e)) return;
-        if (canSubmit) submit();
-        else onClose();
-      }}
-    >
-      <input
-        value={title}
-        autoFocus
-        onChange={(e) => setTitle(e.target.value)}
-        placeholder="计划标题，如 健身打卡 / 交设计稿"
-        data-plan-title
-        className={planInputCls}
-      />
-      <div className="mt-2 flex items-center rounded-xl bg-white/5 border border-white/10 p-0.5">
-        {modeBtn('count', '按次数')}
-        {modeBtn('date', '按日期')}
-      </div>
-      {mode === 'count' ? (
-        <div className="mt-2 flex items-center gap-2">
-          <label className="flex items-center gap-1.5 flex-1 min-w-0">
-            <span className="text-[11px] text-zinc-300 shrink-0">目标</span>
-            <input
-              type="number"
-              min={1}
-              value={target}
-              onChange={(e) => setTarget(e.target.value)}
-              data-plan-target
-              className="w-full min-w-0 bg-white/5 border border-white/12 rounded-xl px-2.5 py-1.5 text-sm outline-none focus:border-indigo-400/50"
-            />
-          </label>
-          <input
-            value={unit}
-            onChange={(e) => setUnit(e.target.value)}
-            maxLength={4}
-            placeholder="次"
-            data-plan-unit
-            className="w-16 bg-white/5 border border-white/12 rounded-xl px-2.5 py-1.5 text-sm outline-none focus:border-indigo-400/50 placeholder:text-zinc-400"
-          />
-        </div>
-      ) : (
-        <>
-          <label className="mt-2 flex items-center gap-2">
-            <span className="text-[11px] text-zinc-300 shrink-0">日期</span>
-            <input
-              type="date"
-              value={deadline}
-              onChange={(e) => setDeadline(e.target.value)}
-              data-plan-deadline
-              className="flex-1 min-w-0 bg-white/5 border border-white/12 rounded-xl px-2.5 py-1.5 text-sm outline-none focus:border-indigo-400/50 [color-scheme:dark]"
-            />
-          </label>
-          <div className="mt-2 flex items-center gap-2">
-            <span className="text-[11px] text-zinc-300 shrink-0">时间</span>
-            <div className="flex flex-1 rounded-xl bg-white/5 border border-white/10 p-0.5">
-              <button
-                type="button"
-                data-plan-time-mode="allday"
-                onClick={() => setTimeMode('allday')}
-                className={`flex-1 text-xs py-1.5 rounded-lg transition-colors ${
-                  timeMode === 'allday' ? 'bg-indigo-500/70 text-white font-medium' : 'text-white/50 hover:text-white/85'
-                }`}
-              >
-                全天
-              </button>
-              <button
-                type="button"
-                data-plan-time-mode="custom"
-                onClick={() => setTimeMode('custom')}
-                className={`flex-1 text-xs py-1.5 rounded-lg transition-colors ${
-                  timeMode === 'custom' ? 'bg-indigo-500/70 text-white font-medium' : 'text-white/50 hover:text-white/85'
-                }`}
-              >
-                指定时间
-              </button>
-            </div>
-          </div>
-          {timeMode === 'custom' && (
-            <div className="mt-2 flex items-center gap-2">
-              <input
-                type="time"
-                value={startTime}
-                onChange={(e) => setStartTime(e.target.value)}
-                data-plan-start-time
-                className="flex-1 min-w-0 bg-white/5 border border-white/12 rounded-xl px-2.5 py-1.5 text-sm outline-none focus:border-indigo-400/50 [color-scheme:dark]"
-              />
-              <span className="text-zinc-400 text-xs shrink-0">至</span>
-              <input
-                type="time"
-                value={endTime}
-                onChange={(e) => setEndTime(e.target.value)}
-                data-plan-end-time
-                className="flex-1 min-w-0 bg-white/5 border border-white/12 rounded-xl px-2.5 py-1.5 text-sm outline-none focus:border-indigo-400/50 [color-scheme:dark]"
-              />
-            </div>
-          )}
-          <button
-            type="button"
-            data-plan-more
-            onClick={() => setMore((v) => !v)}
-            className="mt-2 text-[11px] text-white/45 hover:text-white/85 transition-colors self-start"
-          >
-            {more ? '收起 ↑' : '更多 ↓'}
-          </button>
-          {more && (
-            <label className="mt-2 flex items-center gap-2">
-              <span className="text-[11px] text-zinc-300 shrink-0">开始日</span>
-              <input
-                type="date"
-                value={startDate}
-                onChange={(e) => setStartDate(e.target.value)}
-                data-plan-start-date
-                className="flex-1 min-w-0 bg-white/5 border border-white/12 rounded-xl px-2.5 py-1.5 text-sm outline-none focus:border-indigo-400/50 [color-scheme:dark]"
-              />
-            </label>
-          )}
-        </>
-      )}
-      <div className="mt-2.5 flex gap-2">
-        <button
-          type="button"
-          onClick={submit}
-          disabled={!canSubmit}
-          data-plan-submit
-          className="px-3.5 py-1.5 rounded-lg bg-indigo-500/80 hover:bg-indigo-500 disabled:opacity-40 text-white text-xs font-medium transition-colors"
-        >
-          添加计划
-        </button>
-        <button
-          type="button"
-          onClick={onClose}
-          className="px-3.5 py-1.5 rounded-lg bg-white/8 text-white/70 text-xs hover:bg-white/12 transition-colors"
-        >
-          取消
-        </button>
-      </div>
-    </div>
-  );
-}
-
-/** 编辑计划表单：改标题 + 本类型的目标（次数型：目标数/单位；日期型：一个日期 + 全天/指定时间 + 更多里的开始日）。
-    简化版（本轮，与新建表单同口径）：老数据的事件日打开时直接映射成这个日期字段，保存时合并进截止日并清掉事件日，
-    不再让用户同时面对两个日期；挂载即以现值初始化；推进表/日程表的块详情复用同一个表单（不另起一套编辑 UI） */
-export const PlanEditForm: React.FC<{ plan: PlanItem; store: LocalStore; onClose: () => void }> = ({ plan, store, onClose }) => {
-  const [title, setTitle] = useState(plan.title);
-  const [target, setTarget] = useState(String(plan.targetCount ?? 10));
-  const [unit, setUnit] = useState(plan.unit ?? '次');
-  // 日期字段 = 日程里实际显示的那个日期（老数据有事件日就显示事件日，没有就显示截止日）
-  const [date, setDate] = useState(plan.eventDate ?? plan.deadline ?? todayDateStr());
-  const [startDate, setStartDate] = useState(plan.startDate ?? todayDateStr());
-  const [timeMode, setTimeMode] = useState<'allday' | 'custom'>(plan.startTime ? 'custom' : 'allday');
-  const [startTime, setStartTime] = useState(plan.startTime ?? '');
-  const [endTime, setEndTime] = useState(plan.endTime ?? '');
-  const [more, setMore] = useState(false);
-  /** 「点表单外 = 确认」判定（第七十五轮，口径同新建表单） */
-  const outsideConfirm = useOutsidePressConfirm();
-
-  const submit = () => {
-    if (!title.trim()) return;
-    if (plan.mode === 'count') {
-      const n = parseInt(target, 10);
-      store.updatePlan(plan.id, { title, targetCount: n > 0 ? n : undefined, unit });
-    } else {
-      // 事件日合并：保存时把日期写进截止日并清掉事件日，之后只有一个日期
-      store.updatePlan(plan.id, {
-        title,
-        deadline: date,
-        startDate,
-        startTime: timeMode === 'custom' ? startTime : '',
-        endTime: timeMode === 'custom' ? endTime : '',
-        eventDate: '',
-      });
-    }
-    onClose();
-  };
-
-  return (
-    <div
-      ref={outsideConfirm.setEl}
-      className="rounded-2xl border border-indigo-300/25 bg-indigo-500/[0.05] p-3"
-      data-plan-edit-form
-      onBlur={(e) => {
-        // 点表单外 = 确认（第七十五轮）：标题有效就保存关闭；标题被清空时直接收起不落库（同「保存」钮禁用口径）
-        if (!outsideConfirm.consumeBlur(e)) return;
-        if (title.trim()) submit();
-        else onClose();
-      }}
-    >
-      <input value={title} autoFocus onChange={(e) => setTitle(e.target.value)} data-plan-edit-title className={planInputCls} />
-      {plan.mode === 'count' ? (
-        <div className="mt-2 flex items-center gap-2">
-          <label className="flex items-center gap-1.5 flex-1 min-w-0">
-            <span className="text-[11px] text-zinc-300 shrink-0">目标</span>
-            <input
-              type="number"
-              min={1}
-              value={target}
-              onChange={(e) => setTarget(e.target.value)}
-              data-plan-edit-target
-              className="w-full min-w-0 bg-white/5 border border-white/12 rounded-xl px-2.5 py-1.5 text-sm outline-none focus:border-indigo-400/50"
-            />
-          </label>
-          <input
-            value={unit}
-            onChange={(e) => setUnit(e.target.value)}
-            maxLength={4}
-            data-plan-edit-unit
-            className="w-16 bg-white/5 border border-white/12 rounded-xl px-2.5 py-1.5 text-sm outline-none focus:border-indigo-400/50"
-          />
-        </div>
-      ) : (
-        <>
-          <label className="mt-2 flex items-center gap-2">
-            <span className="text-[11px] text-zinc-300 shrink-0">日期</span>
-            <input
-              type="date"
-              value={date}
-              onChange={(e) => setDate(e.target.value)}
-              data-plan-edit-deadline
-              className="flex-1 min-w-0 bg-white/5 border border-white/12 rounded-xl px-2.5 py-1.5 text-sm outline-none focus:border-indigo-400/50 [color-scheme:dark]"
-            />
-          </label>
-          <div className="mt-2 flex items-center gap-2">
-            <span className="text-[11px] text-zinc-300 shrink-0">时间</span>
-            <div className="flex flex-1 rounded-xl bg-white/5 border border-white/10 p-0.5">
-              <button
-                type="button"
-                data-plan-edit-time-mode="allday"
-                onClick={() => setTimeMode('allday')}
-                className={`flex-1 text-xs py-1.5 rounded-lg transition-colors ${
-                  timeMode === 'allday' ? 'bg-indigo-500/70 text-white font-medium' : 'text-white/50 hover:text-white/85'
-                }`}
-              >
-                全天
-              </button>
-              <button
-                type="button"
-                data-plan-edit-time-mode="custom"
-                onClick={() => setTimeMode('custom')}
-                className={`flex-1 text-xs py-1.5 rounded-lg transition-colors ${
-                  timeMode === 'custom' ? 'bg-indigo-500/70 text-white font-medium' : 'text-white/50 hover:text-white/85'
-                }`}
-              >
-                指定时间
-              </button>
-            </div>
-          </div>
-          {timeMode === 'custom' && (
-            <div className="mt-2 flex items-center gap-2">
-              <input
-                type="time"
-                value={startTime}
-                onChange={(e) => setStartTime(e.target.value)}
-                data-plan-edit-start-time
-                className="flex-1 min-w-0 bg-white/5 border border-white/12 rounded-xl px-2.5 py-1.5 text-sm outline-none focus:border-indigo-400/50 [color-scheme:dark]"
-              />
-              <span className="text-zinc-400 text-xs shrink-0">至</span>
-              <input
-                type="time"
-                value={endTime}
-                onChange={(e) => setEndTime(e.target.value)}
-                data-plan-edit-end-time
-                className="flex-1 min-w-0 bg-white/5 border border-white/12 rounded-xl px-2.5 py-1.5 text-sm outline-none focus:border-indigo-400/50 [color-scheme:dark]"
-              />
-            </div>
-          )}
-          <button
-            type="button"
-            data-plan-edit-more
-            onClick={() => setMore((v) => !v)}
-            className="mt-2 text-[11px] text-white/45 hover:text-white/85 transition-colors self-start"
-          >
-            {more ? '收起 ↑' : '更多 ↓'}
-          </button>
-          {more && (
-            <label className="mt-2 flex items-center gap-2">
-              <span className="text-[11px] text-zinc-300 shrink-0">开始日</span>
-              <input
-                type="date"
-                value={startDate}
-                onChange={(e) => setStartDate(e.target.value)}
-                data-plan-edit-start-date
-                className="flex-1 min-w-0 bg-white/5 border border-white/12 rounded-xl px-2.5 py-1.5 text-sm outline-none focus:border-indigo-400/50 [color-scheme:dark]"
-              />
-            </label>
-          )}
-        </>
-      )}
-      <div className="mt-2.5 flex gap-2">
-        <button
-          type="button"
-          onClick={submit}
-          disabled={!title.trim()}
-          data-plan-edit-save
-          className="px-3.5 py-1.5 rounded-lg bg-indigo-500/80 hover:bg-indigo-500 disabled:opacity-40 text-white text-xs font-medium transition-colors"
-        >
-          保存
-        </button>
-        <button
-          type="button"
-          onClick={onClose}
-          className="px-3.5 py-1.5 rounded-lg bg-white/8 text-white/70 text-xs hover:bg-white/12 transition-colors"
-        >
-          取消
-        </button>
-      </div>
-    </div>
-  );
-};
 
 /**
  * 已完成行尾垃圾桶（第七十五轮）：已完成区里的组/普通待办/子任务行尾自动出现，
@@ -1541,14 +996,17 @@ export function AiView({ store, onDone }: { store: LocalStore; onDone: () => voi
   const [text, setText] = useState('');
   const [preview, setPreview] = useState<{
     todos: { title: string; checked: boolean }[];
-    plans: (SplitPlanDraft & { checked: boolean })[];
   } | null>(null);
 
   const runSplit = () => {
     const result = splitTasksText(text);
+    // 长期计划分类已删除（2026-10-26 用户定）：拆出的长期事项不再单独立项，直接并入待办，
+    // 预览只有一组合并列表，确认后全部落库为待办
     setPreview({
-      todos: result.todos.map((title) => ({ title, checked: true })),
-      plans: result.plans.map((p) => ({ ...p, checked: true })),
+      todos: [
+        ...result.todos.map((title) => ({ title, checked: true })),
+        ...result.plans.map((p) => ({ title: p.title, checked: true })),
+      ],
     });
   };
 
@@ -1556,18 +1014,14 @@ export function AiView({ store, onDone }: { store: LocalStore; onDone: () => voi
     if (!preview) return;
     store.addSplitResult(
       preview.todos.filter((t) => t.checked).map((t) => t.title),
-      preview.plans
-        .filter((p) => p.checked)
-        .map((p) => ({ title: p.title, targetCount: p.targetCount, unit: p.unit })),
+      [],
     );
     setText('');
     setPreview(null);
     onDone();
   };
 
-  const checkedCount = preview
-    ? preview.todos.filter((t) => t.checked).length + preview.plans.filter((p) => p.checked).length
-    : 0;
+  const checkedCount = preview ? preview.todos.filter((t) => t.checked).length : 0;
 
   const checkBox = (checked: boolean, onToggle: () => void) => (
     <button
@@ -1581,9 +1035,6 @@ export function AiView({ store, onDone }: { store: LocalStore; onDone: () => voi
       <Check size={12} strokeWidth={3} />
     </button>
   );
-
-  const patchPlan = (i: number, patch: Partial<SplitPlanDraft & { checked: boolean }>) =>
-    setPreview((p) => (p ? { ...p, plans: p.plans.map((t, j) => (j === i ? { ...t, ...patch } : t)) } : p));
 
   return (
     <div className="overflow-y-auto min-h-0 flex-1" data-ai-view>
@@ -1614,7 +1065,7 @@ export function AiView({ store, onDone }: { store: LocalStore; onDone: () => voi
 
       {preview && (
         <div className="mt-4">
-          {preview.todos.length === 0 && preview.plans.length === 0 ? (
+          {preview.todos.length === 0 ? (
             <p className="text-sm text-zinc-300 py-2">没有拆出可添加的事项，换个说法再试试。</p>
           ) : (
             <>
@@ -1638,41 +1089,6 @@ export function AiView({ store, onDone }: { store: LocalStore; onDone: () => voi
                           }
                           className="flex-1 min-w-0 bg-transparent text-sm py-1 outline-none border-b border-transparent focus:border-indigo-400/50 text-white/85"
                         />
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              )}
-              {preview.plans.length > 0 && (
-                <div className="mb-4">
-                  <p className="text-xs font-semibold text-zinc-300 mb-1.5">长期计划 · {preview.plans.length}</p>
-                  <div className="flex flex-col">
-                    {preview.plans.map((item, i) => (
-                      <div key={i} data-ai-plan className="flex items-center gap-2.5 px-2 py-1.5 rounded-xl hover:bg-white/[0.04]">
-                        {checkBox(item.checked, () => patchPlan(i, { checked: !item.checked }))}
-                        <input
-                          value={item.title}
-                          onChange={(e) => patchPlan(i, { title: e.target.value })}
-                          className="flex-1 min-w-0 bg-transparent text-sm py-1 outline-none border-b border-transparent focus:border-indigo-400/50 text-white/85"
-                        />
-                        <span className="flex items-center gap-1 shrink-0 text-[11px] text-zinc-300">
-                          目标
-                          <input
-                            type="number"
-                            min={1}
-                            value={item.targetCount}
-                            onChange={(e) => patchPlan(i, { targetCount: parseInt(e.target.value, 10) || 0 })}
-                            data-ai-plan-target
-                            className="w-14 bg-white/5 border border-white/12 rounded-lg px-1.5 py-1 text-xs outline-none focus:border-indigo-400/50 text-white/85"
-                          />
-                          <input
-                            value={item.unit}
-                            maxLength={4}
-                            onChange={(e) => patchPlan(i, { unit: e.target.value })}
-                            data-ai-plan-unit
-                            className="w-10 bg-white/5 border border-white/12 rounded-lg px-1.5 py-1 text-xs outline-none focus:border-indigo-400/50 text-white/85"
-                          />
-                        </span>
                       </div>
                     ))}
                   </div>

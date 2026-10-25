@@ -92,6 +92,10 @@ function PlanApp() {
         const [pos, size] = await Promise.all([win.outerPosition(), win.innerSize()]);
         return { x: pos.x, y: pos.y, width: size.width, height: size.height };
       },
+      readOuterRect: async () => {
+        const [pos, size] = await Promise.all([win.outerPosition(), win.outerSize()]);
+        return { x: pos.x, y: pos.y, width: size.width, height: size.height };
+      },
       scaleFactor: () => win.scaleFactor(),
       setSize: (width, height) => win.setSize(new PhysicalSize(width, height)),
       setMinSize: (width, height) => win.setMinSize(new LogicalSize(width, height)),
@@ -166,6 +170,7 @@ function PlanApp() {
   };
 
   useEffect(() => {
+    if (!planWindow()) return;
     let disposed = false;
     const unlisteners: (() => void)[] = [];
     void listen('window-restore', () => { void restoreFromCollapse(); }).then((stop) => {

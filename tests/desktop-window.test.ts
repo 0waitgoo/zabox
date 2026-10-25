@@ -10,6 +10,7 @@ function fixture(scale = 1) {
   const operations: string[] = [];
   const win: DesktopWindowAdapter = {
     readRect: async () => ({ ...rect }),
+    readOuterRect: async () => ({ ...rect, width: rect.width + 16, height: rect.height + 16 }),
     scaleFactor: async () => scale,
     setMinSize: async (width, height) => { minimum = { width, height }; operations.push(`min:${height}`); },
     setSize: async (width, height) => {

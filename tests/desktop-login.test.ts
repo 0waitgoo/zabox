@@ -33,6 +33,34 @@ test('ordinary website login is left to the existing app', async () => {
   assert.equal(await tryDesktopLoginBridge(), false);
 });
 
+test('desktop launch starts browser OAuth and remembers the local callback', async () => {
+  const state = 'd'.repeat(64);
+  const env = environment(`?desktop_port=54321&desktop_state=${state}`);
+  const previousFetch = globalThis.fetch;
+  globalThis.fetch = async () => new Response(JSON.stringify({ clientId: 'public-client-id' }), {
+    headers: { 'Content-Type': 'application/json' },
+  });
+  try {
+    assert.equal(await tryDesktopLoginBridge(), true);
+    const destination = new URL(env.destination());
+    assert.equal(destination.origin, 'https://github.com');
+    assert.equal(destination.pathname, '/login/oauth/authorize');
+    assert.equal(destination.searchParams.get('client_id'), 'public-client-id');
+    assert.equal(destination.searchParams.get('state'), env.storage.get('ainav-oauth-state'));
+    assert.notEqual(destination.searchParams.get('state'), state);
+    assert.equal(JSON.parse(env.storage.get('zabox-desktop-login-v1')!).port, 54321);
+  } finally {
+    globalThis.fetch = previousFetch;
+  }
+});
+
+test('invalid launch port never starts GitHub authorization', async () => {
+  const env = environment(`?desktop_port=80&desktop_state=${'d'.repeat(64)}`);
+  await tryDesktopLoginBridge();
+  assert.equal(env.destination(), '');
+  assert.match(env.root.textContent, /无效/);
+});
+
 test('valid browser callback sends only the code and desktop state to loopback', async () => {
   const bridge = { port: 54321, state: 'b'.repeat(64), createdAt: Date.now() };
   const env = environment('?code=auth-code&state=oauth-state', {

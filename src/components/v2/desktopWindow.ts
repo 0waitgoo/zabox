@@ -13,6 +13,7 @@ export function edgeAt(rect: DesktopRect, bounds: DesktopBounds, tolerance: numb
 
 export interface DesktopWindowAdapter {
   readRect(): Promise<DesktopRect>;
+  readOuterRect(): Promise<DesktopRect>;
   scaleFactor(): Promise<number>;
   setSize(width: number, height: number): Promise<void>;
   setMinSize(width: number, height: number): Promise<void>;
@@ -82,7 +83,7 @@ export class DesktopWindowController {
   collapse(bounds: DesktopBounds): Promise<void> {
     return this.run(async () => {
       if (this.headerOnly || this.edge || await this.win.isMaximized()) return;
-      const rect = await this.win.readRect();
+      const rect = await this.win.readOuterRect();
       const scale = await this.win.scaleFactor();
       const edge = edgeAt(rect, bounds, 4 * scale);
       if (!edge) return;

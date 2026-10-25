@@ -104,6 +104,25 @@ pub fn cancel_desktop_login(login: State<'_, LoginState>) {
 mod tests {
     use super::*;
     #[test]
+    fn packaged_opener_scope_allows_the_login_url_only_on_our_site() {
+        // Use the same glob matcher as tauri-plugin-opener, against the actual
+        // packaged capability. Merely granting allow-open-url grants NO URLs.
+        let capability: serde_json::Value = serde_json::from_str(include_str!("../capabilities/default.json")).unwrap();
+        let permission = capability["permissions"].as_array().unwrap().iter()
+            .find(|permission| permission["identifier"] == "opener:allow-open-url")
+            .expect("browser login needs an explicit URL scope");
+        let patterns: Vec<_> = permission["allow"].as_array().unwrap().iter()
+            .map(|entry| glob::Pattern::new(entry["url"].as_str().unwrap()).unwrap()).collect();
+        let allowed = |url: &str| patterns.iter().any(|pattern| pattern.matches(url));
+        for port in [1024, 54321, 65535] {
+            let url = format!("https://zahe.hiitun.top/?desktop_port={port}&desktop_state={}", "a".repeat(64));
+            assert!(allowed(&url), "login URL must be allowed: {url}");
+        }
+        for url in ["https://zahe.hiitun.top.evil.test/", "http://zahe.hiitun.top/", "file:///C:/Windows/notepad.exe", "https://example.com/"] {
+            assert!(!allowed(url), "unrelated URLs should remain blocked");
+        }
+    }
+    #[test]
     fn callback_requires_path_state_and_one_code() {
         assert_eq!(callback_code("/callback?state=secret&code=abc", "secret").unwrap(), Some("abc".into()));
         for target in ["/callback?state=other&code=abc", "/other?state=secret&code=abc", "/callback?state=secret&code=a&code=b", "//other/callback?state=secret&code=a"] {

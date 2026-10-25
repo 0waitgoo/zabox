@@ -1,6 +1,6 @@
 {
   "$schema": "../gen/schemas/desktop-schema.json",
-  "description": "桌面计划应用主窗口能力：内置标题栏窗口按钮、悬浮窗尺寸位置、边缘收起位置查询、GitHub 设备码确认页外跳、托盘收起兜底、设备码登录走 Rust 侧 HTTP（绕开浏览器 CORS）",
+  "description": "桌面计划应用主窗口能力：窗口管理、浏览器授权登录与HTTP请求",
   "identifier": "default",
   "permissions": [
     "core:window:allow-close",
@@ -22,7 +22,14 @@
     "core:window:allow-unminimize",
     "core:window:allow-is-minimized",
     "core:window:allow-set-min-size",
-    "opener:allow-open-url",
+    {
+      "identifier": "opener:allow-open-url",
+      "allow": [
+        {
+          "url": "https://zahe.hiitun.top/*"
+        }
+      ]
+    },
     "http:allow-fetch",
     {
       "identifier": "http:default",

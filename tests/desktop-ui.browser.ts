@@ -147,6 +147,17 @@ try {
   await page.setViewportSize({ width: 420, height: 800 });
   await page.waitForFunction(() => document.querySelector('[data-desktop-workspace]')?.getAttribute('data-layout') === 'tabs');
   assert.equal(await page.getByRole('tab', { name: '长期计划', exact: true }).getAttribute('aria-selected'), 'true');
+  // Double-click only the free titlebar region; controls and the body must not toggle.
+  await page.evaluate(() => {
+    (window as unknown as { toolbarToggleCount: number }).toolbarToggleCount = 0;
+    window.addEventListener('plan-toggle-header', () => { (window as unknown as { toolbarToggleCount: number }).toolbarToggleCount++; });
+  });
+  await page.locator('[data-plan-titlebar] [data-plan-drag-region]').first().dblclick({ position: { x: 200, y: 20 } });
+  assert.equal(await page.evaluate(() => (window as unknown as { toolbarToggleCount: number }).toolbarToggleCount), 1);
+  await page.getByRole('button', { name: '取消置顶', exact: true }).dblclick();
+  assert.equal(await page.evaluate(() => (window as unknown as { toolbarToggleCount: number }).toolbarToggleCount), 1);
+  await page.getByRole('tab', { name: '长期计划', exact: true }).dblclick();
+  assert.equal(await page.evaluate(() => (window as unknown as { toolbarToggleCount: number }).toolbarToggleCount), 1);
   assert.deepEqual(errors, []);
   console.log('Desktop browser checks passed: black light-mode text/logo, invisible unchecked glyph, pin control, custom colors, dark-mode restore and persisted background.');
 } finally {

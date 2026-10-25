@@ -1,6 +1,7 @@
 import React from 'react';
 import { ChevronDown, Settings, Square, X } from 'lucide-react';
 import PinButton from './PinButton';
+import { requestToolbarToggle } from './desktopToolbar';
 import type { PlanTheme } from '../../plan-app';
 
 /**
@@ -51,7 +52,7 @@ export default function PlanTitleBar({
     ? `${btnBase} bg-indigo-500 text-white`
     : btnCls;
   return (
-    <div className="sticky top-0 z-50 h-10 flex items-center gap-1 px-1.5 select-none backdrop-blur">
+    <div data-plan-drag-region onDoubleClick={requestToolbarToggle} className="sticky top-0 z-50 h-10 flex items-center gap-1 px-1.5 select-none backdrop-blur">
       {actions}
       {/* 拖动区：中间空白 */}
       <div data-plan-drag-region className="flex-1 min-w-0 h-full" />

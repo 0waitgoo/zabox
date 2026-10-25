@@ -28,6 +28,7 @@ import { invoke } from '@tauri-apps/api/core';
 import { DesktopShortcutController, loadExpandShortcut, loadShortcutBinding } from './components/v2/desktopShortcut';
 import { DesktopWindowController } from './components/v2/desktopWindow';
 import { useDesktopDrag } from './components/v2/useDesktopDrag';
+import { requestToolbarToggle } from './components/v2/desktopToolbar';
 import { planWindow } from './components/v2/planWindow';
 import { applyCloseAction, loadMinimizeOnClose, saveMinimizeOnClose } from './components/v2/desktopClose';
 import { useLocalStore } from './store/localStore';
@@ -319,6 +320,8 @@ function PlanApp() {
     if (!win) return;
     let disposed = false;
     const unlisteners: (() => void)[] = [];
+    const toggleFromToolbar = () => { void controllerRef.current?.toggleHeader().catch(reportWindowError); };
+    window.addEventListener('plan-toggle-header', toggleFromToolbar);
     void listen<boolean>('window-shortcut', async (event) => {
       try {
         await controllerRef.current?.toggleHeader(event.payload);
@@ -384,6 +387,7 @@ function PlanApp() {
       unlisteners.forEach((stop) => stop());
       cancelScheduledRestore();
       window.removeEventListener('plan-drag-end', onDragEnd);
+      window.removeEventListener('plan-toggle-header', toggleFromToolbar);
       window.removeEventListener('plan-window-error', onError);
     };
   }, []);
@@ -493,7 +497,7 @@ function PlanApp() {
       ? 'shrink-0 px-2 py-1 rounded-lg text-xs font-medium bg-black/[0.06] hover:bg-black/10 text-zinc-800 transition-colors'
       : 'shrink-0 px-2 py-1 rounded-lg text-xs font-medium bg-white/10 hover:bg-white/[0.18] text-white transition-colors';
     return (
-      <div
+      <div data-plan-drag-region onDoubleClick={requestToolbarToggle}
         className={`relative w-full h-dvh flex items-center gap-1 px-1.5 overflow-hidden select-none ${textCls}`}
         style={{ backgroundColor: bg }}
       >

@@ -1,6 +1,6 @@
 [package]
 name = "zabox-plan"
-version = "0.1.7"
+version = "0.1.8"
 description = "杂盒计划桌面版"
 authors = ["0waitgoo"]
 edition = "2021"

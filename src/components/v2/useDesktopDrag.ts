@@ -56,6 +56,7 @@ export function useDesktopDrag() {
     document.addEventListener('pointerup', end);
     document.addEventListener('pointercancel', cancel);
     window.addEventListener('blur', cancel);
+    window.addEventListener('plan-toggle-header', cancel);
     return () => {
       disposed = true;
       cancel();
@@ -63,6 +64,7 @@ export function useDesktopDrag() {
       document.removeEventListener('pointerup', end);
       document.removeEventListener('pointercancel', cancel);
       window.removeEventListener('blur', cancel);
+      window.removeEventListener('plan-toggle-header', cancel);
     };
   }, []);
 }

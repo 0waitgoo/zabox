@@ -548,7 +548,7 @@ export default function HomePage({ onNavigate, store }: { onNavigate: (page: str
     );
 
   /* ---------- 主页卡片顺序（拖拽排序后存本地） ---------- */
-  // 默认顺序与此前硬编码的交错排版完全一致：B 组 → 任务 → C×1 → 资讯 → C×2 → 软件榜 → 其余 C → 热门话题
+  // 默认顺序与此前硬编码的交错排版完全一致：B 组 → 任务 → C×1 → 资讯 → C×2 → 其余 C → 热门话题
   const defaultOrder = useMemo(() => {
     const order: string[] = listGroups.map((g) => groupCardKey(g.id));
     if (hasWidget('task')) order.push(widgetCardKey('task'));
@@ -556,7 +556,6 @@ export default function HomePage({ onNavigate, store }: { onNavigate: (page: str
     if (hasWidget('news')) order.push(widgetCardKey('news'));
     if (stackB) order.push(groupCardKey(stackB.id));
     if (stackC) order.push(groupCardKey(stackC.id));
-    if (hasWidget('ranking')) order.push(widgetCardKey('ranking'));
     for (const g of stackRest) order.push(groupCardKey(g.id));
     // 组合卡作为一个条目参与顺序（成员组不再单独出现）；已存顺序里组合的位置由 merge/split 动作维护
     for (const c of validCombos) order.push(comboCardKey(c.id));
@@ -790,8 +789,6 @@ export default function HomePage({ onNavigate, store }: { onNavigate: (page: str
             : 172;
         case 'news':
           return lay.heightUnits === 2 ? 336 : 172;
-        case 'ranking':
-          return lay.heightUnits === 2 ? 376 : 172;
         case 'trending':
           return 344;
         case 'tools': {

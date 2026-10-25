@@ -1,5 +1,5 @@
 import React from 'react';
-import { ListTodo, Newspaper, Palette, Trophy, TrendingUp, Wrench, type LucideIcon } from 'lucide-react';
+import { ListTodo, Newspaper, Palette, TrendingUp, Wrench, type LucideIcon } from 'lucide-react';
 import {
   DEFAULT_WIDGET_LAYOUTS,
   type LocalStore,
@@ -9,7 +9,6 @@ import {
 } from '../../store/localStore';
 import TaskCard from './TaskCard';
 import NewsCard from './NewsCard';
-import RankingCard from './RankingCard';
 import FileToolsCard from './FileToolsCard';
 import ColorsCard from './ColorsCard';
 import TrendingWidget from '../widgets/TrendingWidget';
@@ -104,10 +103,6 @@ const NewsWidget: React.ComponentType<WidgetRenderProps> = ({ onNavigate, tint, 
   <NewsCard onNavigate={onNavigate} delay={delay} tint={tint} />
 );
 
-const RankingWidget: React.ComponentType<WidgetRenderProps> = ({ tint, delay = 0, layout }) => (
-  <RankingCard delay={delay} tint={tint} heightUnits={layout.heightUnits} />
-);
-
 const TrendingWidgetAdapter: React.ComponentType<WidgetRenderProps> = ({ tint, layout }) => (
   <TrendingWidget tint={tint} heightUnits={layout.heightUnits} />
 );
@@ -159,18 +154,6 @@ export const WIDGET_DEFINITIONS: WidgetDefinition[] = [
     featured: true,
     network: [{ endpoint: '/api?type=news', purpose: '本站资讯接口：只读拉取对所有人一致的公共资讯（头条与热榜）' }],
     component: NewsWidget,
-  },
-  {
-    id: 'ranking',
-    name: 'AI 软件榜',
-    desc: 'Product Hunt 本周真实票数榜',
-    category: 'tools',
-    icon: Trophy,
-    watermark: '🏆',
-    supportedSizes: ALL_SIZES,
-    defaultLayout: DEFAULT_WIDGET_LAYOUTS.ranking,
-    // 运行时零联网：数据是构建期静态文件（api/ranking-data.js，GitHub Actions 每周从 Product Hunt 官方 API 生成），故无 network 声明
-    component: RankingWidget,
   },
   {
     id: 'trending',

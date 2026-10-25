@@ -8,7 +8,7 @@ import {
   Square,
   X,
 } from 'lucide-react';
-import PlanPage from './components/pages/PlanPage';
+import DesktopPlanWorkspace from './components/v2/DesktopPlanWorkspace';
 import PlanSyncBar from './components/v2/PlanSyncBar';
 import PlanTitleBar from './components/v2/PlanTitleBar';
 import PinButton from './components/v2/PinButton';
@@ -107,6 +107,7 @@ function PlanApp() {
   const [aiView, setAiView] = useState<'main' | 'ai'>('main');
   const [createMenu, setCreateMenu] = useState<{ x: number; y: number } | null>(null);
   const closeCreateMenu = useCallback(() => setCreateMenu(null), []);
+  const [activeSection, setActiveSection] = useState<CreateKind>('task');
   const [createTarget, setCreateTarget] = useState<CreateKind | null>(null);
   const [windowError, setWindowError] = useState<string | null>(null);
   const controllerRef = useRef<DesktopWindowController | null>(null);
@@ -172,6 +173,7 @@ function PlanApp() {
       await controllerRef.current?.exitHeader();
       setSettingsOpen(false);
       setAiView('main');
+      setActiveSection(kind);
       setCreateTarget(kind);
     } catch (error) { reportWindowError(error); }
   };
@@ -518,13 +520,13 @@ function PlanApp() {
           <button type="button" className="ml-2 underline" onClick={() => setWindowError(null)}>关闭提示</button>
         </div>
       )}
-      <div hidden={!!collapsed || headerOnly} className="h-[calc(100dvh-40px)] overflow-y-auto">
-        <div hidden={settingsOpen}>
+      <div className={`${collapsed || headerOnly ? 'hidden' : 'flex'} flex-col h-[calc(100dvh-40px)] min-h-0 overflow-hidden`}>
+        <div hidden={settingsOpen} className="shrink-0">
           <PlanSyncBar store={store} theme={theme} aiView={aiView}
             onAiToggle={() => setAiView((v) => v === 'ai' ? 'main' : 'ai')}
             autoLogin={autoLogin} onAutoLoginConsumed={() => setAutoLogin(false)} />
         </div>
-        <div className="px-3 sm:px-4 py-3">
+        <div className={`px-3 sm:px-4 py-3 flex-1 min-h-0 ${settingsOpen || aiView === 'ai' ? 'overflow-y-auto' : 'flex flex-col'}`}>
           {settingsOpen ? (
             <PlanSettings theme={theme} onThemeChange={changeTheme} customColor={customColor}
               onCustomColorChange={changeCustomColor} minimizeOnClose={minimizeOnClose}
@@ -532,7 +534,7 @@ function PlanApp() {
               onOpacityChange={changeOpacity} onBack={() => setSettingsOpen(false)} />
           ) : aiView === 'ai' ? (
             <PlanAiView store={store} theme={theme} onOpenSettings={() => setSettingsOpen(true)} />
-          ) : <PlanPage store={store} hideHeader hideAiButton flatPanels />}
+          ) : <DesktopPlanWorkspace store={store} active={activeSection} onActiveChange={setActiveSection} />}
         </div>
       </div>
     </div>

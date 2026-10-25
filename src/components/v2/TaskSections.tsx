@@ -288,7 +288,7 @@ function useOutsidePressConfirm() {
  * 勾选/添加/建组/组展开勾子任务/已完成折叠/行右键编辑删除/拖拽合并都在卡面直接完成；
  * 标题截断时点击文字展开全文、再点收起（第六十九轮）
  */
-export function TasksSection({ store, pinned = false }: { store: LocalStore; pinned?: boolean }) {
+export function TasksSection({ store, pinned = false, heading }: { store: LocalStore; pinned?: boolean; heading?: React.ReactNode }) {
   const { tasks } = store.data;
   const [menu, setMenu] = useState<RowMenuState | null>(null);
   /** 「已完成」分组头右键菜单（第四十八轮）：只记位置，开/关与行菜单分开管理 */
@@ -463,7 +463,7 @@ export function TasksSection({ store, pinned = false }: { store: LocalStore; pin
     <section className={pinned ? 'flex flex-col h-full min-h-0' : undefined}>
       {/* 标题行（第八十七轮）：计数去掉（卡头 x/y 已含）；「+ 建组」降为行右小文字按钮 */}
       <div className="flex items-center gap-2 mb-1 shrink-0">
-        <h4 className="text-sm font-semibold">待办</h4>
+        {heading ?? <h4 className="text-sm font-semibold">待办</h4>}
         {!showGroupForm && (
           <button
             type="button"
@@ -636,7 +636,7 @@ export function TasksSection({ store, pinned = false }: { store: LocalStore; pin
  * 核心交互（次数型 −1/+1、日期型「完成」）与新建/编辑表单都在卡面直接完成，
  * 新建入口原先只在展开面板里，本轮按用户要求搬到卡面（见 PlansSection 末尾「+ 新计划」）
  */
-export function PlansSection({ store, pinned = false }: { store: LocalStore; pinned?: boolean }) {
+export function PlansSection({ store, pinned = false, heading }: { store: LocalStore; pinned?: boolean; heading?: React.ReactNode }) {
   const { plans } = store.data;
   const [menu, setMenu] = useState<RowMenuState | null>(null);
   const [editingPlanId, setEditingPlanId] = useState<string | null>(null);
@@ -651,7 +651,7 @@ export function PlansSection({ store, pinned = false }: { store: LocalStore; pin
   return (
     <section className={pinned ? 'flex flex-col h-full min-h-0' : undefined}>
       <div className="flex items-baseline gap-2 mb-1 shrink-0">
-        <h4 className="text-sm font-semibold">长期计划</h4>
+        {heading ?? <h4 className="text-sm font-semibold">长期计划</h4>}
         <span className="text-[11px] text-zinc-400 tabular-nums">{plans.length} 个</span>
       </div>
       {/* 列表区：pinned 时自成滚动区吃满列高（空状态不再单列文案，入口就是列底的按钮本身） */}

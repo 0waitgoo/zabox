@@ -18,6 +18,7 @@ on:
       - 'src/services/desktop*.ts'
       - 'src/components/v2/desktop*.ts'
       - 'src/components/v2/DesktopCreateMenu.tsx'
+      - 'src/components/v2/DesktopPlanWorkspace.tsx'
       - 'src/desktop-theme.css'
       - 'src/components/v2/useDesktopDrag.ts'
       - 'tests/**'

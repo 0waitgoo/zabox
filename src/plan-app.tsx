@@ -1,5 +1,13 @@
 import React, { StrictMode, useEffect, useRef, useState } from 'react';
 import { createRoot } from 'react-dom/client';
+import {
+  ChevronDown,
+  ChevronLeft,
+  ChevronRight,
+  ChevronUp,
+  Square,
+  X,
+} from 'lucide-react';
 import PlanPage from './components/pages/PlanPage';
 import PlanSyncBar from './components/v2/PlanSyncBar';
 import PlanTitleBar from './components/v2/PlanTitleBar';
@@ -178,7 +186,9 @@ function PlanApp() {
   };
 
   /** 收起（V）：窗口收成只留顶栏的细条（48px），记下完整版位置尺寸供展开恢复；
-      已最大化时先还原再记，避免记一个全屏尺寸 */
+      已最大化时先还原再记，避免记一个全屏尺寸。细条宽度不小于 320（第 6 轮：
+      之前细条能被拖到最小宽度，登录按钮会被挤坏），并把最小尺寸一并锁到 320×48，
+      展开时恢复 280×200。 */
   const enterHeaderOnly = async () => {
     if (headerOnlyRef.current) return;
     const win = planWindow();
@@ -189,9 +199,10 @@ function PlanApp() {
         const size = await win.outerSize();
         const sc = await win.scaleFactor().catch(() => 1);
         headerOnlyRectRef.current = { x: pos.x, y: pos.y, width: size.width, height: size.height };
-        const lw = Math.max(280, Math.round(size.width / sc));
+        const lw = Math.max(320, Math.round(size.width / sc));
         setHeaderOnly(true);
         await win.setSize(new LogicalSize(lw, STRIP_HEIGHT));
+        await win.setMinSize(new LogicalSize(320, STRIP_HEIGHT));
       } catch {
         setHeaderOnly(true);
       }
@@ -200,7 +211,8 @@ function PlanApp() {
     }
   };
 
-  /** 展开：恢复收起前的位置尺寸（已最大化时先还原，避免在最大化态下改尺寸无效） */
+  /** 展开：恢复收起前的位置尺寸（已最大化时先还原，避免在最大化态下改尺寸无效），
+      并把最小尺寸恢复成正常窗口的 280×200 */
   const exitHeaderOnly = async () => {
     if (!headerOnlyRef.current) return;
     const rect = headerOnlyRectRef.current;
@@ -209,6 +221,7 @@ function PlanApp() {
     if (win && rect) {
       try {
         if (await win.isMaximized()) await win.unmaximize();
+        await win.setMinSize(new LogicalSize(280, 200));
         await win.setSize(new PhysicalSize(rect.width, rect.height));
         await win.setPosition(new PhysicalPosition(rect.x, rect.y));
       } catch {
@@ -391,9 +404,18 @@ function PlanApp() {
   // 右边缘收起时露的是窗口左沿 → 把手放左；左边缘收起时露右沿 → 把手放右；
   // 上边缘收起时露底沿 → 把手放底部；下边缘收起时露顶沿 → 把手放顶部。
   // 细边上另带一个 ✕：收起时不用展开也能直接关窗口。
+  // 图标统一用 lucide（第 6 轮，与标题栏同款，不再混排文字符号）。
   if (collapsed) {
-    const chevron =
-      collapsed === 'right' ? '‹' : collapsed === 'left' ? '›' : collapsed === 'top' ? '⌄' : '⌃';
+    const chevronIcon =
+      collapsed === 'right' ? (
+        <ChevronLeft size={14} />
+      ) : collapsed === 'left' ? (
+        <ChevronRight size={14} />
+      ) : collapsed === 'top' ? (
+        <ChevronDown size={14} />
+      ) : (
+        <ChevronUp size={14} />
+      );
     const chevronBtn = (
       <button
         type="button"
@@ -403,9 +425,9 @@ function PlanApp() {
         onClick={() => void restoreFromCollapse()}
         className={`flex-1 flex items-center justify-center transition-colors cursor-pointer hover:bg-indigo-500/80 hover:text-white ${
           light ? 'text-zinc-700' : 'text-white/85'
-        } ${collapsed === 'top' || collapsed === 'bottom' ? 'text-sm' : 'text-base'}`}
+        }`}
       >
-        {chevron}
+        {chevronIcon}
       </button>
     );
     const closeBtn = (
@@ -414,11 +436,11 @@ function PlanApp() {
         aria-label="关闭窗口"
         title="关闭"
         onClick={() => void safeClose()}
-        className={`shrink-0 flex items-center justify-center transition-colors cursor-pointer text-xs hover:bg-red-500/80 hover:text-white ${
+        className={`shrink-0 flex items-center justify-center transition-colors cursor-pointer hover:bg-red-500/80 hover:text-white ${
           light ? 'text-zinc-700' : 'text-white/85'
         } ${collapsed === 'top' || collapsed === 'bottom' ? 'w-[24px] h-full' : 'w-full h-[24px]'}`}
       >
-        ✕
+        <X size={12} />
       </button>
     );
     const strip =
@@ -504,7 +526,7 @@ function PlanApp() {
           onClick={() => void exitHeaderOnly()}
           className={stripBtnCls}
         >
-          ⌃
+          <ChevronUp size={14} />
         </button>
         <button
           type="button"
@@ -512,7 +534,7 @@ function PlanApp() {
           onClick={() => void handleToggleMaximize()}
           className={stripBtnCls}
         >
-          ▢
+          <Square size={14} />
         </button>
         <button
           type="button"
@@ -524,7 +546,7 @@ function PlanApp() {
               : `${stripBtnBase} text-white/70 hover:bg-red-500/80 hover:text-white`
           }
         >
-          ✕
+          <X size={14} />
         </button>
       </div>
     );

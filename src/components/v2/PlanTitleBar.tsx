@@ -1,4 +1,5 @@
 import React from 'react';
+import { ChevronDown, Settings, Square, X } from 'lucide-react';
 import { safeClose } from './planWindow';
 import type { PlanTheme } from '../../plan-app';
 
@@ -12,7 +13,8 @@ import type { PlanTheme } from '../../plan-app';
  * - 底色：透明 + 磨砂（窗口底色由 plan-app 根背景层统一承载，透明度滑杆只改底色、字体不透明）。
  * 拖动区：只放在非交互区——logo + 标题、中间空白；按钮不在拖动区内，点按不受影响。
  * 窗口仍出现在任务栏（tauri.conf skipTaskbar=false）。
- * 图标尺寸（用户定，第 5 轮缩小）：按钮 24px、字号 xs。
+ * 图标尺寸（用户定，第 5 轮缩小）：按钮 24px、字号 xs；图标统一用 lucide
+ * （第 6 轮：之前 ⚙⌄▢✕ 是混排的文字符号，看着不统一）。
  */
 export default function PlanTitleBar({
   theme,
@@ -64,7 +66,7 @@ export default function PlanTitleBar({
         onClick={onSettingsToggle}
         className={settingsCls}
       >
-        ⚙
+        <Settings size={14} />
       </button>
       <button
         type="button"
@@ -72,7 +74,7 @@ export default function PlanTitleBar({
         onClick={onToggleHeaderOnly}
         className={btnCls}
       >
-        ⌄
+        <ChevronDown size={14} />
       </button>
       <button
         type="button"
@@ -80,7 +82,7 @@ export default function PlanTitleBar({
         onClick={onToggleMaximize}
         className={btnCls}
       >
-        ▢
+        <Square size={14} />
       </button>
       <button
         type="button"
@@ -92,7 +94,7 @@ export default function PlanTitleBar({
             : `${btnBase} text-white/70 hover:bg-red-500/80 hover:text-white`
         }
       >
-        ✕
+        <X size={14} />
       </button>
     </div>
   );

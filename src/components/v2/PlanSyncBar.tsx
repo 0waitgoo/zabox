@@ -54,6 +54,23 @@ function errDetail(e: unknown): string {
   return msg.replace(/\s+/g, ' ').slice(0, 60) || '未知错误';
 }
 
+/** 把 GitHub 非 200 响应体缩成一句原因（第 6 轮：400 的 body 里有 device_flow_disabled
+    这类精确原因，之前只显示了状态码，等于没说） */
+function githubErrorSnippet(text: string): string {
+  const trimmed = text.trim();
+  if (!trimmed) return '';
+  try {
+    const parsed = JSON.parse(trimmed) as { error?: string; error_description?: string };
+    if (parsed.error) {
+      const desc = parsed.error_description ? `：${parsed.error_description}` : '';
+      return `（${parsed.error}${desc}）`.slice(0, 90);
+    }
+  } catch {
+    /* 非 JSON，走原文截断 */
+  }
+  return `（${trimmed.replace(/\s+/g, ' ').slice(0, 80)}）`;
+}
+
 type DeviceSession = {
   deviceCode: string;
   userCode: string;
@@ -192,8 +209,9 @@ export default function PlanSyncBar({
           body: `client_id=${encodeURIComponent(CLIENT_ID)}&device_code=${encodeURIComponent(session.deviceCode)}&grant_type=${encodeURIComponent('urn:ietf:params:oauth:grant-type:device_code')}`,
         });
         if (!res.ok) {
+          const bodyText = await res.text().catch(() => '');
           setDevice(null);
-          setStatus(`GitHub 返回 ${res.status}，请重新点 GitHub 登录`);
+          setStatus(`GitHub 返回 ${res.status}${githubErrorSnippet(bodyText)}，请重新点 GitHub 登录`);
           return;
         }
         let json: { access_token?: string; error?: string };
@@ -242,7 +260,8 @@ export default function PlanSyncBar({
         body: `client_id=${encodeURIComponent(CLIENT_ID)}&scope=${encodeURIComponent('repo')}`,
       });
       if (!res.ok) {
-        setStatus(`GitHub 返回 ${res.status}，请稍后重试`);
+        const bodyText = await res.text().catch(() => '');
+        setStatus(`GitHub 返回 ${res.status}${githubErrorSnippet(bodyText)}，请稍后重试`);
         return;
       }
       let json: {

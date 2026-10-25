@@ -1,4 +1,4 @@
-import React, { StrictMode, useEffect, useRef, useState } from 'react';
+import React, { StrictMode, useCallback, useEffect, useRef, useState } from 'react';
 import { createRoot } from 'react-dom/client';
 import {
   ChevronDown,
@@ -12,6 +12,7 @@ import PlanPage from './components/pages/PlanPage';
 import PlanSyncBar from './components/v2/PlanSyncBar';
 import PlanTitleBar from './components/v2/PlanTitleBar';
 import PinButton from './components/v2/PinButton';
+import DesktopCreateMenu, { type CreateKind } from './components/v2/DesktopCreateMenu';
 import { DesktopPinController, loadAlwaysOnTop } from './components/v2/desktopPin';
 import PlanSettings from './components/v2/PlanSettings';
 import { CUSTOM_BACKGROUND_KEY, backgroundColorRgb, loadCustomBackground, normalizeBackgroundColor, themeForBackground } from './components/v2/desktopAppearance';
@@ -25,7 +26,8 @@ import {
 import { listen } from '@tauri-apps/api/event';
 import { DesktopWindowController } from './components/v2/desktopWindow';
 import { useDesktopDrag } from './components/v2/useDesktopDrag';
-import { planWindow, safeClose } from './components/v2/planWindow';
+import { planWindow } from './components/v2/planWindow';
+import { applyCloseAction, loadMinimizeOnClose, saveMinimizeOnClose } from './components/v2/desktopClose';
 import { useLocalStore } from './store/localStore';
 import './index.css';
 import './desktop-theme.css';
@@ -84,6 +86,9 @@ function PlanApp() {
   const [opacity, setOpacity] = useState(loadOpacity);
   const [theme, setTheme] = useState<PlanTheme>(loadTheme);
   const [customColor, setCustomColor] = useState<string | null>(loadCustomBackground);
+  const [minimizeOnClose, setMinimizeOnClose] = useState(loadMinimizeOnClose);
+  const minimizeOnCloseRef = useRef(minimizeOnClose);
+  minimizeOnCloseRef.current = minimizeOnClose;
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [pinned, setPinned] = useState(loadAlwaysOnTop);
   const [pinBusy, setPinBusy] = useState(false);
@@ -100,6 +105,9 @@ function PlanApp() {
   const [autoLogin, setAutoLogin] = useState(false);
   const [collapsed, setCollapsed] = useState<Edge | null>(null);
   const [aiView, setAiView] = useState<'main' | 'ai'>('main');
+  const [createMenu, setCreateMenu] = useState<{ x: number; y: number } | null>(null);
+  const closeCreateMenu = useCallback(() => setCreateMenu(null), []);
+  const [createTarget, setCreateTarget] = useState<CreateKind | null>(null);
   const [windowError, setWindowError] = useState<string | null>(null);
   const controllerRef = useRef<DesktopWindowController | null>(null);
   const restoreTimer = useRef<number | null>(null);
@@ -143,6 +151,50 @@ function PlanApp() {
     }).finally(() => { if (!disposed) setPinBusy(false); });
     return () => { disposed = true; };
   }, []);
+
+  const changeMinimizeOnClose = (value: boolean) => {
+    minimizeOnCloseRef.current = value;
+    setMinimizeOnClose(value);
+    saveMinimizeOnClose(value);
+  };
+  const handleClose = async () => {
+    const win = planWindow();
+    if (!win) return;
+    try {
+      await applyCloseAction(minimizeOnCloseRef.current, win,
+        async () => { await controllerRef.current?.restoreEdge(); });
+    } catch (error) { reportWindowError(error); }
+  };
+  const startCreate = async (kind: CreateKind) => {
+    setCreateMenu(null);
+    try {
+      await controllerRef.current?.restoreEdge();
+      await controllerRef.current?.exitHeader();
+      setSettingsOpen(false);
+      setAiView('main');
+      setCreateTarget(kind);
+    } catch (error) { reportWindowError(error); }
+  };
+  useEffect(() => {
+    if (!createTarget || settingsOpen || aiView !== 'main' || headerOnly || collapsed) return;
+    let nextFrame = 0;
+    const focus = () => {
+      const input = document.querySelector<HTMLInputElement>(createTarget === 'task'
+        ? '[data-task-add]' : '[data-plan-form] input');
+      input?.scrollIntoView({ block: 'nearest' });
+      input?.focus();
+      setCreateTarget(null);
+    };
+    const frame = requestAnimationFrame(() => {
+      if (createTarget === 'plan' && !document.querySelector('[data-plan-form]')) {
+        document.querySelector<HTMLButtonElement>('[data-plan-new]')?.click();
+        nextFrame = requestAnimationFrame(focus);
+      } else focus();
+    });
+    return () => { cancelAnimationFrame(frame); cancelAnimationFrame(nextFrame); };
+  }, [createTarget, settingsOpen, aiView, headerOnly, collapsed]);
+
+  const closeLabel = minimizeOnClose ? '最小化到任务栏' : '关闭窗口';
 
   const togglePin = async () => {
     const pin = pinControllerRef.current;
@@ -220,9 +272,18 @@ function PlanApp() {
   };
 
   useEffect(() => {
-    if (!planWindow()) return;
+    const win = planWindow();
+    if (!win) return;
     let disposed = false;
     const unlisteners: (() => void)[] = [];
+    void win.onCloseRequested((event) => {
+      if (!minimizeOnCloseRef.current) return;
+      event.preventDefault();
+      void applyCloseAction(true, win, async () => { await controllerRef.current?.restoreEdge(); })
+        .catch(reportWindowError);
+    }).then((stop) => {
+      if (disposed) stop(); else unlisteners.push(stop);
+    }).catch(reportWindowError);
     void listen('window-restore', () => { void restoreFromCollapse(); }).then((stop) => {
       if (disposed) stop(); else unlisteners.push(stop);
     }).catch(reportWindowError);
@@ -305,9 +366,9 @@ function PlanApp() {
     const closeBtn = (
       <button
         type="button"
-        aria-label="关闭窗口"
-        title="关闭"
-        onClick={() => void safeClose()}
+        aria-label={closeLabel}
+        title={closeLabel}
+        onClick={() => void handleClose()}
         className={`shrink-0 flex items-center justify-center transition-colors cursor-pointer hover:bg-red-500/80 hover:text-white ${
           light ? 'text-zinc-700' : 'text-white/85'
         } ${collapsed === 'top' || collapsed === 'bottom' ? 'w-[24px] h-full' : 'w-full h-[24px]'}`}
@@ -411,8 +472,8 @@ function PlanApp() {
         </button>
         <button
           type="button"
-          title="关闭"
-          onClick={() => void safeClose()}
+          title={closeLabel}
+          onClick={() => void handleClose()}
           className={
             light
               ? `${stripBtnBase} text-zinc-600 hover:bg-red-500/80 hover:text-white`
@@ -429,6 +490,8 @@ function PlanApp() {
     <PlanTitleBar
       theme={theme}
       settingsOpen={settingsOpen}
+      closeLabel={closeLabel}
+      onClose={() => void handleClose()}
       pinned={pinned}
       pinBusy={pinBusy}
       onTogglePin={() => void togglePin()}
@@ -440,7 +503,14 @@ function PlanApp() {
 
   return (
     <div data-plan-desktop data-plan-theme={theme}
+      onContextMenu={(event) => {
+        if (event.defaultPrevented || headerOnly || collapsed || !(event.target instanceof Element)
+          || event.target.closest('input,textarea,select,button,a,[contenteditable="true"]')) return;
+        event.preventDefault();
+        setCreateMenu({ x: event.clientX, y: event.clientY });
+      }}
       className={`relative h-dvh w-full overflow-hidden ${textCls}`} style={{ backgroundColor: bg }}>
+      {createMenu && <DesktopCreateMenu position={createMenu} onClose={closeCreateMenu} onCreate={(kind) => void startCreate(kind)} />}
       {collapsed ? renderEdge() : headerOnly ? renderStrip() : titleBar}
       {windowError && !headerOnly && !collapsed && (
         <div role="alert" className="px-3 py-2 text-xs bg-red-500/20">
@@ -457,7 +527,8 @@ function PlanApp() {
         <div className="px-3 sm:px-4 py-3">
           {settingsOpen ? (
             <PlanSettings theme={theme} onThemeChange={changeTheme} customColor={customColor}
-              onCustomColorChange={changeCustomColor} opacity={opacity}
+              onCustomColorChange={changeCustomColor} minimizeOnClose={minimizeOnClose}
+              onMinimizeOnCloseChange={changeMinimizeOnClose} opacity={opacity}
               onOpacityChange={changeOpacity} onBack={() => setSettingsOpen(false)} />
           ) : aiView === 'ai' ? (
             <PlanAiView store={store} theme={theme} onOpenSettings={() => setSettingsOpen(true)} />

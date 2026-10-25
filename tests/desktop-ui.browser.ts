@@ -44,6 +44,11 @@ try {
   assert.equal(await colorOf('[aria-label="取消置顶"]'), 'rgb(0, 0, 0)');
 
   await page.getByTitle('设置', { exact: true }).click();
+  const closeSwitch = page.getByRole('switch', { name: '点击关闭时最小化到任务栏' });
+  assert.equal(await closeSwitch.isChecked(), true);
+  await closeSwitch.locator('..').click();
+  assert.equal(await closeSwitch.isChecked(), false);
+  await page.getByTitle('关闭窗口', { exact: true }).waitFor();
   const picker = page.getByLabel('自定义窗口底色', { exact: true });
   const chooseColor = async (color: string, theme: string) => {
     await picker.evaluate((element, value) => {
@@ -64,6 +69,37 @@ try {
   await root.waitFor();
   assert.equal(await root.evaluate((element) => getComputedStyle(element).backgroundColor), 'rgb(217, 232, 218)');
   assert.equal(await colorOf('[data-plan-desktop]'), 'rgb(0, 0, 0)');
+  await page.getByTitle('关闭窗口', { exact: true }).waitFor();
+  await page.getByTitle('设置', { exact: true }).click();
+  assert.equal(await closeSwitch.isChecked(), false);
+  await closeSwitch.locator('..').click();
+  await page.getByTitle('最小化到任务栏', { exact: true }).waitFor();
+  // Create from the settings background, switch back to the main page and focus.
+  await page.getByRole('heading', { name: '外观', exact: true }).click({ button: 'right' });
+  await page.getByRole('menuitem', { name: '新建待办', exact: true }).click();
+  await page.locator('[data-task-add]').fill('右键新建待办');
+  await page.locator('[data-task-add]').press('Enter');
+  await page.locator('[data-task-title]').filter({ hasText: '右键新建待办' }).waitFor();
+  // Existing row context menus retain edit/delete and do not show the create menu.
+  await page.locator('[data-task-title]').filter({ hasText: '右键新建待办' }).click({ button: 'right' });
+  await page.getByRole('button', { name: '编辑', exact: true }).waitFor();
+  assert.equal(await page.getByRole('menu', { name: '新建', exact: true }).count(), 0);
+  await page.keyboard.press('Escape');
+  await page.getByRole('heading', { name: '长期计划', exact: true }).click({ button: 'right' });
+  await page.getByRole('menuitem', { name: '新建长期计划', exact: true }).click();
+  const planTitle = page.locator('[data-plan-form] input').first();
+  await planTitle.fill('右键长期计划');
+  await page.getByRole('button', { name: '添加计划', exact: true }).click();
+  await page.locator('[data-plan-item]').filter({ hasText: '右键长期计划' }).waitFor();
+  await page.getByRole('heading', { name: '长期计划', exact: true }).click({ button: 'right' });
+  await page.keyboard.press('Escape');
+  assert.equal(await page.getByRole('menu', { name: '新建', exact: true }).count(), 0);
+  await root.click({ button: 'right', position: { x: 415, y: 795 } });
+  const menuBox = await page.getByRole('menu', { name: '新建', exact: true }).boundingBox();
+  assert.ok(menuBox && menuBox.x >= 0 && menuBox.y >= 0 && menuBox.x + menuBox.width <= 420 && menuBox.y + menuBox.height <= 800);
+  await page.keyboard.press('Escape');
+  await page.locator('[data-task-add]').click({ button: 'right' });
+  assert.equal(await page.getByRole('menu', { name: '新建', exact: true }).count(), 0);
   assert.deepEqual(errors, []);
   console.log('Desktop browser checks passed: black light-mode text/logo, invisible unchecked glyph, pin control, custom colors, dark-mode restore and persisted background.');
 } finally {

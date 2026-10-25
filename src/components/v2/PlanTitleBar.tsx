@@ -1,6 +1,5 @@
 import React from 'react';
 import { ChevronDown, Settings, Square, X } from 'lucide-react';
-import { safeClose } from './planWindow';
 import PinButton from './PinButton';
 import type { PlanTheme } from '../../plan-app';
 
@@ -20,6 +19,8 @@ import type { PlanTheme } from '../../plan-app';
 export default function PlanTitleBar({
   theme,
   settingsOpen,
+  closeLabel,
+  onClose,
   pinned,
   pinBusy,
   onTogglePin,
@@ -29,6 +30,8 @@ export default function PlanTitleBar({
 }: {
   theme: PlanTheme;
   settingsOpen: boolean;
+  closeLabel: string;
+  onClose: () => void;
   pinned: boolean;
   pinBusy: boolean;
   onTogglePin: () => void;
@@ -96,8 +99,9 @@ export default function PlanTitleBar({
       </button>
       <button
         type="button"
-        title="关闭"
-        onClick={() => void safeClose()}
+        title={closeLabel}
+        aria-label={closeLabel}
+        onClick={onClose}
         className={
           light
             ? `${btnBase} text-zinc-600 hover:bg-red-500/80 hover:text-white`

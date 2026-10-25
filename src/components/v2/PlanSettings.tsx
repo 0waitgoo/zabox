@@ -21,6 +21,8 @@ export default function PlanSettings({
   onThemeChange,
   customColor,
   onCustomColorChange,
+  minimizeOnClose,
+  onMinimizeOnCloseChange,
   opacity,
   onOpacityChange,
   onBack,
@@ -29,6 +31,8 @@ export default function PlanSettings({
   onThemeChange: (t: PlanTheme) => void;
   customColor: string | null;
   onCustomColorChange: (color: string) => void;
+  minimizeOnClose: boolean;
+  onMinimizeOnCloseChange: (value: boolean) => void;
   opacity: number;
   onOpacityChange: (v: number) => void;
   onBack: () => void;
@@ -137,6 +141,19 @@ export default function PlanSettings({
           <span className="tabular-nums w-8 shrink-0">{opacity}%</span>
         </label>
         <p className={`text-[11px] ${faint}`}>只改窗口底色透明度，字体保持不透明。</p>
+      </section>
+
+      <section className="flex flex-col gap-3">
+        <h3 className={sectionTitle}>窗口行为</h3>
+        <label className="flex items-center justify-between gap-4 cursor-pointer">
+          <span className={`text-xs ${light ? 'text-zinc-900' : 'text-white/90'}`}>点击关闭时最小化到任务栏</span>
+          <input type="checkbox" role="switch" aria-label="点击关闭时最小化到任务栏"
+            checked={minimizeOnClose}
+            onChange={(event) => onMinimizeOnCloseChange(event.target.checked)}
+            className="peer sr-only" />
+          <span aria-hidden="true" className="relative w-9 h-5 shrink-0 rounded-full bg-zinc-500/40 peer-checked:bg-indigo-500 peer-focus-visible:ring-2 peer-focus-visible:ring-indigo-400 after:absolute after:top-0.5 after:left-0.5 after:h-4 after:w-4 after:rounded-full after:bg-white after:transition-transform peer-checked:after:translate-x-4" />
+        </label>
+        <p className={`text-[11px] ${faint}`}>开启后，点右上角 × 保留后台运行，点击任务栏图标恢复。需要退出时，可右键系统托盘图标选择“退出”。</p>
       </section>
 
       {/* AI 接口 */}

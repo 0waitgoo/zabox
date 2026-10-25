@@ -17,6 +17,7 @@ on:
       - 'src/main.tsx'
       - 'src/services/desktop*.ts'
       - 'src/components/v2/desktop*.ts'
+      - 'src/components/v2/DesktopCreateMenu.tsx'
       - 'src/desktop-theme.css'
       - 'src/components/v2/useDesktopDrag.ts'
       - 'tests/**'

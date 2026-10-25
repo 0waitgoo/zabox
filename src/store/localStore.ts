@@ -25,7 +25,7 @@ import {
  * - 同步层（GitHub 仓库 / 云端）以后只替换这一层的读写后端，组件不感知
  */
 
-export type WidgetId = 'task' | 'news' | 'ranking' | 'trending' | 'tools' | 'colors';
+export type WidgetId = 'task' | 'news' | 'trending' | 'tools' | 'colors';
 
 /** A 型原生组件在网格中的占位：宽度跨栏数（最多 2 栏） + 高度单位（1X / 2X） */
 export interface WidgetLayout {
@@ -36,7 +36,6 @@ export interface WidgetLayout {
 export const DEFAULT_WIDGET_LAYOUTS: Record<WidgetId, WidgetLayout> = {
   task: { colSpan: 1, heightUnits: 1 },
   news: { colSpan: 2, heightUnits: 2 },
-  ranking: { colSpan: 2, heightUnits: 2 },
   trending: { colSpan: 2, heightUnits: 1 },
   /** 文件工具卡（第六十八轮）：默认 2 栏 × 1x，6 个工具一排摆下 */
   tools: { colSpan: 2, heightUnits: 1 },
@@ -812,16 +811,15 @@ export function resolveCardOrder(stored: string[], defaultOrder: string[]): stri
 
 export const ALL_WIDGETS: { id: WidgetId; name: string; desc: string }[] = [
   // 名称与卡面标题统一为「计划」（组件规范第 7 节收编口径，第七十四轮）；UI 显示名以 widgetRegistry 注册表为准
-  { id: 'task', name: '计划', desc: '待办与长期计划小工具' },
+  { id: 'task', name: '计划', desc: '待办、日程表与推进表小工具' },
   { id: 'news', name: 'AI 资讯', desc: '今日最热头条 + 热门榜单' },
-  { id: 'ranking', name: 'AI 软件榜', desc: 'Product Hunt 每周更新榜单' },
   { id: 'trending', name: '热门话题', desc: '社区热门话题帖子数' },
   { id: 'tools', name: '文件工具', desc: 'PDF 转图片/长图、图片转 PDF、合并与拆分' },
   { id: 'colors', name: '中式色卡', desc: '158 种中国传统色：色墙浏览、传统配色、一键复制色值' },
 ];
 
 const STORAGE_KEY = 'ainav-store-v1';
-const DEFAULT_WIDGETS: WidgetId[] = ['task', 'news', 'ranking', 'trending', 'tools'];
+const DEFAULT_WIDGETS: WidgetId[] = ['task', 'news', 'trending', 'tools'];
 
 const genId = (prefix: string) => `${prefix}-${Date.now().toString(36)}${Math.random().toString(36).slice(2, 7)}`;
 
@@ -885,7 +883,6 @@ export function defaultPresetGroups(): NavGroup[] {
 export const DEFAULT_PRESET_WIDGET_LAYOUTS: Record<WidgetId, WidgetLayout> = {
   task: { colSpan: 2, heightUnits: 2 },
   news: { colSpan: 1, heightUnits: 2 },
-  ranking: { colSpan: 2, heightUnits: 2 },
   trending: { colSpan: 2, heightUnits: 1 },
   tools: { colSpan: 2, heightUnits: 1 },
   colors: { colSpan: 2, heightUnits: 1 },
@@ -920,7 +917,6 @@ export const DEFAULT_PRESET_CARD_COLS: Record<string, number> = {
   'widget:news': 2,
   'group:video': 0,
   'group:writing': 1,
-  'widget:ranking': 0,
   'group:code': 3,
   'group:audio': 3,
   'group:office': 2,
@@ -935,9 +931,9 @@ export const DEFAULT_PRESET_COMBOS: ComboItem[] = [
   { id: 'c-mvm8celnynhjv', groupIds: ['image', 'video'], activeGroupId: 'image' },
 ];
 
-/** 默认主页的组件摞（用户 live 布局：资讯 + 软件榜，当前资讯） */
+/** 默认主页的组件摞（用户 live 布局：资讯，当前资讯） */
 export const DEFAULT_PRESET_WIDGET_STACKS: WidgetStackItem[] = [
-  { id: 'ws-mvm8czz1m8o8n', widgetIds: ['news', 'ranking'], activeWidgetId: 'news' },
+  { id: 'ws-mvm8czz1m8o8n', widgetIds: ['news'], activeWidgetId: 'news' },
 ];
 
 function seedData(): StoreData {

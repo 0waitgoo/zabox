@@ -57,6 +57,12 @@ try {
   assert.equal(await page.locator('[data-plan-logo]').evaluate((element) => getComputedStyle(element).filter), 'brightness(0)');
   assert.equal(await page.getByText('杂盒计划', { exact: true }).count(), 1);
   assert.equal(await page.getByRole('link', { name: 'https://zahe.hiitun.top/', exact: true }).getAttribute('href'), 'https://zahe.hiitun.top/');
+  assert.equal(await page.getByText('窗口行为', { exact: true }).count(), 0);
+  assert.equal(await page.getByText('开启后，点右上角', { exact: false }).count(), 0);
+  const shortcutCheckbox = page.getByRole('checkbox', { name: '启用展开快捷键', exact: true });
+  assert.equal(await shortcutCheckbox.isChecked(), true);
+  await shortcutCheckbox.uncheck();
+  assert.equal(await shortcutCheckbox.isChecked(), false);
   const closeSwitch = page.getByRole('switch', { name: '点击关闭时收进托盘' });
   assert.equal(await closeSwitch.isChecked(), true);
   await closeSwitch.locator('..').click();
@@ -86,6 +92,7 @@ try {
   await page.getByTitle('关闭窗口', { exact: true }).waitFor();
   await page.getByTitle('设置', { exact: true }).click();
   assert.equal(await closeSwitch.isChecked(), false);
+  assert.equal(await shortcutCheckbox.isChecked(), false);
   await closeSwitch.locator('..').click();
   await page.getByTitle('收进托盘', { exact: true }).waitFor();
   // Create from the settings background, switch back to the main page and focus.
@@ -135,12 +142,6 @@ try {
   await page.setViewportSize({ width: 420, height: 800 });
   await page.waitForFunction(() => document.querySelector('[data-desktop-workspace]')?.getAttribute('data-layout') === 'tabs');
   assert.equal(await page.getByRole('tab', { name: '长期计划', exact: true }).getAttribute('aria-selected'), 'true');
-  // Check the bottom-toolbar presentation independently of native screen placement.
-  await root.evaluate((element) => { (element as HTMLElement).dataset.planToolbarPosition = 'bottom'; });
-  const bottomBar = await page.locator('[data-plan-titlebar]').boundingBox();
-  const workspace = await page.locator('[data-desktop-workspace]').boundingBox();
-  assert.ok(bottomBar && workspace && bottomBar.y >= workspace.y + workspace.height);
-  await root.evaluate((element) => { (element as HTMLElement).dataset.planToolbarPosition = 'top'; });
   assert.deepEqual(errors, []);
   console.log('Desktop browser checks passed: black light-mode text/logo, invisible unchecked glyph, pin control, custom colors, dark-mode restore and persisted background.');
 } finally {

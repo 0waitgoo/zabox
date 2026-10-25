@@ -24,6 +24,8 @@ import {
   PhysicalSize,
 } from '@tauri-apps/api/window';
 import { listen } from '@tauri-apps/api/event';
+import { invoke } from '@tauri-apps/api/core';
+import { DesktopShortcutController, loadExpandShortcut } from './components/v2/desktopShortcut';
 import { DesktopWindowController } from './components/v2/desktopWindow';
 import { useDesktopDrag } from './components/v2/useDesktopDrag';
 import { planWindow } from './components/v2/planWindow';
@@ -89,6 +91,15 @@ function PlanApp() {
   const [minimizeOnClose, setMinimizeOnClose] = useState(loadMinimizeOnClose);
   const minimizeOnCloseRef = useRef(minimizeOnClose);
   minimizeOnCloseRef.current = minimizeOnClose;
+  const [shortcutEnabled, setShortcutEnabled] = useState(loadExpandShortcut);
+  const [shortcutBusy, setShortcutBusy] = useState(false);
+  const [shortcutError, setShortcutError] = useState<string | null>(null);
+  const shortcutRef = useRef<DesktopShortcutController | null>(null);
+  if (!shortcutRef.current) shortcutRef.current = new DesktopShortcutController(
+    (enabled) => planWindow() ? invoke('set_expand_shortcut', { enabled }) : Promise.resolve(),
+    { getItem: (key) => localStorage.getItem(key), setItem: (key, value) => localStorage.setItem(key, value) },
+    setShortcutEnabled,
+  );
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [pinned, setPinned] = useState(loadAlwaysOnTop);
   const [pinBusy, setPinBusy] = useState(false);
@@ -101,7 +112,6 @@ function PlanApp() {
       setPinned,
     );
   }
-  const [toolbarBottom, setToolbarBottom] = useState(false);
   const [headerOnly, setHeaderOnly] = useState(false);
   const [autoLogin, setAutoLogin] = useState(false);
   const [collapsed, setCollapsed] = useState<Edge | null>(null);
@@ -113,8 +123,6 @@ function PlanApp() {
   const [windowError, setWindowError] = useState<string | null>(null);
   const controllerRef = useRef<DesktopWindowController | null>(null);
   const restoreTimer = useRef<number | null>(null);
-  const previewTimer = useRef<number | null>(null);
-  const pointerInside = useRef(false);
   if (!controllerRef.current) {
     const win = planWindow();
     if (win) controllerRef.current = new DesktopWindowController({
@@ -127,10 +135,6 @@ function PlanApp() {
         return { x: pos.x, y: pos.y, width: size.width, height: size.height };
       },
       scaleFactor: () => win.scaleFactor(),
-      readWorkArea: async () => {
-        const area = (await currentMonitor())?.workArea;
-        return area ? { x: area.position.x, y: area.position.y, width: area.size.width, height: area.size.height } : null;
-      },
       setSize: (width, height) => win.setSize(new PhysicalSize(width, height)),
       setMinSize: (width, height) => win.setMinSize(new LogicalSize(width, height)),
       setPosition: (x, y) => win.setPosition(new PhysicalPosition(x, y)),
@@ -139,7 +143,6 @@ function PlanApp() {
       toggleMaximize: () => win.toggleMaximize(),
     }, () => {
       setHeaderOnly(controllerRef.current!.headerOnly);
-      setToolbarBottom(controllerRef.current!.toolbarBottom);
       setCollapsed(controllerRef.current!.edge);
     });
   }
@@ -165,6 +168,14 @@ function PlanApp() {
     minimizeOnCloseRef.current = value;
     setMinimizeOnClose(value);
     saveMinimizeOnClose(value);
+  };
+  const changeShortcutEnabled = async (enabled: boolean) => {
+    if (shortcutBusy) return;
+    setShortcutBusy(true);
+    setShortcutError(null);
+    try { await shortcutRef.current?.setEnabled(enabled); }
+    catch { setShortcutError('快捷键设置失败，可能已被其他软件占用，请重试。'); }
+    finally { setShortcutBusy(false); }
   };
   const handleClose = async () => {
     const win = planWindow();
@@ -271,31 +282,6 @@ function PlanApp() {
     if (restoreTimer.current !== null) window.clearTimeout(restoreTimer.current);
     restoreTimer.current = null;
   };
-  const cancelPreviewTimer = () => {
-    if (previewTimer.current !== null) window.clearTimeout(previewTimer.current);
-    previewTimer.current = null;
-  };
-  const previewEnter = () => {
-    pointerInside.current = true;
-    cancelPreviewTimer();
-    if (!controllerRef.current?.headerOnly) return;
-    previewTimer.current = window.setTimeout(() => {
-      previewTimer.current = null;
-      void controllerRef.current?.previewHeader().then(() => {
-        // The pointer can leave while a native resize is pending.
-        if (!pointerInside.current) return controllerRef.current?.closePreview();
-      }).catch(reportWindowError);
-    }, 220);
-  };
-  const previewLeave = () => {
-    pointerInside.current = false;
-    cancelPreviewTimer();
-    if (!controllerRef.current?.previewing) return;
-    previewTimer.current = window.setTimeout(() => {
-      previewTimer.current = null;
-      void controllerRef.current?.closePreview().catch(reportWindowError);
-    }, 300);
-  };
   const enterHeaderOnly = async () => {
     try { await controllerRef.current?.enterHeader(); } catch (error) { reportWindowError(error); }
   };
@@ -311,6 +297,19 @@ function PlanApp() {
     if (!win) return;
     let disposed = false;
     const unlisteners: (() => void)[] = [];
+    void listen('window-expand', async () => {
+      try {
+        await controllerRef.current?.restoreEdge();
+        await controllerRef.current?.exitHeader();
+      } catch (error) { reportWindowError(error); }
+    }).then(async (stop) => {
+      if (disposed) { stop(); return; }
+      unlisteners.push(stop);
+      setShortcutBusy(true);
+      try { await shortcutRef.current?.initialize(); }
+      catch { if (!disposed) setShortcutError('Ctrl + ` 未启用，可能已被其他软件占用。'); }
+      finally { if (!disposed) setShortcutBusy(false); }
+    }).catch(reportWindowError);
     void win.onResized(() => {
       void controllerRef.current?.handleResize().catch(reportWindowError);
     }).then((stop) => {
@@ -363,7 +362,6 @@ function PlanApp() {
       disposed = true;
       unlisteners.forEach((stop) => stop());
       cancelScheduledRestore();
-      cancelPreviewTimer();
       window.removeEventListener('plan-drag-end', onDragEnd);
       window.removeEventListener('plan-window-error', onError);
     };
@@ -549,8 +547,7 @@ function PlanApp() {
   );
 
   return (
-    <div data-plan-desktop data-plan-theme={theme} data-plan-toolbar-position={toolbarBottom ? 'bottom' : 'top'}
-      onPointerEnter={previewEnter} onPointerLeave={previewLeave}
+    <div data-plan-desktop data-plan-theme={theme}
       onContextMenu={(event) => {
         if (event.defaultPrevented || headerOnly || collapsed || !(event.target instanceof Element)
           || event.target.closest('input,textarea,select,button,a,[contenteditable="true"]')) return;
@@ -572,7 +569,9 @@ function PlanApp() {
           {settingsOpen ? (
             <PlanSettings theme={theme} onThemeChange={changeTheme} customColor={customColor}
               onCustomColorChange={changeCustomColor} minimizeOnClose={minimizeOnClose}
-              onMinimizeOnCloseChange={changeMinimizeOnClose} opacity={opacity}
+              onMinimizeOnCloseChange={changeMinimizeOnClose} shortcutEnabled={shortcutEnabled}
+              shortcutBusy={shortcutBusy} shortcutError={shortcutError}
+              onShortcutEnabledChange={(enabled) => void changeShortcutEnabled(enabled)} opacity={opacity}
               onOpacityChange={changeOpacity} onBack={() => setSettingsOpen(false)} />
           ) : aiView === 'ai' ? (
             <PlanAiView store={store} theme={theme} onOpenSettings={() => setSettingsOpen(true)} />

@@ -6,6 +6,24 @@ use tauri::{
     Emitter, Manager, WindowEvent,
 };
 
+use tauri_plugin_global_shortcut::{Code, GlobalShortcutExt, Modifiers, Shortcut, ShortcutState};
+
+fn expand_shortcut() -> Shortcut {
+    Shortcut::new(Some(Modifiers::CONTROL), Code::Backquote)
+}
+
+#[tauri::command]
+fn set_expand_shortcut(app: tauri::AppHandle, enabled: bool) -> Result<(), String> {
+    let shortcut = expand_shortcut();
+    let manager = app.global_shortcut();
+    if enabled && !manager.is_registered(shortcut) {
+        manager.register(shortcut).map_err(|e| format!("无法注册 Ctrl+`：{e}"))?;
+    } else if !enabled && manager.is_registered(shortcut) {
+        manager.unregister(shortcut).map_err(|e| format!("无法取消 Ctrl+`：{e}"))?;
+    }
+    Ok(())
+}
+
 fn restore_window(window: &tauri::WebviewWindow) {
     let _ = window.set_skip_taskbar(false);
     let _ = window.unminimize();
@@ -19,6 +37,7 @@ pub fn run() {
     tauri::Builder::default()
         .manage(desktop_login::LoginState::default())
         .invoke_handler(tauri::generate_handler![
+            set_expand_shortcut,
             desktop_login::start_desktop_login,
             desktop_login::wait_desktop_login,
             desktop_login::cancel_desktop_login,
@@ -29,6 +48,14 @@ pub fn run() {
                 let _ = window.emit("window-restore", ());
             }
         })
+        .plugin(tauri_plugin_global_shortcut::Builder::new().with_handler(|app, shortcut, event| {
+            if shortcut == &expand_shortcut() && event.state() == ShortcutState::Pressed {
+                if let Some(window) = app.get_webview_window("main") {
+                    restore_window(&window);
+                    let _ = window.emit("window-expand", ());
+                }
+            }
+        }).build())
         .plugin(tauri_plugin_opener::init())
         .plugin(tauri_plugin_http::init())
         .plugin(tauri_plugin_single_instance::init(|app, _args, _cwd| {

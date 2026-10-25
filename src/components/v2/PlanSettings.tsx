@@ -25,6 +25,10 @@ export default function PlanSettings({
   onCustomColorChange,
   minimizeOnClose,
   onMinimizeOnCloseChange,
+  shortcutEnabled,
+  shortcutBusy,
+  shortcutError,
+  onShortcutEnabledChange,
   opacity,
   onOpacityChange,
   onBack,
@@ -35,6 +39,10 @@ export default function PlanSettings({
   onCustomColorChange: (color: string) => void;
   minimizeOnClose: boolean;
   onMinimizeOnCloseChange: (value: boolean) => void;
+  shortcutEnabled: boolean;
+  shortcutBusy: boolean;
+  shortcutError: string | null;
+  onShortcutEnabledChange: (enabled: boolean) => void;
   opacity: number;
   onOpacityChange: (v: number) => void;
   onBack: () => void;
@@ -147,7 +155,6 @@ export default function PlanSettings({
       </section>
 
       <section className="flex flex-col gap-3">
-        <h3 className={sectionTitle}>窗口行为</h3>
         <label className="flex items-center justify-between gap-4 cursor-pointer">
           <span className={`text-xs ${light ? 'text-zinc-900' : 'text-white/90'}`}>点击关闭时收进托盘</span>
           <input type="checkbox" role="switch" aria-label="点击关闭时收进托盘"
@@ -156,7 +163,13 @@ export default function PlanSettings({
             className="peer sr-only" />
           <span aria-hidden="true" className="relative w-9 h-5 shrink-0 rounded-full bg-zinc-500/40 peer-checked:bg-indigo-500 peer-focus-visible:ring-2 peer-focus-visible:ring-indigo-400 after:absolute after:top-0.5 after:left-0.5 after:h-4 after:w-4 after:rounded-full after:bg-white after:transition-transform peer-checked:after:translate-x-4" />
         </label>
-        <p className={`text-[11px] ${faint}`}>开启后，点右上角 × 仅收进托盘，不在任务栏显示。点击托盘图标恢复；右键托盘图标选择“退出”可关闭软件。</p>
+        <label className="flex items-center justify-between gap-4 cursor-pointer">
+          <span className={`text-xs ${light ? 'text-zinc-900' : 'text-white/90'}`}>启用展开快捷键 <kbd className="ml-1">Ctrl + `</kbd></span>
+          <input type="checkbox" aria-label="启用展开快捷键" checked={shortcutEnabled} disabled={shortcutBusy}
+            onChange={(event) => onShortcutEnabledChange(event.target.checked)}
+            className="h-4 w-4 accent-indigo-500 cursor-pointer disabled:opacity-50" />
+        </label>
+        {shortcutError && <p role="alert" className={`text-[11px] ${faint}`}>{shortcutError}</p>}
       </section>
 
       {/* AI 接口 */}

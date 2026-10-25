@@ -34,8 +34,3 @@
 [data-plan-desktop][data-plan-theme="light"] [data-plan-logo] {
   filter: brightness(0);
 }
-
-/* Keep the toolbar next to a bottom-anchored strip when expanding upward. */
-[data-plan-desktop][data-plan-toolbar-position="bottom"] > [data-plan-titlebar] {
-  order: 2;
-}

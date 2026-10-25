@@ -288,7 +288,7 @@ function useOutsidePressConfirm() {
  * 勾选/添加/建组/组展开勾子任务/已完成折叠/行右键编辑删除/拖拽合并都在卡面直接完成；
  * 标题截断时点击文字展开全文、再点收起（第六十九轮）
  */
-export function TasksSection({ store, pinned = false, heading }: { store: LocalStore; pinned?: boolean; heading?: React.ReactNode }) {
+export function TasksSection({ store, pinned = false }: { store: LocalStore; pinned?: boolean }) {
   const { tasks } = store.data;
   const [menu, setMenu] = useState<RowMenuState | null>(null);
   /** 「已完成」分组头右键菜单（第四十八轮）：只记位置，开/关与行菜单分开管理 */
@@ -463,7 +463,7 @@ export function TasksSection({ store, pinned = false, heading }: { store: LocalS
     <section className={pinned ? 'flex flex-col h-full min-h-0' : undefined}>
       {/* 标题行（第八十七轮）：计数去掉（卡头 x/y 已含）；「+ 建组」降为行右小文字按钮 */}
       <div className="flex items-center gap-2 mb-1 shrink-0">
-        {heading ?? <h4 className="text-sm font-semibold">待办</h4>}
+        <h4 className="text-sm font-semibold">待办</h4>
         {!showGroupForm && (
           <button
             type="button"
@@ -636,7 +636,7 @@ export function TasksSection({ store, pinned = false, heading }: { store: LocalS
  * 核心交互（次数型 −1/+1、日期型「完成」）与新建/编辑表单都在卡面直接完成，
  * 新建入口原先只在展开面板里，本轮按用户要求搬到卡面（见 PlansSection 末尾「+ 新计划」）
  */
-export function PlansSection({ store, pinned = false, heading }: { store: LocalStore; pinned?: boolean; heading?: React.ReactNode }) {
+export function PlansSection({ store, pinned = false }: { store: LocalStore; pinned?: boolean }) {
   const { plans } = store.data;
   const [menu, setMenu] = useState<RowMenuState | null>(null);
   const [editingPlanId, setEditingPlanId] = useState<string | null>(null);
@@ -651,7 +651,7 @@ export function PlansSection({ store, pinned = false, heading }: { store: LocalS
   return (
     <section className={pinned ? 'flex flex-col h-full min-h-0' : undefined}>
       <div className="flex items-baseline gap-2 mb-1 shrink-0">
-        {heading ?? <h4 className="text-sm font-semibold">长期计划</h4>}
+        <h4 className="text-sm font-semibold">长期计划</h4>
         <span className="text-[11px] text-zinc-400 tabular-nums">{plans.length} 个</span>
       </div>
       {/* 列表区：pinned 时自成滚动区吃满列高（空状态不再单列文案，入口就是列底的按钮本身） */}
@@ -969,13 +969,16 @@ const PlanRow: React.FC<{
 const planInputCls =
   'w-full bg-white/5 border border-white/12 rounded-xl px-3 py-2 text-sm outline-none focus:border-indigo-400/50 placeholder:text-zinc-400';
 
-/** 新建计划表单：标题 + 类型切换（按次数/按日期）+ 对应字段 */
+/** 新建计划表单：标题 + 类型切换（按次数/按日期）+ 对应字段；
+    日期型可填可选开始/结束时间（推进表时间轴用，不填即全天） */
 function PlanCreateForm({ store, onClose }: { store: LocalStore; onClose: () => void }) {
   const [title, setTitle] = useState('');
   const [mode, setMode] = useState<'count' | 'date'>('count');
   const [target, setTarget] = useState('10');
   const [unit, setUnit] = useState('次');
   const [deadline, setDeadline] = useState(todayDateStr());
+  const [startTime, setStartTime] = useState('');
+  const [endTime, setEndTime] = useState('');
   const today = todayDateStr();
   /** 「点表单外 = 确认」判定（第七十五轮） */
   const outsideConfirm = useOutsidePressConfirm();
@@ -988,7 +991,7 @@ function PlanCreateForm({ store, onClose }: { store: LocalStore; onClose: () => 
     if (mode === 'count') {
       store.addPlan(title, { mode, targetCount: parseInt(target, 10) || 10, unit });
     } else {
-      store.addPlan(title, { mode, deadline });
+      store.addPlan(title, { mode, deadline, startTime: startTime || undefined, endTime: endTime || undefined });
     }
     onClose();
   };
@@ -1053,17 +1056,37 @@ function PlanCreateForm({ store, onClose }: { store: LocalStore; onClose: () => 
           />
         </div>
       ) : (
-        <label className="mt-2 flex items-center gap-2">
-          <span className="text-[11px] text-zinc-300 shrink-0">完成时间</span>
-          <input
-            type="date"
-            min={today}
-            value={deadline}
-            onChange={(e) => setDeadline(e.target.value)}
-            data-plan-deadline
-            className="flex-1 min-w-0 bg-white/5 border border-white/12 rounded-xl px-2.5 py-1.5 text-sm outline-none focus:border-indigo-400/50 [color-scheme:dark]"
-          />
-        </label>
+        <>
+          <label className="mt-2 flex items-center gap-2">
+            <span className="text-[11px] text-zinc-300 shrink-0">完成时间</span>
+            <input
+              type="date"
+              min={today}
+              value={deadline}
+              onChange={(e) => setDeadline(e.target.value)}
+              data-plan-deadline
+              className="flex-1 min-w-0 bg-white/5 border border-white/12 rounded-xl px-2.5 py-1.5 text-sm outline-none focus:border-indigo-400/50 [color-scheme:dark]"
+            />
+          </label>
+          <div className="mt-2 flex items-center gap-2">
+            <span className="text-[11px] text-zinc-300 shrink-0">时间（可选）</span>
+            <input
+              type="time"
+              value={startTime}
+              onChange={(e) => setStartTime(e.target.value)}
+              data-plan-start-time
+              className="flex-1 min-w-0 bg-white/5 border border-white/12 rounded-xl px-2.5 py-1.5 text-sm outline-none focus:border-indigo-400/50 [color-scheme:dark]"
+            />
+            <span className="text-zinc-400 text-xs shrink-0">至</span>
+            <input
+              type="time"
+              value={endTime}
+              onChange={(e) => setEndTime(e.target.value)}
+              data-plan-end-time
+              className="flex-1 min-w-0 bg-white/5 border border-white/12 rounded-xl px-2.5 py-1.5 text-sm outline-none focus:border-indigo-400/50 [color-scheme:dark]"
+            />
+          </div>
+        </>
       )}
       <div className="mt-2.5 flex gap-2">
         <button
@@ -1087,12 +1110,15 @@ function PlanCreateForm({ store, onClose }: { store: LocalStore; onClose: () => 
   );
 }
 
-/** 编辑计划表单：改标题 + 本类型的目标（次数型：目标数/单位；日期型：目标日）。挂载即以现值初始化 */
-const PlanEditForm: React.FC<{ plan: PlanItem; store: LocalStore; onClose: () => void }> = ({ plan, store, onClose }) => {
+/** 编辑计划表单：改标题 + 本类型的目标（次数型：目标数/单位；日期型：目标日 + 可选时间）。
+    挂载即以现值初始化；推进表/日程表的块详情复用同一个表单（不另起一套编辑 UI） */
+export const PlanEditForm: React.FC<{ plan: PlanItem; store: LocalStore; onClose: () => void }> = ({ plan, store, onClose }) => {
   const [title, setTitle] = useState(plan.title);
   const [target, setTarget] = useState(String(plan.targetCount ?? 10));
   const [unit, setUnit] = useState(plan.unit ?? '次');
   const [deadline, setDeadline] = useState(plan.deadline ?? todayDateStr());
+  const [startTime, setStartTime] = useState(plan.startTime ?? '');
+  const [endTime, setEndTime] = useState(plan.endTime ?? '');
   /** 「点表单外 = 确认」判定（第七十五轮，口径同新建表单） */
   const outsideConfirm = useOutsidePressConfirm();
 
@@ -1102,7 +1128,7 @@ const PlanEditForm: React.FC<{ plan: PlanItem; store: LocalStore; onClose: () =>
       const n = parseInt(target, 10);
       store.updatePlan(plan.id, { title, targetCount: n > 0 ? n : undefined, unit });
     } else {
-      store.updatePlan(plan.id, { title, deadline });
+      store.updatePlan(plan.id, { title, deadline, startTime, endTime });
     }
     onClose();
   };
@@ -1142,16 +1168,36 @@ const PlanEditForm: React.FC<{ plan: PlanItem; store: LocalStore; onClose: () =>
           />
         </div>
       ) : (
-        <label className="mt-2 flex items-center gap-2">
-          <span className="text-[11px] text-zinc-300 shrink-0">完成时间</span>
-          <input
-            type="date"
-            value={deadline}
-            onChange={(e) => setDeadline(e.target.value)}
-            data-plan-edit-deadline
-            className="flex-1 min-w-0 bg-white/5 border border-white/12 rounded-xl px-2.5 py-1.5 text-sm outline-none focus:border-indigo-400/50 [color-scheme:dark]"
-          />
-        </label>
+        <>
+          <label className="mt-2 flex items-center gap-2">
+            <span className="text-[11px] text-zinc-300 shrink-0">完成时间</span>
+            <input
+              type="date"
+              value={deadline}
+              onChange={(e) => setDeadline(e.target.value)}
+              data-plan-edit-deadline
+              className="flex-1 min-w-0 bg-white/5 border border-white/12 rounded-xl px-2.5 py-1.5 text-sm outline-none focus:border-indigo-400/50 [color-scheme:dark]"
+            />
+          </label>
+          <div className="mt-2 flex items-center gap-2">
+            <span className="text-[11px] text-zinc-300 shrink-0">时间（可选）</span>
+            <input
+              type="time"
+              value={startTime}
+              onChange={(e) => setStartTime(e.target.value)}
+              data-plan-edit-start-time
+              className="flex-1 min-w-0 bg-white/5 border border-white/12 rounded-xl px-2.5 py-1.5 text-sm outline-none focus:border-indigo-400/50 [color-scheme:dark]"
+            />
+            <span className="text-zinc-400 text-xs shrink-0">至</span>
+            <input
+              type="time"
+              value={endTime}
+              onChange={(e) => setEndTime(e.target.value)}
+              data-plan-edit-end-time
+              className="flex-1 min-w-0 bg-white/5 border border-white/12 rounded-xl px-2.5 py-1.5 text-sm outline-none focus:border-indigo-400/50 [color-scheme:dark]"
+            />
+          </div>
+        </>
       )}
       <div className="mt-2.5 flex gap-2">
         <button

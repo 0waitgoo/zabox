@@ -14,6 +14,7 @@ import {
   type WidgetTint,
 } from '../../store/localStore';
 import { AiView, PlansSection, TasksSection } from './TaskSections';
+import { TimelineView, WeekGridView } from './PlanScheduleViews';
 import WidgetTintLayer from './WidgetTint';
 
 /**
@@ -71,6 +72,24 @@ export default function TaskCard({
   const [focusExpanded, setFocusExpanded] = useState(false);
   /** 2x 卡面视图：主视图（待办+计划）/ AI 整理（第六十九轮从面板迁入卡内切换） */
   const [cardView, setCardView] = useState<'main' | 'ai'>('main');
+  /** 2x 卡面 tab（本轮新增）：计划 | 日程表 | 推进表——只在卡内切换视图，不开新页面；
+      当前 tab 记本地（显示偏好，不进同步），下次打开还是这个 tab */
+  const [planTab, setPlanTab] = useState<'plan' | 'timeline' | 'week'>(() => {
+    try {
+      const saved = localStorage.getItem('ainav-plan-card-tab');
+      return saved === 'timeline' || saved === 'week' ? saved : 'plan';
+    } catch {
+      return 'plan';
+    }
+  });
+  const switchPlanTab = (tab: 'plan' | 'timeline' | 'week') => {
+    setPlanTab(tab);
+    try {
+      localStorage.setItem('ainav-plan-card-tab', tab);
+    } catch {
+      /* 忽略 */
+    }
+  };
   const dragScroll = useCardDragScroll();
 
   // 进度口径：组按子任务摊平（普通待办计 1，组计子任务数），见 taskFlatStats
@@ -181,9 +200,38 @@ export default function TaskCard({
           <div className="h-full rounded-full bg-indigo-400 transition-all duration-300" style={{ width: `${pct}%` }} />
         </div>
 
+        {/* 视图 tab（本轮新增）：计划 | 日程表 | 推进表，只在卡内切换，不开新页面 */}
+        <div className="flex gap-0.5 p-0.5 rounded-xl bg-white/5 border border-white/10 shrink-0 mb-2">
+          {([
+            ['plan', '计划'],
+            ['timeline', '日程表'],
+            ['week', '推进表'],
+          ] as const).map(([tab, label]) => (
+            <button
+              key={tab}
+              type="button"
+              data-plan-tab={tab}
+              onClick={() => switchPlanTab(tab)}
+              className={`flex-1 text-xs py-1.5 rounded-lg transition-colors ${
+                planTab === tab ? 'bg-indigo-500/80 text-white font-medium' : 'text-white/55 hover:text-white/85'
+              }`}
+            >
+              {label}
+            </button>
+          ))}
+        </div>
+
         {cardView === 'ai' ? (
           <div className="flex-1 min-h-0 flex flex-col" data-nodrag>
             <AiView store={store} onDone={() => setCardView('main')} />
+          </div>
+        ) : planTab === 'timeline' ? (
+          <div data-nodrag className="flex-1 min-h-0 overflow-y-auto pr-0.5">
+            <TimelineView store={store} onAddPlan={() => switchPlanTab('plan')} />
+          </div>
+        ) : planTab === 'week' ? (
+          <div data-nodrag className="flex-1 min-h-0 overflow-y-auto pr-0.5">
+            <WeekGridView store={store} />
           </div>
         ) : colSpan === 2 ? (
           /* 2 栏加密结构（第八十七轮）：外层不再滚动，两列各占满高——列内「标题在顶 →

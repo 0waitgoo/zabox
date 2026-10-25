@@ -977,17 +977,19 @@ function PlanCreateForm({ store, onClose }: { store: LocalStore; onClose: () => 
   const [mode, setMode] = useState<'count' | 'date'>('count');
   const [target, setTarget] = useState('10');
   const [unit, setUnit] = useState('次');
+  // 简化版日期模式（本轮）：只留一个日期（默认今天）+ 全天/指定时间开关 + 更多里的开始日；
+  // 旧 4 行（完成时间/开始日/事件日/时间）压缩成默认 2 行；缺失项一律默认补齐，不拦保存
   const [deadline, setDeadline] = useState(todayDateStr());
   const [startDate, setStartDate] = useState(todayDateStr());
+  const [timeMode, setTimeMode] = useState<'allday' | 'custom'>('allday');
   const [startTime, setStartTime] = useState('');
   const [endTime, setEndTime] = useState('');
-  const [eventDate, setEventDate] = useState('');
-  const today = todayDateStr();
+  const [more, setMore] = useState(false);
   /** 「点表单外 = 确认」判定（第七十五轮） */
   const outsideConfirm = useOutsidePressConfirm();
 
   const canSubmit =
-    title.trim().length > 0 && (mode === 'count' ? parseInt(target, 10) > 0 : deadline >= today);
+    title.trim().length > 0 && (mode === 'count' ? parseInt(target, 10) > 0 : deadline.length > 0);
 
   const submit = () => {
     if (!canSubmit) return;
@@ -997,10 +999,9 @@ function PlanCreateForm({ store, onClose }: { store: LocalStore; onClose: () => 
       store.addPlan(title, {
         mode,
         deadline,
-        startDate: startDate || undefined,
-        startTime: startTime || undefined,
-        endTime: endTime || undefined,
-        eventDate: eventDate || undefined,
+        startDate,
+        startTime: timeMode === 'custom' ? startTime || undefined : undefined,
+        endTime: timeMode === 'custom' ? endTime || undefined : undefined,
       });
     }
     onClose();
@@ -1068,54 +1069,79 @@ function PlanCreateForm({ store, onClose }: { store: LocalStore; onClose: () => 
       ) : (
         <>
           <label className="mt-2 flex items-center gap-2">
-            <span className="text-[11px] text-zinc-300 shrink-0">完成时间</span>
+            <span className="text-[11px] text-zinc-300 shrink-0">日期</span>
             <input
               type="date"
-              min={today}
               value={deadline}
               onChange={(e) => setDeadline(e.target.value)}
               data-plan-deadline
               className="flex-1 min-w-0 bg-white/5 border border-white/12 rounded-xl px-2.5 py-1.5 text-sm outline-none focus:border-indigo-400/50 [color-scheme:dark]"
             />
           </label>
-          <label className="mt-2 flex items-center gap-2">
-            <span className="text-[11px] text-zinc-300 shrink-0">开始日</span>
-            <input
-              type="date"
-              value={startDate}
-              onChange={(e) => setStartDate(e.target.value)}
-              data-plan-start-date
-              className="flex-1 min-w-0 bg-white/5 border border-white/12 rounded-xl px-2.5 py-1.5 text-sm outline-none focus:border-indigo-400/50 [color-scheme:dark]"
-            />
-          </label>
-          <label className="mt-2 flex items-center gap-2">
-            <span className="text-[11px] text-zinc-300 shrink-0">事件日（可选）</span>
-            <input
-              type="date"
-              value={eventDate}
-              onChange={(e) => setEventDate(e.target.value)}
-              data-plan-event-date
-              className="flex-1 min-w-0 bg-white/5 border border-white/12 rounded-xl px-2.5 py-1.5 text-sm outline-none focus:border-indigo-400/50 [color-scheme:dark]"
-            />
-          </label>
           <div className="mt-2 flex items-center gap-2">
-            <span className="text-[11px] text-zinc-300 shrink-0">时间（可选）</span>
-            <input
-              type="time"
-              value={startTime}
-              onChange={(e) => setStartTime(e.target.value)}
-              data-plan-start-time
-              className="flex-1 min-w-0 bg-white/5 border border-white/12 rounded-xl px-2.5 py-1.5 text-sm outline-none focus:border-indigo-400/50 [color-scheme:dark]"
-            />
-            <span className="text-zinc-400 text-xs shrink-0">至</span>
-            <input
-              type="time"
-              value={endTime}
-              onChange={(e) => setEndTime(e.target.value)}
-              data-plan-end-time
-              className="flex-1 min-w-0 bg-white/5 border border-white/12 rounded-xl px-2.5 py-1.5 text-sm outline-none focus:border-indigo-400/50 [color-scheme:dark]"
-            />
+            <span className="text-[11px] text-zinc-300 shrink-0">时间</span>
+            <div className="flex flex-1 rounded-xl bg-white/5 border border-white/10 p-0.5">
+              <button
+                type="button"
+                data-plan-time-mode="allday"
+                onClick={() => setTimeMode('allday')}
+                className={`flex-1 text-xs py-1.5 rounded-lg transition-colors ${
+                  timeMode === 'allday' ? 'bg-indigo-500/70 text-white font-medium' : 'text-white/50 hover:text-white/85'
+                }`}
+              >
+                全天
+              </button>
+              <button
+                type="button"
+                data-plan-time-mode="custom"
+                onClick={() => setTimeMode('custom')}
+                className={`flex-1 text-xs py-1.5 rounded-lg transition-colors ${
+                  timeMode === 'custom' ? 'bg-indigo-500/70 text-white font-medium' : 'text-white/50 hover:text-white/85'
+                }`}
+              >
+                指定时间
+              </button>
+            </div>
           </div>
+          {timeMode === 'custom' && (
+            <div className="mt-2 flex items-center gap-2">
+              <input
+                type="time"
+                value={startTime}
+                onChange={(e) => setStartTime(e.target.value)}
+                data-plan-start-time
+                className="flex-1 min-w-0 bg-white/5 border border-white/12 rounded-xl px-2.5 py-1.5 text-sm outline-none focus:border-indigo-400/50 [color-scheme:dark]"
+              />
+              <span className="text-zinc-400 text-xs shrink-0">至</span>
+              <input
+                type="time"
+                value={endTime}
+                onChange={(e) => setEndTime(e.target.value)}
+                data-plan-end-time
+                className="flex-1 min-w-0 bg-white/5 border border-white/12 rounded-xl px-2.5 py-1.5 text-sm outline-none focus:border-indigo-400/50 [color-scheme:dark]"
+              />
+            </div>
+          )}
+          <button
+            type="button"
+            data-plan-more
+            onClick={() => setMore((v) => !v)}
+            className="mt-2 text-[11px] text-white/45 hover:text-white/85 transition-colors self-start"
+          >
+            {more ? '收起 ↑' : '更多 ↓'}
+          </button>
+          {more && (
+            <label className="mt-2 flex items-center gap-2">
+              <span className="text-[11px] text-zinc-300 shrink-0">开始日</span>
+              <input
+                type="date"
+                value={startDate}
+                onChange={(e) => setStartDate(e.target.value)}
+                data-plan-start-date
+                className="flex-1 min-w-0 bg-white/5 border border-white/12 rounded-xl px-2.5 py-1.5 text-sm outline-none focus:border-indigo-400/50 [color-scheme:dark]"
+              />
+            </label>
+          )}
         </>
       )}
       <div className="mt-2.5 flex gap-2">
@@ -1140,17 +1166,20 @@ function PlanCreateForm({ store, onClose }: { store: LocalStore; onClose: () => 
   );
 }
 
-/** 编辑计划表单：改标题 + 本类型的目标（次数型：目标数/单位；日期型：目标日 + 可选时间）。
-    挂载即以现值初始化；推进表/日程表的块详情复用同一个表单（不另起一套编辑 UI） */
+/** 编辑计划表单：改标题 + 本类型的目标（次数型：目标数/单位；日期型：一个日期 + 全天/指定时间 + 更多里的开始日）。
+    简化版（本轮，与新建表单同口径）：老数据的事件日打开时直接映射成这个日期字段，保存时合并进截止日并清掉事件日，
+    不再让用户同时面对两个日期；挂载即以现值初始化；推进表/日程表的块详情复用同一个表单（不另起一套编辑 UI） */
 export const PlanEditForm: React.FC<{ plan: PlanItem; store: LocalStore; onClose: () => void }> = ({ plan, store, onClose }) => {
   const [title, setTitle] = useState(plan.title);
   const [target, setTarget] = useState(String(plan.targetCount ?? 10));
   const [unit, setUnit] = useState(plan.unit ?? '次');
-  const [deadline, setDeadline] = useState(plan.deadline ?? todayDateStr());
+  // 日期字段 = 日程里实际显示的那个日期（老数据有事件日就显示事件日，没有就显示截止日）
+  const [date, setDate] = useState(plan.eventDate ?? plan.deadline ?? todayDateStr());
   const [startDate, setStartDate] = useState(plan.startDate ?? todayDateStr());
+  const [timeMode, setTimeMode] = useState<'allday' | 'custom'>(plan.startTime ? 'custom' : 'allday');
   const [startTime, setStartTime] = useState(plan.startTime ?? '');
   const [endTime, setEndTime] = useState(plan.endTime ?? '');
-  const [eventDate, setEventDate] = useState(plan.eventDate ?? '');
+  const [more, setMore] = useState(false);
   /** 「点表单外 = 确认」判定（第七十五轮，口径同新建表单） */
   const outsideConfirm = useOutsidePressConfirm();
 
@@ -1160,7 +1189,15 @@ export const PlanEditForm: React.FC<{ plan: PlanItem; store: LocalStore; onClose
       const n = parseInt(target, 10);
       store.updatePlan(plan.id, { title, targetCount: n > 0 ? n : undefined, unit });
     } else {
-      store.updatePlan(plan.id, { title, deadline, startDate, startTime, endTime, eventDate });
+      // 事件日合并：保存时把日期写进截止日并清掉事件日，之后只有一个日期
+      store.updatePlan(plan.id, {
+        title,
+        deadline: date,
+        startDate,
+        startTime: timeMode === 'custom' ? startTime : '',
+        endTime: timeMode === 'custom' ? endTime : '',
+        eventDate: '',
+      });
     }
     onClose();
   };
@@ -1202,53 +1239,79 @@ export const PlanEditForm: React.FC<{ plan: PlanItem; store: LocalStore; onClose
       ) : (
         <>
           <label className="mt-2 flex items-center gap-2">
-            <span className="text-[11px] text-zinc-300 shrink-0">完成时间</span>
+            <span className="text-[11px] text-zinc-300 shrink-0">日期</span>
             <input
               type="date"
-              value={deadline}
-              onChange={(e) => setDeadline(e.target.value)}
+              value={date}
+              onChange={(e) => setDate(e.target.value)}
               data-plan-edit-deadline
               className="flex-1 min-w-0 bg-white/5 border border-white/12 rounded-xl px-2.5 py-1.5 text-sm outline-none focus:border-indigo-400/50 [color-scheme:dark]"
             />
           </label>
-          <label className="mt-2 flex items-center gap-2">
-            <span className="text-[11px] text-zinc-300 shrink-0">开始日</span>
-            <input
-              type="date"
-              value={startDate}
-              onChange={(e) => setStartDate(e.target.value)}
-              data-plan-edit-start-date
-              className="flex-1 min-w-0 bg-white/5 border border-white/12 rounded-xl px-2.5 py-1.5 text-sm outline-none focus:border-indigo-400/50 [color-scheme:dark]"
-            />
-          </label>
-          <label className="mt-2 flex items-center gap-2">
-            <span className="text-[11px] text-zinc-300 shrink-0">事件日（可选）</span>
-            <input
-              type="date"
-              value={eventDate}
-              onChange={(e) => setEventDate(e.target.value)}
-              data-plan-edit-event-date
-              className="flex-1 min-w-0 bg-white/5 border border-white/12 rounded-xl px-2.5 py-1.5 text-sm outline-none focus:border-indigo-400/50 [color-scheme:dark]"
-            />
-          </label>
           <div className="mt-2 flex items-center gap-2">
-            <span className="text-[11px] text-zinc-300 shrink-0">时间（可选）</span>
-            <input
-              type="time"
-              value={startTime}
-              onChange={(e) => setStartTime(e.target.value)}
-              data-plan-edit-start-time
-              className="flex-1 min-w-0 bg-white/5 border border-white/12 rounded-xl px-2.5 py-1.5 text-sm outline-none focus:border-indigo-400/50 [color-scheme:dark]"
-            />
-            <span className="text-zinc-400 text-xs shrink-0">至</span>
-            <input
-              type="time"
-              value={endTime}
-              onChange={(e) => setEndTime(e.target.value)}
-              data-plan-edit-end-time
-              className="flex-1 min-w-0 bg-white/5 border border-white/12 rounded-xl px-2.5 py-1.5 text-sm outline-none focus:border-indigo-400/50 [color-scheme:dark]"
-            />
+            <span className="text-[11px] text-zinc-300 shrink-0">时间</span>
+            <div className="flex flex-1 rounded-xl bg-white/5 border border-white/10 p-0.5">
+              <button
+                type="button"
+                data-plan-edit-time-mode="allday"
+                onClick={() => setTimeMode('allday')}
+                className={`flex-1 text-xs py-1.5 rounded-lg transition-colors ${
+                  timeMode === 'allday' ? 'bg-indigo-500/70 text-white font-medium' : 'text-white/50 hover:text-white/85'
+                }`}
+              >
+                全天
+              </button>
+              <button
+                type="button"
+                data-plan-edit-time-mode="custom"
+                onClick={() => setTimeMode('custom')}
+                className={`flex-1 text-xs py-1.5 rounded-lg transition-colors ${
+                  timeMode === 'custom' ? 'bg-indigo-500/70 text-white font-medium' : 'text-white/50 hover:text-white/85'
+                }`}
+              >
+                指定时间
+              </button>
+            </div>
           </div>
+          {timeMode === 'custom' && (
+            <div className="mt-2 flex items-center gap-2">
+              <input
+                type="time"
+                value={startTime}
+                onChange={(e) => setStartTime(e.target.value)}
+                data-plan-edit-start-time
+                className="flex-1 min-w-0 bg-white/5 border border-white/12 rounded-xl px-2.5 py-1.5 text-sm outline-none focus:border-indigo-400/50 [color-scheme:dark]"
+              />
+              <span className="text-zinc-400 text-xs shrink-0">至</span>
+              <input
+                type="time"
+                value={endTime}
+                onChange={(e) => setEndTime(e.target.value)}
+                data-plan-edit-end-time
+                className="flex-1 min-w-0 bg-white/5 border border-white/12 rounded-xl px-2.5 py-1.5 text-sm outline-none focus:border-indigo-400/50 [color-scheme:dark]"
+              />
+            </div>
+          )}
+          <button
+            type="button"
+            data-plan-edit-more
+            onClick={() => setMore((v) => !v)}
+            className="mt-2 text-[11px] text-white/45 hover:text-white/85 transition-colors self-start"
+          >
+            {more ? '收起 ↑' : '更多 ↓'}
+          </button>
+          {more && (
+            <label className="mt-2 flex items-center gap-2">
+              <span className="text-[11px] text-zinc-300 shrink-0">开始日</span>
+              <input
+                type="date"
+                value={startDate}
+                onChange={(e) => setStartDate(e.target.value)}
+                data-plan-edit-start-date
+                className="flex-1 min-w-0 bg-white/5 border border-white/12 rounded-xl px-2.5 py-1.5 text-sm outline-none focus:border-indigo-400/50 [color-scheme:dark]"
+              />
+            </label>
+          )}
         </>
       )}
       <div className="mt-2.5 flex gap-2">

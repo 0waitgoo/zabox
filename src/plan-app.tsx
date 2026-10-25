@@ -240,10 +240,18 @@ function PlanApp() {
         const monitor = await currentMonitor();
         if (disposed || !monitor) return;
         const area = monitor.workArea;
+        const root = document.querySelector('[data-plan-desktop]')?.getBoundingClientRect();
+        const limit = document.querySelector('[data-plan-dock-limit]')?.getBoundingClientRect();
+        const row = document.querySelector('[data-plan-dock-row]')?.getBoundingClientRect();
+        if (!root || !limit) return;
+        const dockRegion = {
+          x: 0, y: 0, width: limit.right - root.left,
+          height: Math.max(40, row && row.height > 0 ? row.bottom - root.top : 40),
+        };
         await controllerRef.current?.collapse({
           x: area.position.x, y: area.position.y,
           width: area.size.width, height: area.size.height,
-        });
+        }, dockRegion);
       } catch (error) { if (!disposed) reportWindowError(error); }
     };
     const onError = (event: Event) => reportWindowError((event as CustomEvent).detail);

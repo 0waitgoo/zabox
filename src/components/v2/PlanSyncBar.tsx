@@ -227,7 +227,7 @@ export default function PlanSyncBar({
         light ? 'border-black/10' : 'border-white/10'
       }`}
     >
-      <div className="flex items-center gap-2 flex-wrap">
+      <div data-plan-dock-row className="flex items-center gap-2 flex-wrap">
         {loginControl}
         <button
           type="button"

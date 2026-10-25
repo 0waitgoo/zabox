@@ -105,3 +105,31 @@ test('work-area edges include taskbars placed at the top or left', () => {
   assert.equal(edgeAt({ x: 200, y: 40, width: 420, height: 680 }, bounds, 4), 'top');
   assert.equal(edgeAt({ x: 200, y: 200, width: 420, height: 680 }, bounds, 4), null);
 });
+
+for (const scale of [1, 1.25, 1.5, 2]) {
+  test(`only the marked header region docks at ${scale * 100}% DPI`, async () => {
+    const f = fixture(scale);
+    const bounds = { x: 0, y: 0, width: 1920, height: 2400 };
+    const region = { x: 0, y: 0, width: 320, height: 90 };
+    // Bottom of the full window touches the screen, but the header does not.
+    await f.win.setPosition(400, bounds.height - 680 * scale - 16);
+    await f.controller.collapse(bounds, region);
+    assert.equal(f.controller.edge, null);
+    // Right-side window controls touch first; the marked region is still inside.
+    await f.win.setPosition(1920 - 420 * scale - 16, 100);
+    await f.controller.collapse(bounds, region);
+    assert.equal(f.controller.edge, null);
+    // The marked region itself reaches the right edge.
+    await f.win.setPosition(1920 - 320 * scale, 100);
+    await f.controller.collapse(bounds, region);
+    assert.equal(f.controller.edge, 'right');
+    await f.controller.restoreEdge();
+    await f.win.setPosition(0, 100);
+    await f.controller.collapse(bounds, region);
+    assert.equal(f.controller.edge, 'left');
+    await f.controller.restoreEdge();
+    await f.win.setPosition(400, 0);
+    await f.controller.collapse(bounds, region);
+    assert.equal(f.controller.edge, 'top');
+  });
+}

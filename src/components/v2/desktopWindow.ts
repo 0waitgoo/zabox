@@ -80,12 +80,18 @@ export class DesktopWindowController {
     });
   }
 
-  collapse(bounds: DesktopBounds): Promise<void> {
+  collapse(bounds: DesktopBounds, dockRegion?: DesktopRect): Promise<void> {
     return this.run(async () => {
       if (this.headerOnly || this.edge || await this.win.isMaximized()) return;
       const rect = await this.win.readOuterRect();
       const scale = await this.win.scaleFactor();
-      const edge = edgeAt(rect, bounds, 4 * scale);
+      // Only the title/actions area can dock; the task body and bottom cannot.
+      // The optional region is measured in logical client pixels by the UI.
+      const trigger = dockRegion ? {
+        x: rect.x + dockRegion.x * scale, y: rect.y + dockRegion.y * scale,
+        width: dockRegion.width * scale, height: dockRegion.height * scale,
+      } : { ...rect, height: Math.min(rect.height, 100 * scale) };
+      const edge = edgeAt(trigger, bounds, 4 * scale);
       if (!edge) return;
       const peek = Math.round(24 * scale);
       const x = edge === 'right' ? bounds.x + bounds.width - peek

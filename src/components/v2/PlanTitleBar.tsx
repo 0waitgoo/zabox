@@ -70,6 +70,7 @@ export default function PlanTitleBar({
       <PinButton pinned={pinned} busy={pinBusy} light={light} onToggle={onTogglePin} />
       <button
         type="button"
+        data-plan-dock-limit
         title="设置"
         aria-pressed={settingsOpen}
         onClick={onSettingsToggle}

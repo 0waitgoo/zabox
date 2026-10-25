@@ -19,12 +19,16 @@ import type { PlanTheme } from '../../plan-app';
 export default function PlanSettings({
   theme,
   onThemeChange,
+  customColor,
+  onCustomColorChange,
   opacity,
   onOpacityChange,
   onBack,
 }: {
   theme: PlanTheme;
   onThemeChange: (t: PlanTheme) => void;
+  customColor: string | null;
+  onCustomColorChange: (color: string) => void;
   opacity: number;
   onOpacityChange: (v: number) => void;
   onBack: () => void;
@@ -34,6 +38,9 @@ export default function PlanSettings({
   const light = theme === 'light';
 
   const faint = light ? 'text-zinc-500' : 'text-white/45';
+  const inactiveAppearanceButton = light
+    ? 'bg-black/[0.06] hover:bg-black/10 text-zinc-800'
+    : 'bg-white/10 hover:bg-white/[0.18] text-white';
   const inputCls = light
     ? 'w-full rounded-lg border border-black/10 bg-white px-3 py-2 text-sm text-zinc-900 placeholder:text-zinc-400 outline-none focus:border-indigo-400'
     : 'w-full rounded-lg border border-white/10 bg-white/5 px-3 py-2 text-sm text-white placeholder:text-white/30 outline-none focus:border-indigo-400';
@@ -78,14 +85,15 @@ export default function PlanSettings({
       {/* 外观 */}
       <section className="flex flex-col gap-3">
         <h3 className={sectionTitle}>外观</h3>
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-2 flex-wrap">
           <button
             type="button"
             onClick={() => onThemeChange('dark')}
+            aria-pressed={!customColor && !light}
             className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-colors ${
-              !light
+              !customColor && !light
                 ? 'bg-indigo-500 text-white'
-                : 'bg-black/[0.06] hover:bg-black/10 text-zinc-800'
+                : inactiveAppearanceButton
             }`}
           >
             ☾ 暗夜
@@ -93,14 +101,28 @@ export default function PlanSettings({
           <button
             type="button"
             onClick={() => onThemeChange('light')}
+            aria-pressed={!customColor && light}
             className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-colors ${
-              light
+              !customColor && light
                 ? 'bg-indigo-500 text-white'
-                : 'bg-white/10 hover:bg-white/[0.18] text-white'
+                : inactiveAppearanceButton
             }`}
           >
             ☀ 白天
           </button>
+          <label className={`relative flex items-center gap-2 px-3 py-1.5 rounded-lg text-xs font-medium cursor-pointer focus-within:ring-2 focus-within:ring-indigo-400 ${
+            customColor ? 'bg-indigo-500 text-white'
+              : light ? 'bg-black/[0.06] hover:bg-black/10 text-zinc-800'
+                : 'bg-white/10 hover:bg-white/[0.18] text-white'
+          }`}>
+            <span className="w-3.5 h-3.5 rounded-sm border border-current/30"
+              style={{ backgroundColor: customColor ?? (light ? '#f2f2f5' : '#17171d') }} />
+            自定义底色
+            <input type="color" aria-label="自定义窗口底色"
+              value={customColor ?? (light ? '#f2f2f5' : '#17171d')}
+              onChange={(event) => onCustomColorChange(event.target.value)}
+              className="absolute inset-0 w-full h-full opacity-0 cursor-pointer" />
+          </label>
         </div>
         <label className={`flex items-center gap-3 text-xs ${faint}`}>
           <span className="shrink-0">底色透明度</span>

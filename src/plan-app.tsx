@@ -11,7 +11,10 @@ import {
 import PlanPage from './components/pages/PlanPage';
 import PlanSyncBar from './components/v2/PlanSyncBar';
 import PlanTitleBar from './components/v2/PlanTitleBar';
+import PinButton from './components/v2/PinButton';
+import { DesktopPinController, loadAlwaysOnTop } from './components/v2/desktopPin';
 import PlanSettings from './components/v2/PlanSettings';
+import { CUSTOM_BACKGROUND_KEY, backgroundColorRgb, loadCustomBackground, normalizeBackgroundColor, themeForBackground } from './components/v2/desktopAppearance';
 import PlanAiView from './components/v2/PlanAiView';
 import {
   currentMonitor,
@@ -47,6 +50,8 @@ function loadOpacity(): number {
 }
 
 function loadTheme(): PlanTheme {
+  const custom = loadCustomBackground();
+  if (custom) return themeForBackground(custom);
   try {
     return localStorage.getItem(THEME_KEY) === 'light' ? 'light' : 'dark';
   } catch {
@@ -77,7 +82,19 @@ function PlanApp() {
   const store = useLocalStore();
   const [opacity, setOpacity] = useState(loadOpacity);
   const [theme, setTheme] = useState<PlanTheme>(loadTheme);
+  const [customColor, setCustomColor] = useState<string | null>(loadCustomBackground);
   const [settingsOpen, setSettingsOpen] = useState(false);
+  const [pinned, setPinned] = useState(loadAlwaysOnTop);
+  const [pinBusy, setPinBusy] = useState(false);
+  const pinControllerRef = useRef<DesktopPinController | null>(null);
+  if (!pinControllerRef.current) {
+    const win = planWindow();
+    if (win) pinControllerRef.current = new DesktopPinController(
+      (value) => win.setAlwaysOnTop(value),
+      { getItem: (key) => localStorage.getItem(key), setItem: (key, value) => localStorage.setItem(key, value) },
+      setPinned,
+    );
+  }
   const [headerOnly, setHeaderOnly] = useState(false);
   const [autoLogin, setAutoLogin] = useState(false);
   const [collapsed, setCollapsed] = useState<Edge | null>(null);
@@ -115,6 +132,25 @@ function PlanApp() {
     setWindowError('窗口操作失败，请重试；可从系统托盘重新显示窗口。');
   };
 
+  useEffect(() => {
+    const pin = pinControllerRef.current;
+    if (!pin) return;
+    let disposed = false;
+    setPinBusy(true);
+    void pin.initialize().catch((error) => {
+      if (!disposed) reportWindowError(error);
+    }).finally(() => { if (!disposed) setPinBusy(false); });
+    return () => { disposed = true; };
+  }, []);
+
+  const togglePin = async () => {
+    const pin = pinControllerRef.current;
+    if (!pin || pinBusy) return;
+    setPinBusy(true);
+    try { await pin.toggle(); } catch (error) { reportWindowError(error); }
+    finally { setPinBusy(false); }
+  };
+
   // html/body 背景透明（index.css 给 body 定了 #050505，行内样式压过它）
   useEffect(() => {
     try {
@@ -134,7 +170,7 @@ function PlanApp() {
     }
   };
 
-  const changeTheme = (t: PlanTheme) => {
+  const applyTheme = (t: PlanTheme) => {
     setTheme(t);
     try {
       localStorage.setItem(THEME_KEY, t);
@@ -142,6 +178,19 @@ function PlanApp() {
     } catch {
       /* 忽略 */
     }
+  };
+
+  const changeTheme = (t: PlanTheme) => {
+    setCustomColor(null);
+    try { localStorage.removeItem(CUSTOM_BACKGROUND_KEY); } catch { /* session remains usable */ }
+    applyTheme(t);
+  };
+  const changeCustomColor = (value: string) => {
+    const color = normalizeBackgroundColor(value);
+    if (!color) return;
+    setCustomColor(color);
+    try { localStorage.setItem(CUSTOM_BACKGROUND_KEY, color); } catch { /* session remains usable */ }
+    applyTheme(themeForBackground(color));
   };
 
   const restoreFromCollapse = async () => {
@@ -209,8 +258,9 @@ function PlanApp() {
   }, []);
 
   const light = theme === 'light';
-  const bg = rgba(light ? LIGHT_BG : DARK_BG, opacity / 100);
-  const handleBg = rgba(light ? LIGHT_HANDLE : DARK_HANDLE, opacity / 100);
+  const customRgb = customColor ? backgroundColorRgb(customColor) : null;
+  const bg = rgba(customRgb ?? (light ? LIGHT_BG : DARK_BG), opacity / 100);
+  const handleBg = rgba(customRgb ?? (light ? LIGHT_HANDLE : DARK_HANDLE), opacity / 100);
   const textCls = light ? 'text-zinc-900' : 'text-white';
 
   // 收起态：只渲染一条 24px 细边 + 小把手（窗口其余部分已滑出屏幕外）。
@@ -333,6 +383,7 @@ function PlanApp() {
           </button>
         )}
         <div data-plan-drag-region className="flex-1 min-w-0 h-full" />
+        <PinButton pinned={pinned} busy={pinBusy} light={light} onToggle={() => void togglePin()} />
         <button
           type="button"
           title="展开"
@@ -369,6 +420,9 @@ function PlanApp() {
     <PlanTitleBar
       theme={theme}
       settingsOpen={settingsOpen}
+      pinned={pinned}
+      pinBusy={pinBusy}
+      onTogglePin={() => void togglePin()}
       onSettingsToggle={() => setSettingsOpen((v) => !v)}
       onToggleHeaderOnly={() => void enterHeaderOnly()}
       onToggleMaximize={() => void handleToggleMaximize()}
@@ -392,7 +446,8 @@ function PlanApp() {
         </div>
         <div className="px-3 sm:px-4 py-3">
           {settingsOpen ? (
-            <PlanSettings theme={theme} onThemeChange={changeTheme} opacity={opacity}
+            <PlanSettings theme={theme} onThemeChange={changeTheme} customColor={customColor}
+              onCustomColorChange={changeCustomColor} opacity={opacity}
               onOpacityChange={changeOpacity} onBack={() => setSettingsOpen(false)} />
           ) : aiView === 'ai' ? (
             <PlanAiView store={store} theme={theme} onOpenSettings={() => setSettingsOpen(true)} />

@@ -1,6 +1,7 @@
 import React from 'react';
 import { ChevronDown, Settings, Square, X } from 'lucide-react';
 import { safeClose } from './planWindow';
+import PinButton from './PinButton';
 import type { PlanTheme } from '../../plan-app';
 
 /**
@@ -19,12 +20,18 @@ import type { PlanTheme } from '../../plan-app';
 export default function PlanTitleBar({
   theme,
   settingsOpen,
+  pinned,
+  pinBusy,
+  onTogglePin,
   onSettingsToggle,
   onToggleHeaderOnly,
   onToggleMaximize,
 }: {
   theme: PlanTheme;
   settingsOpen: boolean;
+  pinned: boolean;
+  pinBusy: boolean;
+  onTogglePin: () => void;
   onSettingsToggle: () => void;
   onToggleHeaderOnly: () => void;
   onToggleMaximize: () => void;
@@ -59,6 +66,7 @@ export default function PlanTitleBar({
       </div>
       {/* 拖动区：中间空白 */}
       <div data-plan-drag-region className="flex-1 min-w-0 h-full" />
+      <PinButton pinned={pinned} busy={pinBusy} light={light} onToggle={onTogglePin} />
       <button
         type="button"
         title="设置"

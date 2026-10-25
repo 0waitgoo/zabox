@@ -28,12 +28,15 @@ pub fn run() {
             let _tray = TrayIconBuilder::new()
                 .icon(handle.default_window_icon().cloned().unwrap())
                 .menu(&menu)
-                .tooltip("杂盒计划")
+                .tooltip("杂盒计划（点击恢复窗口）")
                 .on_menu_event(|app, event| match event.id.as_ref() {
                     "show" => {
-                        // 只发事件，让前端按收起/最小化/显隐状态决定怎么弹（前端知道收起态，
-                        // Rust 不知道——直接 show 会把收起的细边原样弹出来，看着像没反应）。
+                        // 系统层直接恢复 + 再发事件给前端（前端按收起态恢复原尺寸位置）：
+                        // 两手都做——即使页面逻辑失效，点「显示窗口」也一定能把窗口弹出来，
+                        // 而不是只剩托盘图标、看着像软件关了。
                         if let Some(window) = app.get_webview_window("main") {
+                            let _ = window.show();
+                            let _ = window.set_focus();
                             let _ = window.emit("tray-show", ());
                         }
                     }
@@ -49,8 +52,9 @@ pub fn run() {
                     // 只响应松开（Up）：Click 在按下和松开各发一次，不过滤会在一次
                     // 点击里连续收起又弹出，看起来就是“很不自然的闪烁”。
                     // 口径（用户定）：点一下收起（藏进托盘），再点一下弹出窗口。
-                    // 切换逻辑在前端（它知道收起态与最小化态，Rust 不知道）：
-                    // 这里只发事件，不直接 show/hide，避免收起的细边被原样弹出来。
+                    // 窗口已隐藏时在系统层直接恢复（不依赖页面逻辑——页面逻辑失效时
+                    // 点托盘也没反应，用户就会以为软件关了）；其余状态（可见/细边/
+                    // 最小化）仍交给前端按状态处理。
                     if let TrayIconEvent::Click {
                         button: MouseButton::Left,
                         button_state: MouseButtonState::Up,
@@ -59,7 +63,12 @@ pub fn run() {
                     {
                         let app = tray.app_handle();
                         if let Some(window) = app.get_webview_window("main") {
-                            let _ = window.emit("tray-toggle", ());
+                            if !window.is_visible().unwrap_or(true) {
+                                let _ = window.show();
+                                let _ = window.set_focus();
+                            } else {
+                                let _ = window.emit("tray-toggle", ());
+                            }
                         }
                     }
                 })

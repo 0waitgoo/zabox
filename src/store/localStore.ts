@@ -300,6 +300,9 @@ export interface PlanItem {
   /** 日期型计划的可选时间（HH:MM）：推进表时间轴落块用；没填就是全天（只按日期排） */
   startTime?: string;
   endTime?: string;
+  /** 日期型计划的可选事件日（YYYY-MM-DD）：日程表/推进表按事件日排，不填则用截止日；
+      截止日仍是目标完成日（计划行进度与完成状态的锚），两者分开 */
+  eventDate?: string;
   done?: boolean;
   createdAt: number;
 }
@@ -527,6 +530,8 @@ function normalizePlans(raw: unknown): PlanItem[] {
       const et = cleanTime(p.endTime);
       if (st) base.startTime = st;
       if (et && (!st || et > st)) base.endTime = et;
+      // 可选事件日：只收合法日期；非法丢弃（回落截止日）
+      if (isDateStr(p.eventDate)) base.eventDate = p.eventDate;
     } else if (p.mode === 'count' || p.mode === 'date') {
       // 新形态次数型（date 型但 deadline 坏了也落这里，保证计划可用）
       base.targetCount = cleanCount(p.targetCount, 1);
@@ -2169,11 +2174,20 @@ export function useLocalStore() {
   );
 
   /** 新建长期计划（第十九轮两型）：count 带目标数+单位；date 带目标日，startDate 记今天；
-      date 型可带可选开始/结束时间（推进表时间轴用，不填即全天） */
+      date 型可带可选开始/结束时间（推进表时间轴用，不填即全天）与可选事件日（日程按事件日排，不填则用截止日） */
   const addPlan = useCallback(
     (
       title: string,
-      opts: { mode: PlanMode; targetCount?: number; unit?: string; deadline?: string; startTime?: string; endTime?: string },
+      opts: {
+        mode: PlanMode;
+        targetCount?: number;
+        unit?: string;
+        deadline?: string;
+        startDate?: string;
+        startTime?: string;
+        endTime?: string;
+        eventDate?: string;
+      },
     ) => {
       const t = title.trim();
       if (!t) return;
@@ -2189,9 +2203,10 @@ export function useLocalStore() {
             title: t,
             mode: 'date',
             deadline: opts.deadline,
-            startDate: todayDateStr(),
+            startDate: isDateStr(opts.startDate) ? opts.startDate : todayDateStr(),
             ...(st ? { startTime: st } : {}),
             ...(et && (!st || et > st) ? { endTime: et } : {}),
+            ...(isDateStr(opts.eventDate) ? { eventDate: opts.eventDate } : {}),
             done: false,
             createdAt: Date.now(),
           });
@@ -2215,11 +2230,21 @@ export function useLocalStore() {
   );
 
   /** 编辑计划：按其当前类型改标题与目标（次数型的目标/单位、日期型的目标日）；
-      日期型可改可选开始/结束时间（空字符串 = 清除该时间） */
+      日期型可改可选开始/结束时间（空字符串 = 清除该时间）、可选开始日（非法忽略，保留旧值）
+      与可选事件日（空字符串 = 清除，回落截止日） */
   const updatePlan = useCallback(
     (
       planId: string,
-      patch: { title?: string; targetCount?: number; unit?: string; deadline?: string; startTime?: string; endTime?: string },
+      patch: {
+        title?: string;
+        targetCount?: number;
+        unit?: string;
+        deadline?: string;
+        startDate?: string;
+        startTime?: string;
+        endTime?: string;
+        eventDate?: string;
+      },
     ) => {
       update((d) => {
         const plan = d.plans.find((p) => p.id === planId);
@@ -2234,6 +2259,11 @@ export function useLocalStore() {
           plan.deadline = patch.deadline;
         }
         if (plan.mode === 'date') {
+          if (isDateStr(patch.startDate)) plan.startDate = patch.startDate;
+          if (patch.eventDate !== undefined) {
+            if (isDateStr(patch.eventDate)) plan.eventDate = patch.eventDate;
+            else delete plan.eventDate;
+          }
           const cleanTime = (v: unknown) =>
             typeof v === 'string' && /^([01]\d|2[0-3]):[0-5]\d$/.test(v) ? v : undefined;
           if (patch.startTime !== undefined) {

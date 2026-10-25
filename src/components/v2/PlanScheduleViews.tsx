@@ -13,10 +13,10 @@ import {
  *   单日计划（开始日 = 结束日）进日程表，多日计划（2 天及以上）进推进表。
  * - 日程表：按日分组的竖向时间线，只显示有计划的日期；每天可建一个或多个；
  *   新建只要标题 + 日期，全天，不问具体时间。
- * - 推进表：只留 month 日历格（Day/Week 分段删除）；多日计划在覆盖的每一天
- *   各画一段色块，拼成一条颜色区间；单日计划在当天格里显示为小标记（日程表新建
- *   的计划也会出现在月格里）。格子左键点击新建单日，拖过一段日期新建多日，
- *   两种新建都弹出同一个编辑框（标题 + 开始日 + 结束日）。
+ * - 推进表：只留 month 日历格（Day/Week 分段删除）；多日计划铺满覆盖的每一天
+ *   格子底色（半透明状态色），标题只写在区间起点格；单日计划在当天格里显示为
+ *   小标记（日程表新建的计划也会出现在月格里）。格子左键点击新建单日，拖过一段
+ *   日期新建多日，两种新建都弹出同一个编辑框（标题 + 开始日 + 结束日，实色弹框）。
  * - 旧计划数据：新版首次加载时一次性清空（待办不动），见 localStore.loadInitial。
  */
 
@@ -98,11 +98,11 @@ function planState(p: PlanItem, today: string): PlanState {
   return 'active';
 }
 
-const STATE_META: Record<PlanState, { label: string; bar: string; fill: string; text: string }> = {
-  active: { label: '进行中', bar: 'border-indigo-400', fill: 'bg-indigo-500/70', text: 'text-indigo-200' },
-  soon: { label: '即将到期', bar: 'border-amber-400', fill: 'bg-amber-500/70', text: 'text-amber-200' },
-  overdue: { label: '已逾期', bar: 'border-red-400', fill: 'bg-red-500/70', text: 'text-red-200' },
-  done: { label: '已完成', bar: 'border-emerald-400', fill: 'bg-emerald-500/70', text: 'text-emerald-200' },
+const STATE_META: Record<PlanState, { label: string; bar: string; tint: string; text: string }> = {
+  active: { label: '进行中', bar: 'border-indigo-400', tint: 'bg-indigo-500/25', text: 'text-indigo-200' },
+  soon: { label: '即将到期', bar: 'border-amber-400', tint: 'bg-amber-500/25', text: 'text-amber-200' },
+  overdue: { label: '已逾期', bar: 'border-red-400', tint: 'bg-red-500/25', text: 'text-red-200' },
+  done: { label: '已完成', bar: 'border-emerald-400', tint: 'bg-emerald-500/25', text: 'text-emerald-200' },
 };
 
 function rangeLabel(p: PlanItem): string {
@@ -522,7 +522,8 @@ export function MonthView({ store }: { store: LocalStore }) {
       )}
 
       {/* 月格：格子左键点 = 新建单日，拖过一段 = 新建多日区间（弹框编辑）；
-          格子里的色块/小标记是已有计划，点它们是看详情，不触发新建；
+          多日区间铺满覆盖格的底色（半透明），标题只在起点格，点标题是看详情；
+          格子其余位置点按/拖选仍是新建；单日小标记点开也是详情；
           touch 上下滑动仍可滚动卡片（touch-pan-y），拖选主要面向鼠标 */}
       <div data-month-grid className="grid grid-cols-7 gap-1 touch-pan-y" data-nodrag>
         {['一', '二', '三', '四', '五', '六', '日'].map((w) => (
@@ -538,10 +539,21 @@ export function MonthView({ store }: { store: LocalStore }) {
           });
           const daySingle = single.filter((p) => spanOf(p).end === key);
           const highlighted = inDragRange(key);
+          // 区间底色：取覆盖本格的第一个区间（按开始日排），多区间同格时底色只显示第一个，
+          // 各区间标题仍在各自起点格单独列出
+          const coverMeta = dayMulti.length > 0 ? STATE_META[planState(dayMulti[0], today)] : null;
+          const bg = coverMeta
+            ? coverMeta.tint
+            : highlighted
+              ? 'bg-indigo-500/[0.16]'
+              : key === today
+                ? 'bg-indigo-500/[0.08]'
+                : 'bg-white/[0.03]';
           return (
             <div
               key={key}
               data-month-cell={key}
+              data-month-cover={dayMulti.map((p) => p.id).join(' ') || undefined}
               onPointerDown={(e) => {
                 // 点在已有计划的色块/标记上 = 看详情，不开始拖选
                 if ((e.target as HTMLElement).closest('button')) return;
@@ -564,25 +576,20 @@ export function MonthView({ store }: { store: LocalStore }) {
                 }
               }}
               className={`rounded-xl border px-1.5 py-1 min-h-[64px] cursor-pointer transition-colors ${
-                key === today
-                  ? 'border-indigo-400/50 bg-indigo-500/[0.08]'
-                  : highlighted
-                    ? 'border-indigo-400/40 bg-indigo-500/[0.16]'
-                    : 'border-white/10 bg-white/[0.03]'
-              } ${inMonth ? '' : 'opacity-40'}`}
+                key === today ? 'border-indigo-400/50' : 'border-white/10'
+              } ${highlighted ? 'ring-2 ring-indigo-400/70' : ''} ${bg} ${inMonth ? '' : 'opacity-40'}`}
             >
               <p className={`text-[11px] tabular-nums ${key === today ? 'text-indigo-200 font-medium' : 'text-zinc-300'}`}>
                 {parseDay(key).getDate()}
                 {key === today && <span className="ml-1 text-[10px] px-1 py-0.5 rounded bg-indigo-500/70 text-white align-middle">今天</span>}
               </p>
               <div className="mt-1 flex flex-col gap-1">
-                {/* 多日区间：覆盖的每一天各画一段，拼成颜色区间；标题只写在区间起点格
-                    （区间从上月开始时，标题写在本月第一格） */}
+                {/* 多日区间标题：只写在区间起点格（区间从上月开始时，写在本月第一格）；
+                    底色已由格子本身铺满，这里不再画一条色块 */}
                 {dayMulti.map((p) => {
-                  const { start, end } = spanOf(p);
-                  const st = planState(p, today);
-                  const meta = STATE_META[st];
+                  const { start } = spanOf(p);
                   const showTitle = key === start || (start < days[0] && key === days[0]);
+                  if (!showTitle) return null;
                   return (
                     <button
                       key={p.id}
@@ -590,11 +597,9 @@ export function MonthView({ store }: { store: LocalStore }) {
                       data-month-segment={`${p.id}:${key}`}
                       title={p.title}
                       onClick={() => setSelectedId(p.id)}
-                      className={`h-5 rounded-md ${meta.fill} text-white text-[11px] leading-5 truncate text-left px-1.5 hover:brightness-110 transition ${
-                        key === start ? 'rounded-l-md' : 'rounded-l-sm'
-                      } ${key === end ? 'rounded-r-md' : 'rounded-r-sm'}`}
+                      className="text-left text-[11px] leading-5 text-white/90 truncate hover:underline px-0.5"
                     >
-                      {showTitle ? p.title : ''}
+                      {p.title}
                     </button>
                   );
                 })}
@@ -621,13 +626,18 @@ export function MonthView({ store }: { store: LocalStore }) {
         })}
       </div>
 
-      {/* 新建弹框：点击格子 / 拖拉选段后弹出，标题 + 开始日 + 结束日 */}
+      {/* 新建弹框：点击格子 / 拖拉选段后弹出，标题 + 开始日 + 结束日；
+          弹框用实色面板（组合选择器/分组面板同款），不再透出底下卡片 */}
       {editor && (
         <div
-          className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4"
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4"
           onClick={() => setEditor(null)}
         >
-          <div className="w-full max-w-sm" onClick={(e) => e.stopPropagation()} data-month-editor>
+          <div
+            className="w-full max-w-sm rounded-[28px] bg-[#17171d] border border-white/15 p-4 shadow-2xl shadow-black/70"
+            onClick={(e) => e.stopPropagation()}
+            data-month-editor
+          >
             <PlanRangeEditor
               store={store}
               initialStart={editor.start}

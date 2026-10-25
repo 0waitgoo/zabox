@@ -41,7 +41,7 @@ export const BUILTIN_PRESET_META: PresetMeta[] = [
 ];
 
 /** 种子默认主页的组件集（默认预设与种子逐点一致用；与 store 的 DEFAULT_WIDGETS 同序） */
-const ALL_WIDGET_IDS: CompositionSnapshot['widgets'] = ['task', 'news', 'ranking', 'trending', 'tools'];
+const ALL_WIDGET_IDS: CompositionSnapshot['widgets'] = ['task', 'news', 'trending', 'tools'];
 
 /** 全部 A 型组件（工具预设 = 全组件布局，第一百零七轮起含中式色卡） */
 const EVERY_WIDGET_IDS: CompositionSnapshot['widgets'] = [...ALL_WIDGET_IDS, 'colors'];
@@ -209,7 +209,7 @@ export function buildDeveloperPreset(): CompositionSnapshot {
 
 /**
  * 工具预设：整页只有小组件、没有任何站点编组（全组件，第一百零七轮起含中式色卡）。
- * 计划给 2 宽 × 2 高的大尺寸，资讯与软件榜两张 2×2 大卡分列左右，
+ * 计划给 2 宽 × 2 高的大尺寸，资讯 2×2 大卡，
  * 热门话题与文件工具收尾，中式色卡落左栏末位。
  */
 export function buildToolsPreset(): CompositionSnapshot {
@@ -224,7 +224,6 @@ export function buildToolsPreset(): CompositionSnapshot {
     cardOrder: [
       widgetCardKey('task'),
       widgetCardKey('news'),
-      widgetCardKey('ranking'),
       widgetCardKey('trending'),
       widgetCardKey('tools'),
       widgetCardKey('colors'),
@@ -232,7 +231,6 @@ export function buildToolsPreset(): CompositionSnapshot {
     cardCols: {
       [widgetCardKey('task')]: 0,
       [widgetCardKey('news')]: 2,
-      [widgetCardKey('ranking')]: 0,
       [widgetCardKey('trending')]: 2,
       [widgetCardKey('tools')]: 2,
       [widgetCardKey('colors')]: 0,

@@ -1,7 +1,7 @@
 import React, { useEffect, useRef } from 'react';
 import { CalendarDays, Plus } from 'lucide-react';
 
-export type CreateKind = 'task' | 'plan';
+export type CreateKind = 'task' | 'timeline';
 
 export default function DesktopCreateMenu({ position, onClose, onCreate }: {
   position: { x: number; y: number };
@@ -44,7 +44,7 @@ export default function DesktopCreateMenu({ position, onClose, onCreate }: {
       style={{ left: Math.max(8, Math.min(position.x, window.innerWidth - 184)), top: Math.max(8, Math.min(position.y, window.innerHeight - 92)) }}
       onContextMenu={(event) => { event.preventDefault(); event.stopPropagation(); }}>
       <button type="button" role="menuitem" onClick={() => onCreate('task')} className={itemClass}><Plus size={14} />新建待办</button>
-      <button type="button" role="menuitem" onClick={() => onCreate('plan')} className={itemClass}><CalendarDays size={14} />新建长期计划</button>
+      <button type="button" role="menuitem" onClick={() => onCreate('timeline')} className={itemClass}><CalendarDays size={14} />新建日程</button>
     </div>
   );
 }

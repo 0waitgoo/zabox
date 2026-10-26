@@ -477,7 +477,7 @@ export function MonthView({ store }: { store: LocalStore }) {
   };
 
   return (
-    <div data-schedule-view="month" className="flex flex-col min-h-0">
+    <div data-schedule-view="month" className="flex flex-col min-h-0 @container">
       {/* 月份导航：上一月 / 今天 / 下一月 */}
       <div className="flex items-center gap-1.5 mb-2">
         <button
@@ -524,13 +524,21 @@ export function MonthView({ store }: { store: LocalStore }) {
       {/* 月格：格子左键点 = 新建单日，拖过一段 = 新建多日区间（弹框编辑）；
           多日区间铺满覆盖格的底色（半透明），标题只在起点格，点标题是看详情；
           格子其余位置点按/拖选仍是新建；单日小标记点开也是详情；
-          touch 上下滑动仍可滚动卡片（touch-pan-y），拖选主要面向鼠标 */}
-      <div data-month-grid className="grid grid-cols-7 gap-1 touch-pan-y" data-nodrag>
+          touch 上下滑动仍可滚动卡片（touch-pan-y），拖选主要面向鼠标。
+          窄容器（卡面 1x / 手机，< 472px）时格子不再挤成竖条：星期头隐藏，格子
+          改成固定正方形、排不下自动往后排（flex-wrap），宽容器仍是 7 列周对齐 */}
+      <div data-month-weekdays className="grid grid-cols-7 gap-1 @max-[471px]:hidden">
         {['一', '二', '三', '四', '五', '六', '日'].map((w) => (
           <div key={w} className="text-center text-[11px] text-zinc-400 py-1">
             {w}
           </div>
         ))}
+      </div>
+      <div
+        data-month-grid
+        className="grid grid-cols-7 gap-1 touch-pan-y @max-[471px]:flex @max-[471px]:flex-wrap"
+        data-nodrag
+      >
         {days.map((key) => {
           const inMonth = parseDay(key).getMonth() === ym.m - 1;
           const dayMulti = multi.filter((p) => {
@@ -575,15 +583,15 @@ export function MonthView({ store }: { store: LocalStore }) {
                   setDrag((d) => (d ? { ...d, end: key } : d));
                 }
               }}
-              className={`rounded-xl border px-1.5 py-1 min-h-[64px] cursor-pointer transition-colors ${
+              className={`rounded-xl border px-1.5 py-1 min-h-[64px] cursor-pointer transition-colors @max-[471px]:w-12 @max-[471px]:shrink-0 @max-[471px]:aspect-square @max-[471px]:min-h-0 @max-[471px]:p-1 @max-[471px]:overflow-hidden ${
                 key === today ? 'border-indigo-400/50' : 'border-white/10'
               } ${highlighted ? 'ring-2 ring-indigo-400/70' : ''} ${bg} ${inMonth ? '' : 'opacity-40'}`}
             >
               <p className={`text-[11px] tabular-nums ${key === today ? 'text-indigo-200 font-medium' : 'text-zinc-300'}`}>
                 {parseDay(key).getDate()}
-                {key === today && <span className="ml-1 text-[10px] px-1 py-0.5 rounded bg-indigo-500/70 text-white align-middle">今天</span>}
+                {key === today && <span className="ml-1 text-[10px] px-1 py-0.5 rounded bg-indigo-500/70 text-white align-middle @max-[471px]:hidden">今天</span>}
               </p>
-              <div className="mt-1 flex flex-col gap-1">
+              <div className="mt-1 flex flex-col gap-1 @max-[471px]:mt-0.5 @max-[471px]:gap-0">
                 {/* 多日区间标题：只写在区间起点格（区间从上月开始时，写在本月第一格）；
                     底色已由格子本身铺满，这里不再画一条色块 */}
                 {dayMulti.map((p) => {

@@ -8,7 +8,7 @@ import {
   Square,
   X,
 } from 'lucide-react';
-import DesktopPlanWorkspace from './components/v2/DesktopPlanWorkspace';
+import DesktopPlanWorkspace, { type WorkspaceTab } from './components/v2/DesktopPlanWorkspace';
 import PlanSyncBar from './components/v2/PlanSyncBar';
 import PlanTitleBar from './components/v2/PlanTitleBar';
 import PinButton from './components/v2/PinButton';
@@ -121,7 +121,7 @@ function PlanApp() {
   const [aiView, setAiView] = useState<'main' | 'ai'>('main');
   const [createMenu, setCreateMenu] = useState<{ x: number; y: number } | null>(null);
   const closeCreateMenu = useCallback(() => setCreateMenu(null), []);
-  const [activeSection, setActiveSection] = useState<CreateKind>('task');
+  const [activeSection, setActiveSection] = useState<WorkspaceTab>('task');
   const [createTarget, setCreateTarget] = useState<CreateKind | null>(null);
   const [windowError, setWindowError] = useState<string | null>(null);
   const controllerRef = useRef<DesktopWindowController | null>(null);
@@ -224,14 +224,14 @@ function PlanApp() {
     let nextFrame = 0;
     const focus = () => {
       const input = document.querySelector<HTMLInputElement>(createTarget === 'task'
-        ? '[data-task-add]' : '[data-plan-form] input');
+        ? '[data-task-add]' : '[data-plan-range-title]');
       input?.scrollIntoView({ block: 'nearest' });
       input?.focus();
       setCreateTarget(null);
     };
     const frame = requestAnimationFrame(() => {
-      if (createTarget === 'plan' && !document.querySelector('[data-plan-form]')) {
-        document.querySelector<HTMLButtonElement>('[data-plan-new]')?.click();
+      if (createTarget === 'timeline' && !document.querySelector('[data-plan-range-editor]')) {
+        document.querySelector<HTMLButtonElement>('[data-timeline-new]')?.click();
         nextFrame = requestAnimationFrame(focus);
       } else focus();
     });

@@ -22,6 +22,8 @@ on:
       - 'src/components/v2/planWindow.ts'
       - 'src/components/pages/PlanPage.tsx'
       - 'src/components/v2/PlanScheduleViews.tsx'
+      - 'src/components/v2/DesktopPlanWorkspace.tsx'
+      - 'src/components/v2/DesktopCreateMenu.tsx'
       - 'src/components/v2/TaskSections.tsx'
       - 'src/components/v2/TaskCard.tsx'
       - 'src/store/localStore.ts'

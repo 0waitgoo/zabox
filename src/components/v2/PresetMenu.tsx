@@ -8,7 +8,8 @@ import AppearanceSection from './AppearanceSection';
 /**
  * 「预设」入口（第一百零六轮建、第一百零九轮改语义，接替原顶栏扳手；
  * 第一百一十一轮起顶栏背景按钮并入本面板）：布局/模板图标点开浮层，
- * 五套主页构成一键切换——默认 / 设计师 / 程序员 / 工具 / 我的，下方是「外观」节。
+ * 五套主页构成一键切换——一排两个，顺序 默认 / 我的 / 设计师 / 程序员 / 工具
+ * （工具最后一个），下方是「外观」节。
  * 切换换主页构成（编组、组件、布局）与外观（背景、明暗、透明度、模糊），计划数据不动，
  * 无二次确认：排版或外观一改动就自动存进「我的」（状态机见 store.update 与偏好订阅桥接），
  * 内置预设之间互切不覆盖存档。
@@ -60,21 +61,49 @@ export default function PresetMenu({ store }: { store: LocalStore }) {
     setOpen(false);
   };
 
-  const rowClass = (current: boolean, disabled = false) =>
-    `w-full flex items-center gap-2.5 px-3 py-2 rounded-2xl border text-left transition-all ${
+  // 预设卡（2026-10-27 用户定）：一排两个，顺序 默认 / 我的 / 设计师 / 程序员 / 工具
+  // （工具最后一个）；卡片窄，名在上、短述在下单行截断，勾放名右
+  const cardClass = (current: boolean, disabled = false) =>
+    `w-full flex flex-col gap-0.5 px-3 py-2 rounded-2xl border text-left transition-all ${
       current
         ? 'border-indigo-400/80 bg-white/8'
         : disabled
           ? 'border-white/5 opacity-45 cursor-default'
           : 'border-white/10 hover:border-white/30 hover:bg-white/[0.04]'
     }`;
+  const checkmark = (
+    <span className="ml-auto shrink-0 w-[18px] h-[18px] rounded-full bg-indigo-500 flex items-center justify-center">
+      <Check size={11} className="text-white" />
+    </span>
+  );
+  const builtinCard = (meta: (typeof BUILTIN_PRESET_META)[number]) => {
+    const current = activePreset === meta.id;
+    return (
+      <button
+        key={meta.id}
+        data-preset-option={meta.id}
+        data-preset-current={current || undefined}
+        title={meta.desc}
+        onClick={() => pick(meta.id)}
+        className={cardClass(current)}
+      >
+        <span className="flex items-center gap-1 w-full">
+          <span className="text-[13px] font-medium text-white/90">{meta.name}</span>
+          {current && checkmark}
+        </span>
+        <span className="text-[11px] text-white/45 truncate">
+          {SHORT_DESC[meta.id] ?? meta.desc}
+        </span>
+      </button>
+    );
+  };
 
   // 第一百一十四轮：面板压缩——预设行由两行卡片改单行（名 + 短述 + 勾），
   // 全述只放 title 悬停；短述为原述的忠实缩写，语义不变
   const SHORT_DESC: Record<string, string> = {
     default: '均衡排版',
     designer: '设计资源优先',
-    programmer: '开发资源优先',
+    developer: '开发资源优先',
     tools: '整页小组件',
   };
 
@@ -106,30 +135,8 @@ export default function PresetMenu({ store }: { store: LocalStore }) {
             style={{ marginLeft: panelShift }}
           >
             <p className="px-1 pb-1.5 text-[10px] tracking-wider text-white/40 uppercase">主页预设</p>
-            <div className="flex flex-col gap-1">
-              {BUILTIN_PRESET_META.map((meta) => {
-                const current = activePreset === meta.id;
-                return (
-                  <button
-                    key={meta.id}
-                    data-preset-option={meta.id}
-                    data-preset-current={current || undefined}
-                    title={meta.desc}
-                    onClick={() => pick(meta.id)}
-                    className={rowClass(current)}
-                  >
-                    <span className="shrink-0 text-[13px] font-medium text-white/90">{meta.name}</span>
-                    <span className="flex-1 min-w-0 text-[11px] text-white/45 truncate">
-                      {SHORT_DESC[meta.id] ?? meta.desc}
-                    </span>
-                    {current && (
-                      <span className="shrink-0 w-[18px] h-[18px] rounded-full bg-indigo-500 flex items-center justify-center">
-                        <Check size={11} className="text-white" />
-                      </span>
-                    )}
-                  </button>
-                );
-              })}
+            <div className="grid grid-cols-2 gap-1">
+              {builtinCard(BUILTIN_PRESET_META[0])}
               {/* 「我的」：恢复自己的存档（含外观）。无存档时呈禁用态注明「暂无存档」；
                   有存档或正在自定义态时说明：改动即自动保存 */}
               <button
@@ -137,18 +144,17 @@ export default function PresetMenu({ store }: { store: LocalStore }) {
                 data-preset-current={activePreset === 'my' || undefined}
                 title="你现在的排版与外观，改动即自动保存"
                 onClick={() => pick('my')}
-                className={rowClass(activePreset === 'my', !hasMyArchive && activePreset !== 'my')}
+                className={cardClass(activePreset === 'my', !hasMyArchive && activePreset !== 'my')}
               >
-                <span className="shrink-0 text-[13px] font-medium text-white/90">我的</span>
-                <span className="flex-1 min-w-0 text-[11px] text-white/45 truncate">
+                <span className="flex items-center gap-1 w-full">
+                  <span className="text-[13px] font-medium text-white/90">我的</span>
+                  {activePreset === 'my' && checkmark}
+                </span>
+                <span className="text-[11px] text-white/45 truncate">
                   {hasMyArchive || activePreset === 'my' ? '改动即自动保存' : '暂无存档'}
                 </span>
-                {activePreset === 'my' && (
-                  <span className="shrink-0 w-[18px] h-[18px] rounded-full bg-indigo-500 flex items-center justify-center">
-                    <Check size={11} className="text-white" />
-                  </span>
-                )}
               </button>
+              {BUILTIN_PRESET_META.slice(1).map((meta) => builtinCard(meta))}
             </div>
             <p className="px-1 pt-2 text-[11px] text-white/35 truncate">
               计划不受影响；改动自动存进「我的」。

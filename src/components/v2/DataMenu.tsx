@@ -478,6 +478,22 @@ export default function DataMenu({ store }: { store: LocalStore }) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
+  // 切回页面时自动拉取一次：桌面端推送的新数据不用刷新页面也能到
+  useEffect(() => {
+    const onVisible = () => {
+      if (document.visibilityState !== 'visible') return;
+      const m = ghMetaRef.current;
+      if (m.enabled && githubConfigComplete(m)) void pullFromGithub();
+    };
+    document.addEventListener('visibilitychange', onVisible);
+    window.addEventListener('focus', onVisible);
+    return () => {
+      document.removeEventListener('visibilitychange', onVisible);
+      window.removeEventListener('focus', onVisible);
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
   // 自动推送：本地数据变化且比同步基准新时，防抖 2 秒写回
   const ghFirstDataRef = useRef(true);
   useEffect(() => {

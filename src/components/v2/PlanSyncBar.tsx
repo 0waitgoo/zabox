@@ -186,6 +186,29 @@ export default function PlanSyncBar({
     if (!loadToken()) void startLogin();
   }, [autoLogin]);
 
+  const syncRef = useRef(sync);
+  syncRef.current = sync;
+
+  // 线上自动同步：已登录时打开即同步一次（云端较新就拉取，本地较新就推送）
+  useEffect(() => {
+    if (!token.trim()) return;
+    void syncRef.current();
+  }, [token]);
+
+  // 线上自动同步：本地数据变化后防抖 2 秒自动同步一次，桌面改动不用再手动按同步
+  const firstDataRef = useRef(true);
+  useEffect(() => {
+    if (firstDataRef.current) {
+      firstDataRef.current = false;
+      return;
+    }
+    if (!token.trim()) return;
+    const timer = setTimeout(() => {
+      void syncRef.current();
+    }, 2000);
+    return () => clearTimeout(timer);
+  }, [store.data, token]);
+
   const cancelLogin = () => {
     loginRef.current?.abort();
     setStatus('登录已取消');

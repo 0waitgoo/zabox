@@ -1,4 +1,4 @@
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { Check, ChevronDown, Layers, Minus, Pencil, Plus, Sparkles, Trash2 } from 'lucide-react';
 import {
   dateStrDiffDays,
@@ -15,6 +15,59 @@ import {
   type TaskItem,
 } from '../../store/localStore';
 import { splitTasksText } from '../../utils/taskSplit';
+
+/** 标题三行收起：超 3 行自动收起并在后面显示展开/收起按钮（只在确实超行时显示）；双击标题直接编辑（调用方传 onDoubleClick） */
+function ExpandableTitle({
+  text,
+  expanded,
+  onToggle,
+  onDoubleClick,
+  titleAttr,
+  sizeClass,
+  toneClass,
+  spanData,
+}: {
+  text: string;
+  expanded: boolean;
+  onToggle: () => void;
+  onDoubleClick?: () => void;
+  titleAttr: string;
+  sizeClass: string;
+  toneClass: string;
+  spanData: { 'data-task-title'?: string; 'data-subtask-title'?: string; 'data-group-title'?: string };
+}) {
+  const ref = useRef<HTMLSpanElement | null>(null);
+  const [overflow, setOverflow] = useState(false);
+  useLayoutEffect(() => {
+    if (expanded) return;
+    const el = ref.current;
+    if (el) setOverflow(el.scrollHeight > el.clientHeight + 1);
+  }, [text, expanded]);
+  return (
+    <div className="flex-1 min-w-0">
+      <span
+        ref={ref}
+        {...spanData}
+        onClick={onToggle}
+        onDoubleClick={onDoubleClick}
+        title={titleAttr}
+        style={expanded ? { WebkitLineClamp: 'unset' } : undefined}
+        className={`min-w-0 ${sizeClass} line-clamp-3 break-words ${toneClass}`}
+      >
+        {text}
+      </span>
+      {overflow && (
+        <button
+          type="button"
+          onClick={onToggle}
+          className="mt-0.5 text-xs text-indigo-300 hover:text-indigo-200"
+        >
+          {expanded ? '收起' : '展开'}
+        </button>
+      )}
+    </div>
+  );
+}
 
 /**
  * 计划任务内容区（原 TaskPanel.tsx；第六十九轮起展开面板取消，本文件只剩内容组件，由 2x 计划卡卡面直接承载）：
@@ -415,6 +468,10 @@ export function TasksSection({ store, pinned = false }: { store: LocalStore; pin
         editor={titleEditor()}
         onMenu={(e) => openMenu(e, 'taskGroup', task.id, task.title)}
         onChildMenu={(e, childId, childTitle) => openMenu(e, 'taskChild', childId, childTitle, task.id)}
+        onTitleDoubleClick={() => {
+          if (drag.wasJustDragged()) return;
+          startEditTask(task);
+        }}
         checkBtn={checkBtn}
         entryId={inOpen ? task.id : undefined}
         dragVisual={inOpen ? dragVisual : null}
@@ -440,16 +497,19 @@ export function TasksSection({ store, pinned = false }: { store: LocalStore; pin
         {editingTaskId === task.id ? (
           titleEditor()
         ) : (
-          <span
-            data-task-title
-            onClick={() => toggleTitle(task.id)}
-            title={expandedTitles.has(task.id) ? '点击收起' : '点击展开全文'}
-            className={`flex-1 min-w-0 text-sm ${
-              expandedTitles.has(task.id) ? 'whitespace-normal break-words' : 'line-clamp-2 break-words'
-            } ${task.done ? 'line-through text-white/35' : 'text-white/85'}`}
-          >
-            {task.title}
-          </span>
+          <ExpandableTitle
+            text={task.title}
+            expanded={expandedTitles.has(task.id)}
+            onToggle={() => toggleTitle(task.id)}
+            onDoubleClick={() => {
+              if (drag.wasJustDragged()) return;
+              startEditTask(task);
+            }}
+            titleAttr={expandedTitles.has(task.id) ? '点击收起' : '点击展开全文'}
+            sizeClass="text-sm"
+            toneClass={task.done ? 'line-through text-white/35' : 'text-white/85'}
+            spanData={{ 'data-task-title': '' }}
+          />
         )}
         {!inOpen && editingTaskId !== task.id && (
           <DoneTrashButton label={`删除已完成待办「${task.title}」`} onDelete={() => store.deleteTask(task.id)} />
@@ -649,7 +709,9 @@ const GroupBlock: React.FC<{
   /** 已完成区专用（第七十五轮）：组本身与子任务行尾的垃圾桶删除；仅 TasksSection 在已完成区传入 */
   onDeleteSelf?: () => void;
   onDeleteChild?: (childId: string) => void;
-}> = ({ group, store, startExpanded, editing, editor, onMenu, onChildMenu, checkBtn, entryId, dragVisual, onGripPointerDown, wasJustDragged, onDeleteSelf, onDeleteChild }) => {
+  /** 组标题双击改名（与右键菜单改名同走 editing/editor） */
+  onTitleDoubleClick?: () => void;
+}> = ({ group, store, startExpanded, editing, editor, onMenu, onChildMenu, checkBtn, entryId, dragVisual, onGripPointerDown, wasJustDragged, onDeleteSelf, onDeleteChild, onTitleDoubleClick }) => {
   const [expanded, setExpanded] = useState(startExpanded);
   /** 组标题/子任务标题的点击展开全文（第六十九轮，点文字切换，与展开箭头的折叠子任务互不影响） */
   const [titleExpanded, setTitleExpanded] = useState(false);
@@ -699,18 +761,19 @@ const GroupBlock: React.FC<{
           editor
         ) : (
           <>
-            <span
-              data-group-title
-              onClick={() => {
+            <ExpandableTitle
+              text={group.title}
+              expanded={titleExpanded}
+              onToggle={() => {
                 if (wasJustDragged?.()) return;
                 setTitleExpanded((v) => !v);
               }}
-              className={`flex-1 min-w-0 text-sm font-medium ${
-                titleExpanded ? 'whitespace-normal break-words' : 'line-clamp-2 break-words'
-              } ${allDone ? 'line-through text-white/35' : 'text-white/90'}`}
-            >
-              {group.title}
-            </span>
+              onDoubleClick={onTitleDoubleClick}
+              titleAttr={titleExpanded ? '点击收起' : '点击展开全文'}
+              sizeClass="text-sm font-medium"
+              toneClass={allDone ? 'line-through text-white/35' : 'text-white/90'}
+              spanData={{ 'data-group-title': '' }}
+            />
             <span data-group-progress className="text-[11px] text-zinc-300 tabular-nums shrink-0">
               {done}/{total}
             </span>
@@ -736,9 +799,10 @@ const GroupBlock: React.FC<{
               className="flex items-center gap-2.5 py-[3px] min-w-0"
             >
               {checkBtn(child.done, () => store.toggleSubTask(group.id, child.id), child.done ? '取消完成' : '标记完成')}
-              <span
-                data-subtask-title
-                onClick={() => {
+              <ExpandableTitle
+                text={child.title}
+                expanded={expandedKids.has(child.id)}
+                onToggle={() => {
                   if (wasJustDragged?.()) return;
                   setExpandedKids((prev) => {
                     const next = new Set(prev);
@@ -747,12 +811,11 @@ const GroupBlock: React.FC<{
                     return next;
                   });
                 }}
-                className={`flex-1 min-w-0 text-[13px] ${
-                  expandedKids.has(child.id) ? 'whitespace-normal break-words' : 'line-clamp-2 break-words'
-                } ${child.done ? 'line-through text-white/35' : 'text-white/80'}`}
-              >
-                {child.title}
-              </span>
+                titleAttr={expandedKids.has(child.id) ? '点击收起' : '点击展开全文'}
+                sizeClass="text-[13px]"
+                toneClass={child.done ? 'line-through text-white/35' : 'text-white/80'}
+                spanData={{ 'data-subtask-title': '' }}
+              />
               {onDeleteChild && (
                 <DoneTrashButton label={`删除已完成子任务「${child.title}」`} onDelete={() => onDeleteChild(child.id)} />
               )}

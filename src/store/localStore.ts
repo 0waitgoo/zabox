@@ -713,12 +713,12 @@ export interface StoreData {
 }
 
 /** 内置预设 id（第一百零六轮）：构成数据在 data/presets.ts，本层只认 id */
-export type BuiltinPresetId = 'default' | 'designer' | 'developer' | 'tools';
+export type BuiltinPresetId = 'default' | 'designer' | 'developer' | 'tools' | 'entertainment';
 
 /** 当前预设：内置预设 id 或 'my'（自定义态） */
 export type PresetId = BuiltinPresetId | 'my';
 
-export const BUILTIN_PRESET_IDS: readonly BuiltinPresetId[] = ['default', 'designer', 'developer', 'tools'];
+export const BUILTIN_PRESET_IDS: readonly BuiltinPresetId[] = ['default', 'designer', 'developer', 'tools', 'entertainment'];
 
 /**
  * 主页构成快照（第一百零六轮， 第一百一十一轮起含外观）：预设切换与「我的」存档的统一形态——

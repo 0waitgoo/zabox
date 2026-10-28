@@ -1,5 +1,4 @@
-import { navGroups, type NavGroup } from './groups';
-import { toolsByCategory } from './navPool';
+import { type NavGroup } from './groups';
 import {
   DEFAULT_PRESET_APPEARANCE,
   DEFAULT_PRESET_CARD_COLS,
@@ -52,35 +51,6 @@ const COLORS_PRESET_TINT = 3;
 
 const defaultWidgetLayouts = () => structuredClone(DEFAULT_WIDGET_LAYOUTS);
 
-/** 按 id 摘种子编组（原对象不改，prepareGroups 统一克隆） */
-function seedGroupsByIds(ids: string[]): NavGroup[] {
-  return ids
-    .map((id) => navGroups.find((g) => g.id === id))
-    .filter((g): g is NavGroup => !!g);
-}
-
-/**
- * 把导航页池的一个分类包成主页编组（C 型文件夹卡）：站点/图标/URL 全用池里现成的，
- * 频率按池内顺序递减、前两站置顶（与种子编组的编排口径一致）。
- */
-function poolGroup(id: string, category: string): NavGroup {
-  const entries = toolsByCategory[category] ?? [];
-  return {
-    id,
-    name: category,
-    display: 'stack',
-    sites: entries.map((t, i) => ({
-      name: t.name,
-      url: t.url,
-      description: t.description,
-      logo: t.logo,
-      needVpn: t.needVpn,
-      pinned: i < 2,
-      frequency: 100 - i * 4,
-    })),
-  };
-}
-
 /** 空构成骨架：各预设只写自己与众不同的部分。
  *  第一百一十一轮：四套内置预设的外观统一为星云紫 + 暗夜 + 默认透明度（可预测、不玩花样） */
 function baseSnapshot(partial: Partial<CompositionSnapshot>): CompositionSnapshot {
@@ -125,94 +95,282 @@ export function buildDefaultPreset(): CompositionSnapshot {
  * 排版（4 栏）：[图像][视频][AI对话 2宽] / [图片处理][设计素材][AI对话] /
  * [计划][配色字体][文件工具 2宽] / [设计灵感][中式色卡]
  */
+/**
+ * 设计师预设（2026-10-29 用户定稿）：直接取用户导出的「我的」预设快照
+ * （ainav-data-.json 的 myPreset），逐项原样落模板——组、站点、顺序、尺寸、
+ * 栏位、组合、摞、底色、外观全按导出值。图像+视频组合卡（当前图像），AI图片处理/设计素材/设计灵感为展开列表卡。
+ */
+/**
+ * 设计师预设（2026-10-29 用户定稿）：直接取用户导出的「我的」预设快照
+ * （ainav-data-.json 的 myPreset），逐项原样落模板——组、站点、顺序、尺寸、
+ * 栏位、组合、摞、底色、外观全按导出值。图像+视频组合卡（当前图像），AI图片处理/设计素材/设计灵感为展开列表卡。
+ */
+/**
+ * 设计师预设（2026-10-29 用户定稿）：直接取用户导出的「我的」预设快照
+ * （ainav-data-.json 的 myPreset），逐项原样落模板——组、站点、顺序、尺寸、
+ * 栏位、组合、摞、底色、外观全按导出值。图像+视频组合卡（当前图像），AI图片处理/设计素材/设计灵感为展开列表卡。
+ */
 export function buildDesignerPreset(): CompositionSnapshot {
   const groups = prepareGroups([
-    ...seedGroupsByIds(['image', 'video']),
-    poolGroup('imgproc', 'AI图片处理'),
-    poolGroup('design-assets', '设计素材'),
-    poolGroup('design-inspire', '设计灵感'),
-    poolGroup('color-font', '配色字体'),
-    ...seedGroupsByIds(['ai-chat']),
+  {
+    id: "image", name: "图像生成", display: "stack", aliases: ["绘画", "图片", "绘图"],
+    sites: [
+      {name: "Midjourney", url: "https://www.midjourney.com", description: "领先的AI图像生成工具", logo: "/icon_APP/Midjourney.svg", needVpn: true, pinned: true, frequency: 96, aliases: ["mj"], tags: ["VPN"], id: "s-mvso3yt2bbvmy"},
+      {name: "即梦", url: "https://jimeng.jike.com", description: "字节跳动AI视频工具", logo: "/icon_APP/jimengAI-01.svg", needVpn: false, pinned: true, frequency: 92, aliases: ["jimeng"], id: "s-mvso3yt2ez863"},
+      {name: "Liblib", url: "https://www.liblib.art", description: "国产AI图像生成平台", logo: "/icon_APP/liblib.svg", needVpn: false, frequency: 88, aliases: ["liblibai", "哩布"], id: "s-mvso3yt2cv1h0"},
+      {name: "通义万相", url: "https://tongyi.aliyun.com/wanxiang", description: "阿里AI图像生成", logo: "/icon_APP/tongyi.svg", needVpn: false, frequency: 84, aliases: ["万相"], id: "s-mvso3yt2f1abt"},
+      {name: "Nano Banana", url: "https://nanobanana.com", description: "AI图像生成平台", logo: "/icon_APP/nano-banana.svg", needVpn: false, frequency: 80, aliases: ["香蕉"], id: "s-mvso3yt2vjx7v"},
+      {name: "Krea", url: "https://krea.ai", description: "AI图像创作平台", logo: "/icon_APP/krea.png", needVpn: true, frequency: 76, tags: ["VPN"], id: "s-mvso3yt2mp8x6"},
+      {name: "DALL-E", url: "https://openai.com/dall-e-3", description: "OpenAI图像创作工具", logo: "/icon_APP/dalle.svg", needVpn: true, frequency: 72, aliases: ["dalle"], tags: ["VPN"], id: "s-mvso3yt2nmono"},
+      {name: "Firefly", url: "https://www.adobe.com/firefly", description: "Adobe创意AI工具", logo: "/icon_APP/firefly.svg", needVpn: true, frequency: 68, aliases: ["adobe"], tags: ["VPN"], id: "s-mvso3yt2fvlom"},
+      {name: "Stable Diffusion", url: "https://stability.ai", description: "开源图像生成模型", logo: "/icon_APP/a-stablediffusion.svg", needVpn: true, frequency: 64, aliases: ["sd"], tags: ["VPN"], id: "s-mvso3yt2qfx28"},
+    ],
+  },
+  {
+    id: "video", name: "视频生成", display: "stack", aliases: ["视频", "影视"],
+    sites: [
+      {name: "可灵", url: "https://kling.kuaishou.com", description: "快手AI视频生成", logo: "/icon_APP/keling.svg", needVpn: false, pinned: true, frequency: 96, aliases: ["kling", "快手"], id: "s-mvso3yt2sl1bc"},
+      {name: "即梦", url: "https://jimeng.jike.com", description: "字节跳动AI视频工具", logo: "/icon_APP/jimengAI-01.svg", needVpn: false, pinned: true, frequency: 92, aliases: ["jimeng"], id: "s-mvso3yt2ik12m"},
+      {name: "海螺", url: "https://hailuo.ai", description: "MiniMax视频生成工具", logo: "/icon_APP/hailuo.png", needVpn: false, frequency: 88, aliases: ["hailuo"], id: "s-mvso3yt2u6c0v"},
+      {name: "Sora", url: "https://openai.com/sora", description: "OpenAI视频生成模型", logo: "/icon_APP/Sora.svg", needVpn: true, frequency: 84, tags: ["VPN"], id: "s-mvso3yt20ba2b"},
+      {name: "Runway", url: "https://runwayml.com", description: "专业AI视频编辑平台", logo: "/icon_APP/Runwayml.svg", needVpn: true, frequency: 80, tags: ["VPN"], id: "s-mvso3yt2d9s2c"},
+      {name: "剪映", url: "https://www.capcut.cn", description: "字节跳动AI视频剪辑", logo: "/icon_APP/jianying.svg", needVpn: false, frequency: 76, aliases: ["capcut", "剪辑"], id: "s-mvso3yt2p767y"},
+      {name: "Vidu", url: "https://www.vidu.com", description: "生数科技AI视频生成平台", logo: "/icon_APP/vidu.svg", needVpn: false, frequency: 72, aliases: ["vidu"], id: "s-mvso3yt2ohjzj"},
+    ],
+  },
+  {
+    id: "imgproc", name: "AI图片处理", display: "list",
+    sites: [
+      {name: "Clipdrop", url: "https://clipdrop.co/", description: "Stability AI 全能图像处理工具箱", logo: "/icon_APP/clipdrop.png", needVpn: true, pinned: true, frequency: 100, tags: ["VPN"], id: "s-mvso3yt2jmzb9"},
+      {name: "PicWish", url: "https://picwish.com/", description: "国产 AI 抠图修图工具", logo: "/icon_APP/picwish.png", needVpn: false, pinned: true, frequency: 96, id: "s-mvso3yt24x3sf"},
+      {name: "Vectorizer.ai", url: "https://vectorizer.ai/", description: "位图一键转矢量图工具", logo: "/icon_APP/vectorizer.png", needVpn: true, pinned: false, frequency: 92, tags: ["VPN"], id: "s-mvso3yt2whqyp"},
+      {name: "Palette.fm", url: "https://palette.fm/", description: "AI 黑白照片上色工具", logo: "/icon_APP/palettefm.png", needVpn: true, pinned: false, frequency: 88, tags: ["VPN"], id: "s-mvso3yt2zbm7r"},
+      {name: "Upscayl", url: "https://www.upscayl.org/", description: "开源免费 AI 图片放大工具", logo: "/icon_APP/upscayl.png", needVpn: true, pinned: false, frequency: 84, tags: ["VPN"], id: "s-mvso3yt2r9cc5"},
+      {name: "Img.Upscaler", url: "https://imgupscaler.com/", description: "在线 AI 图片无损放大工具", logo: "/icon_APP/imgupscaler.png", needVpn: true, pinned: false, frequency: 80, tags: ["VPN"], id: "s-mvso3yt2qtj07"},
+    ],
+  },
+  {
+    id: "design-assets", name: "设计素材", display: "list",
+    sites: [
+      {name: "Unsplash", url: "https://unsplash.com/", description: "全球知名免费高清图库", logo: "/icon_APP/unsplash.png", needVpn: true, pinned: true, frequency: 100, tags: ["VPN"], id: "s-mvso3yt2k8y78"},
+      {name: "Pexels", url: "https://www.pexels.com/", description: "免费高清图片视频素材库", logo: "/icon_APP/pexels.png", needVpn: true, pinned: true, frequency: 96, tags: ["VPN"], id: "s-mvso3yt2j0t6j"},
+      {name: "Pixabay", url: "https://pixabay.com/", description: "百万级免费图片插画素材库", logo: "/icon_APP/pixabay.png", needVpn: true, pinned: false, frequency: 92, tags: ["VPN"], id: "s-mvso3yt2gwzqy"},
+      {name: "Freepik", url: "https://www.freepik.com/", description: "全球最大的设计素材库之一", logo: "/icon_APP/freepik.png", needVpn: true, pinned: false, frequency: 88, tags: ["VPN"], id: "s-mvso3yt2b5eid"},
+      {name: "摄图网", url: "https://699pic.com/", description: "国内大型正版图片素材库", logo: "/icon_APP/shetu699.png", needVpn: false, pinned: false, frequency: 84, id: "s-mvso3yt2qc1ej"},
+      {name: "包图网", url: "https://ibaotu.com/", description: "国内海量设计素材下载站", logo: "/icon_APP/ibaotu.png", needVpn: false, pinned: false, frequency: 80, id: "s-mvso3yt2rg7rs"},
+      {name: "IconFont", url: "https://www.iconfont.cn/", description: "阿里巴巴图标搜索管理平台", logo: "/icon_APP/iconfont.png", needVpn: false, pinned: false, frequency: 76, id: "s-mvso3yt264ree"},
+      {name: "Flaticon", url: "https://www.flaticon.com/", description: "全球最大的扁平图标库", logo: "/icon_APP/flaticon.png", needVpn: true, pinned: false, frequency: 72, tags: ["VPN"], id: "s-mvso3yt2vbbts"},
+      {name: "Icons8", url: "https://icons8.com/", description: "图标与设计素材综合平台", logo: "/icon_APP/icons8.png", needVpn: true, pinned: false, frequency: 68, tags: ["VPN"], id: "s-mvso3yt2dvg2p"},
+      {name: "IconPark", url: "https://iconpark.oceanengine.com/", description: "字节跳动开源图标库", logo: "/icon_APP/iconpark.png", needVpn: false, pinned: false, frequency: 64, id: "s-mvso3yt28rama"},
+      {name: "500px", url: "https://500px.com.cn/", description: "专业摄影作品分享平台", logo: "/icon_APP/px500.png", needVpn: false, pinned: false, frequency: 60, id: "s-mvso3yt22sn4g"},
+    ],
+  },
+  {
+    id: "design-inspire", name: "设计灵感", display: "list",
+    sites: [
+      {name: "Dribbble", url: "https://dribbble.com/", description: "全球设计师作品展示社区", logo: "/icon_APP/dribbble.png", needVpn: true, pinned: true, frequency: 100, tags: ["VPN"], id: "s-mvso3yt2y9xag"},
+      {name: "Behance", url: "https://www.behance.net/", description: "Adobe 旗下创意作品平台", logo: "/icon_APP/behance.png", needVpn: true, pinned: true, frequency: 96, tags: ["VPN"], id: "s-mvso3yt22khe4"},
+      {name: "Pinterest", url: "https://www.pinterest.com/", description: "全球图片灵感采集平台", logo: "/icon_APP/pinterest.png", needVpn: true, pinned: false, frequency: 92, tags: ["VPN"], id: "s-mvso3yt22p6pd"},
+      {name: "花瓣网", url: "https://huaban.com/", description: "国内设计灵感采集平台", logo: "/icon_APP/huaban.png", needVpn: false, pinned: false, frequency: 88, id: "s-mvso3yt2iwcy0"},
+      {name: "站酷", url: "https://www.zcool.com.cn/", description: "国内最大的设计师交流平台", logo: "/icon_APP/zcool.png", needVpn: false, pinned: false, frequency: 84, id: "s-mvso3yt213g90"},
+      {name: "Mobbin", url: "https://mobbin.com/", description: "App 界面设计灵感库", logo: "/icon_APP/mobbin.png", needVpn: true, pinned: false, frequency: 80, tags: ["VPN"], id: "s-mvso3yt22elk9"},
+    ],
+  },
+  {
+    id: "color-font", name: "配色字体", display: "stack",
+    sites: [
+      {name: "Coolors", url: "https://coolors.co/", description: "超人气的在线配色方案生成器", logo: "/icon_APP/coolors.png", needVpn: true, pinned: true, frequency: 100, tags: ["VPN"], id: "s-mvso3yt280o6x"},
+      {name: "Color Hunt", url: "https://colorhunt.co/", description: "每日更新的手选配色方案", logo: "/icon_APP/colorhunt.png", needVpn: true, pinned: true, frequency: 96, tags: ["VPN"], id: "s-mvso3yt2s8xht"},
+      {name: "Adobe Color", url: "https://color.adobe.com/", description: "Adobe 官方在线配色工具", logo: "/icon_APP/adobecolor.png", needVpn: true, pinned: false, frequency: 92, tags: ["VPN"], id: "s-mvso3yt29ednw"},
+      {name: "UI Gradients", url: "https://uigradients.com/", description: "精美渐变配色灵感库", logo: "/icon_APP/uigradients.png", needVpn: true, pinned: false, frequency: 88, tags: ["VPN"], id: "s-mvso3yt2sbqh1"},
+      {name: "猫啃网", url: "https://www.maoken.com/", description: "免费商用中文字体下载站", logo: "/icon_APP/maoken.png", needVpn: false, pinned: false, frequency: 84, id: "s-mvso3yt2ggrqc"},
+      {name: "DaFont", url: "https://www.dafont.com/", description: "国际知名的免费字体下载站", logo: "/icon_APP/dafont.png", needVpn: true, pinned: false, frequency: 80, tags: ["VPN"], id: "s-mvso3yt2cwnu8"},
+      {name: "求字体", url: "https://www.qiuziti.com/", description: "在线字体识别与下载工具", logo: "/icon_APP/qiuziti.png", needVpn: false, pinned: false, frequency: 76, id: "s-mvso3yt298s9s"},
+    ],
+  },
+  {
+    id: "ai-chat", name: "AI 对话", display: "list", aliases: ["聊天机器人", "对话", "聊天"],
+    sites: [
+      {name: "ChatGPT", url: "https://chat.openai.com", description: "OpenAI推出的AI对话助手", logo: "/icon_APP/chatgpticon.svg", needVpn: true, pinned: true, frequency: 100, aliases: ["gpt", "openai", "聊天机器人"], tags: ["VPN"], id: "s-mvso3yt2b3ys6"},
+      {name: "DeepSeek", url: "https://deepseek.com", description: "深度求索AI助手", logo: "/icon_APP/deepseek.svg", needVpn: false, pinned: true, frequency: 96, aliases: ["ds", "深度求索"], id: "s-mvso3yt2sg3yn"},
+      {name: "豆包", url: "https://www.doubao.com", description: "字节跳动AI助手", logo: "/icon_APP/doubao.svg", needVpn: false, frequency: 92, aliases: ["doubao", "字节跳动"], id: "s-mvso3yt2wmxvx"},
+      {name: "Kimi", url: "https://kimi.moonshot.cn", description: "月之暗面推出的AI助手", logo: "/icon_APP/KIMI.svg", needVpn: false, frequency: 88, aliases: ["月之暗面", "moonshot", "长文本"], id: "s-mvso3yt216p7a"},
+      {name: "Claude", url: "https://claude.ai", description: "Anthropic推出的智能助手", logo: "/icon_APP/claude.svg", needVpn: true, frequency: 84, aliases: ["克劳德", "anthropic"], tags: ["VPN"], id: "s-mvso3yt2sftq2"},
+      {name: "通义千问", url: "https://tongyi.aliyun.com", description: "阿里巴巴AI大模型", logo: "/icon_APP/tongyi.svg", needVpn: false, frequency: 80, aliases: ["qwen", "千问", "通义", "阿里"], id: "s-mvso3yt2w0luq"},
+      {name: "Gemini", url: "https://gemini.google.com", description: "Google多模态AI模型", logo: "/icon_APP/gemini.svg", needVpn: true, frequency: 76, aliases: ["google", "谷歌", "双子"], tags: ["VPN"], id: "s-mvso3yt2qemmo"},
+      {name: "文心一言", url: "https://yiyan.baidu.com", description: "百度AI对话助手", logo: "/icon_APP/baidu.svg", needVpn: false, frequency: 72, aliases: ["ernie", "文心", "百度"], id: "s-mvso3yt2aise9"},
+      {name: "腾讯混元", url: "https://hunyuan.tencent.com", description: "腾讯AI大模型", logo: "/icon_APP/tencent-hunyuan.svg", needVpn: false, frequency: 68, aliases: ["混元", "hunyuan", "腾讯"], id: "s-mvso3yt2yka4c"},
+      {name: "讯飞星火", url: "https://xinghuo.xfyun.cn", description: "科大讯飞AI大模型", logo: "/icon_APP/xunfeichatgpt.svg", needVpn: false, frequency: 64, aliases: ["星火", "spark", "讯飞"], id: "s-mvso3yt20grxo"},
+      {name: "MiniMax", url: "https://www.minimaxi.com", description: "MiniMax AI助手，海螺AI出品", logo: "/icon_APP/minimax.svg", needVpn: false, frequency: 60, aliases: ["minimax"], id: "s-mvso3yt2emnab"},
+      {name: "智谱清言", url: "https://chatglm.cn", description: "智谱AI推出的对话助手", logo: "/icon_APP/zhipu.png", needVpn: false, frequency: 56, aliases: ["zhipu", "glm", "清言"], id: "s-mvso3yt28b4u5"},
+      {name: "盒豚查", url: "https://mp.weixin.qq.com/s/Ak0rWbeGi0LtmbyqngAzlQ", description: "AI查卷工具人", logo: "/icon_APP/hetun-life.png", needVpn: false, frequency: 40, aliases: ["查卷"], id: "s-mvso3yt2cky3i"},
+    ],
+  },
   ]);
   return baseSnapshot({
     groups,
-    widgets: ['task', 'tools', 'colors'],
-    widgetTints: { [widgetCardKey('colors')]: COLORS_PRESET_TINT },
-    cardOrder: [
-      groupCardKey('image'),
-      groupCardKey('video'),
-      groupCardKey('ai-chat'),
-      groupCardKey('imgproc'),
-      groupCardKey('design-assets'),
-      widgetCardKey('task'),
-      groupCardKey('color-font'),
-      widgetCardKey('tools'),
-      groupCardKey('design-inspire'),
-      widgetCardKey('colors'),
-    ],
+    widgets: ["task", "tools", "colors"],
+    widgetLayouts: {
+    "task": {"colSpan": 1, "heightUnits": 2},
+    "news": {"colSpan": 2, "heightUnits": 2},
+    "trending": {"colSpan": 2, "heightUnits": 1},
+    "tools": {"colSpan": 2, "heightUnits": 1},
+    "colors": {"colSpan": 1, "heightUnits": 1}
+  },
+    groupLayouts: {
+    "design-assets": {"colSpan": 2, "heightUnits": 2},
+    "imgproc": {"colSpan": 1, "heightUnits": 2},
+    "combo:c-mvso4k801yn55": {"colSpan": 1, "heightUnits": 2},
+    "design-inspire": {"colSpan": 1, "heightUnits": 2}
+  },
+    cardOrder: ["combo:c-mvso4k801yn55", "group:ai-chat", "group:design-assets", "widget:colors", "group:imgproc", "widget:task", "group:color-font", "group:design-inspire", "widget:tools"],
     cardCols: {
-      [groupCardKey('image')]: 0,
-      [groupCardKey('video')]: 1,
-      [groupCardKey('ai-chat')]: 2,
-      [groupCardKey('imgproc')]: 0,
-      [groupCardKey('design-assets')]: 1,
-      [widgetCardKey('task')]: 0,
-      [groupCardKey('color-font')]: 1,
-      [widgetCardKey('tools')]: 2,
-      [groupCardKey('design-inspire')]: 0,
-      [widgetCardKey('colors')]: 1,
-    },
+    "group:image": 0,
+    "group:video": 1,
+    "group:ai-chat": 2,
+    "group:imgproc": 0,
+    "group:design-assets": 1,
+    "widget:task": 0,
+    "group:color-font": 0,
+    "widget:tools": 2,
+    "group:design-inspire": 3,
+    "widget:colors": 1,
+    "combo:c-mvso4k801yn55": 1
+  },
+    combos: [{"id": "c-mvso4k801yn55", "groupIds": ["image", "video"], "activeGroupId": "image"}],
+    widgetStacks: [],
+    cardFaceStyles: {},
+    widgetTints: {
+    "widget:colors": 3,
+    "widget:task": 0,
+    "widget:tools": 5
+  },
+    appearance: {
+    "background": {"presetId": "violet", "oceanColor": "#0d2140"},
+    "theme": "dark",
+    "groupCardAlpha": 0.4,
+    "widgetAlpha": 0.888888888888889,
+    "bgBlur": 0.3
+  },
   });
 }
 
 /**
- * 程序员预设：编程工具置顶放大（2 宽 × 2 高）与 AI 对话并排，AI 资讯放大紧随、
- * 热门话题同列，资讯类占两张大卡；再配 AI开放平台（池取）、AI 办公、AI 写作与文件工具。
- * 排版（4 栏 × 5 行）：[编程 2×2][对话 2×2] / [编程][对话] / [资讯 2×2][计划][开放平台]
- * / [资讯][热门话题 2宽] / [办公][写作][文件工具 2宽]
+ * 程序员预设（2026-10-29 用户定稿）：直接取用户导出的「我的」预设快照
+ * （ainav-data--2.json 的 myPreset），逐项原样落模板——组、站点、顺序、尺寸、
+ * 栏位、组合、摞、底色、外观全按导出值。AI写作+AI办公组合卡（当前AI写作），编程工具为展开列表卡。
  */
 export function buildDeveloperPreset(): CompositionSnapshot {
   const groups = prepareGroups([
-    ...seedGroupsByIds(['code', 'ai-chat']),
-    poolGroup('ai-platform', 'AI开放平台'),
-    ...seedGroupsByIds(['office', 'writing']),
+  {
+    id: "code", name: "编程工具", display: "list", aliases: ["编程", "代码", "开发"],
+    sites: [
+      {name: "Cursor", url: "https://cursor.sh", description: "AI驱动代码编辑器", logo: "/icon_APP/cursor.svg", needVpn: true, pinned: true, frequency: 96, aliases: ["ai编辑器"], tags: ["VPN"], id: "s-mvso1u5rxslpi"},
+      {name: "VS Code", url: "https://code.visualstudio.com", description: "微软代码编辑器", logo: "/icon_APP/vscode.svg", needVpn: false, pinned: true, frequency: 92, aliases: ["vscode", "编辑器"], id: "s-mvso1u5rgtmit"},
+      {name: "Trae", url: "https://trae.ai", description: "AI驱动开发环境", logo: "/icon_APP/trae1.png", needVpn: false, frequency: 88, id: "s-mvso1u5rnkdoe"},
+      {name: "GitHub Copilot", url: "https://github.com/features/copilot", description: "GitHub AI编程助手", logo: "/icon_APP/github.svg", needVpn: true, frequency: 80, aliases: ["copilot"], tags: ["VPN"], id: "s-mvso1u5rx50rg"},
+      {name: "通义灵码", url: "https://tongyi.aliyun.com/lingma", description: "阿里AI编程助手", logo: "/icon_APP/tongyi.svg", needVpn: false, frequency: 76, aliases: ["lingma"], id: "s-mvso1u5rsg2y7"},
+      {name: "Windsurf", url: "https://codeium.com/windsurf", description: "现代AI代码编辑器", logo: "/icon_APP/windsurf.svg", needVpn: true, frequency: 72, tags: ["VPN"], id: "s-mvso1u5rvgn4e"},
+      {name: "文心快码", url: "https://cloud.baidu.com/product/codeassist", description: "百度AI编程工具", logo: "/icon_APP/baidu.svg", needVpn: false, frequency: 64, id: "s-mvso1u5rf0ie0"},
+    ],
+  },
+  {
+    id: "ai-chat", name: "AI 对话", display: "list", aliases: ["聊天机器人", "对话", "聊天"],
+    sites: [
+      {name: "ChatGPT", url: "https://chat.openai.com", description: "OpenAI推出的AI对话助手", logo: "/icon_APP/chatgpticon.svg", needVpn: true, pinned: true, frequency: 100, aliases: ["gpt", "openai", "聊天机器人"], tags: ["VPN"], id: "s-mvso1u5rjjfc4"},
+      {name: "DeepSeek", url: "https://deepseek.com", description: "深度求索AI助手", logo: "/icon_APP/deepseek.svg", needVpn: false, pinned: true, frequency: 96, aliases: ["ds", "深度求索"], id: "s-mvso1u5rpawjt"},
+      {name: "豆包", url: "https://www.doubao.com", description: "字节跳动AI助手", logo: "/icon_APP/doubao.svg", needVpn: false, frequency: 92, aliases: ["doubao", "字节跳动"], id: "s-mvso1u5rouc77"},
+      {name: "Kimi", url: "https://kimi.moonshot.cn", description: "月之暗面推出的AI助手", logo: "/icon_APP/KIMI.svg", needVpn: false, frequency: 88, aliases: ["月之暗面", "moonshot", "长文本"], id: "s-mvso1u5rfmy4f"},
+      {name: "Claude", url: "https://claude.ai", description: "Anthropic推出的智能助手", logo: "/icon_APP/claude.svg", needVpn: true, frequency: 84, aliases: ["克劳德", "anthropic"], tags: ["VPN"], id: "s-mvso1u5r9rlzx"},
+      {name: "通义千问", url: "https://tongyi.aliyun.com", description: "阿里巴巴AI大模型", logo: "/icon_APP/tongyi.svg", needVpn: false, frequency: 80, aliases: ["qwen", "千问", "通义", "阿里"], id: "s-mvso1u5rnfi14"},
+      {name: "Gemini", url: "https://gemini.google.com", description: "Google多模态AI模型", logo: "/icon_APP/gemini.svg", needVpn: true, frequency: 76, aliases: ["google", "谷歌", "双子"], tags: ["VPN"], id: "s-mvso1u5r8tslz"},
+      {name: "文心一言", url: "https://yiyan.baidu.com", description: "百度AI对话助手", logo: "/icon_APP/baidu.svg", needVpn: false, frequency: 72, aliases: ["ernie", "文心", "百度"], id: "s-mvso1u5r99shd"},
+      {name: "腾讯混元", url: "https://hunyuan.tencent.com", description: "腾讯AI大模型", logo: "/icon_APP/tencent-hunyuan.svg", needVpn: false, frequency: 68, aliases: ["混元", "hunyuan", "腾讯"], id: "s-mvso1u5r6gkq5"},
+      {name: "讯飞星火", url: "https://xinghuo.xfyun.cn", description: "科大讯飞AI大模型", logo: "/icon_APP/xunfeichatgpt.svg", needVpn: false, frequency: 64, aliases: ["星火", "spark", "讯飞"], id: "s-mvso1u5raafo1"},
+      {name: "MiniMax", url: "https://www.minimaxi.com", description: "MiniMax AI助手，海螺AI出品", logo: "/icon_APP/minimax.svg", needVpn: false, frequency: 60, aliases: ["minimax"], id: "s-mvso1u5r4esh8"},
+      {name: "智谱清言", url: "https://chatglm.cn", description: "智谱AI推出的对话助手", logo: "/icon_APP/zhipu.png", needVpn: false, frequency: 56, aliases: ["zhipu", "glm", "清言"], id: "s-mvso1u5r211jl"},
+      {name: "盒豚查", url: "https://mp.weixin.qq.com/s/Ak0rWbeGi0LtmbyqngAzlQ", description: "AI查卷工具人", logo: "/icon_APP/hetun-life.png", needVpn: false, frequency: 40, aliases: ["查卷"], id: "s-mvso1u5rjp372"},
+    ],
+  },
+  {
+    id: "ai-platform", name: "AI开放平台", display: "stack",
+    sites: [
+      {name: "百度AI", url: "https://ai.baidu.com", description: "百度AI开放平台", logo: "/icon_APP/baiduai.png", needVpn: false, pinned: true, frequency: 100, id: "s-mvso1u5rm6zh6"},
+      {name: "腾讯AI", url: "https://ai.qq.com", description: "腾讯AI开放平台", logo: "/icon_APP/tencentai.png", needVpn: false, pinned: true, frequency: 96, id: "s-mvso1u5rehlpe"},
+      {name: "讯飞开放平台", url: "https://www.xfyun.cn", description: "科大讯飞AI技术开放平台", logo: "/icon_APP/xfyun.png", needVpn: false, pinned: false, frequency: 92, id: "s-mvso1u5r5urlz"},
+      {name: "HuggingFace", url: "https://huggingface.co/", description: "全球 AI 模型与数据集社区", logo: "/icon_APP/huggingface.png", needVpn: true, pinned: false, frequency: 88, tags: ["VPN"], id: "s-mvso1u5r3300i"},
+    ],
+  },
+  {
+    id: "office", name: "AI 办公", display: "stack", aliases: ["办公", "文档", "协作"],
+    sites: [
+      {name: "飞书", url: "https://www.feishu.cn/", description: "字节跳动一站式协作办公平台", logo: "/icon_APP/feishu.png", needVpn: false, pinned: true, frequency: 96, aliases: ["feishu", "lark"], id: "s-mvso1u5rfo5a5"},
+      {name: "WPS云文档", url: "https://www.wps.cn", description: "金山在线协作文档平台", logo: "/icon_APP/wps.png", needVpn: false, pinned: true, frequency: 92, aliases: ["wps"], id: "s-mvso1u5r5jc9h"},
+      {name: "AiPPT", url: "https://www.aippt.cn/", description: "输入主题一键生成 PPT", logo: "/icon_APP/aippt.png", needVpn: false, frequency: 88, aliases: ["aippt", "ppt"], id: "s-mvso1u5r5sc25"},
+      {name: "ProcessOn", url: "https://www.processon.com", description: "在线流程图与思维导图工具", logo: "/icon_APP/processon.png", needVpn: false, frequency: 84, aliases: ["processon"], id: "s-mvso1u5rcn9k6"},
+      {name: "ChatExcel", url: "https://chatexcel.com/", description: "对话式操作表格的 AI 工具", logo: "/icon_APP/chatexcel.svg", needVpn: false, frequency: 80, aliases: ["chatexcel"], id: "s-mvso1u5rv9h03"},
+      {name: "Beautiful.ai", url: "https://www.beautiful.ai", description: "AI驱动的PPT制作平台", logo: "/icon_APP/beautifulai.png", needVpn: true, frequency: 76, tags: ["VPN"], id: "s-mvso1u5roi4ai"},
+      {name: "Prezi", url: "https://prezi.com", description: "非线性动态演示文稿工具", logo: "/icon_APP/prezi.svg", needVpn: true, frequency: 72, tags: ["VPN"], id: "s-mvso1u5rm7q8g"},
+    ],
+  },
+  {
+    id: "writing", name: "AI写作", display: "stack", aliases: ["写作", "文案"],
+    sites: [
+      {name: "Notion AI", url: "https://www.notion.so", description: "AI写作神器！比你想得更多！写得更快", logo: "/icon_APP/notion.jpg", needVpn: true, pinned: true, frequency: 92, aliases: ["notion"], tags: ["VPN"], id: "s-mvso1u5ri0tjf"},
+      {name: "秘塔写作猫", url: "https://xiezuocat.com", description: "基于GPT的中文写作工具", logo: "/icon_APP/mita-writing.png", needVpn: false, pinned: true, frequency: 88, aliases: ["写作猫"], id: "s-mvso1u5ricqdk"},
+      {name: "火山写作", url: "https://writingo.volcengine.com", description: "字节跳动AI写作工具，高效提升文案创作", logo: "/icon_APP/huoshan.png", needVpn: false, frequency: 84, id: "s-mvso1u5rujnpi"},
+      {name: "Copy AI", url: "https://www.copy.ai", description: "AI社交媒体文案写作助手", logo: "/icon_APP/copyai.png", needVpn: true, frequency: 80, aliases: ["copyai"], tags: ["VPN"], id: "s-mvso1u5rtdxss"},
+      {name: "字语未来", url: "https://www.ziyuweilai.com", description: "用AI创造有价值的文案，让新一代智能办公更简单", logo: "data:image/svg+xml,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20width%3D%2296%22%20height%3D%2296%22%20viewBox%3D%220%200%2096%2096%22%3E%3Crect%20width%3D%2296%22%20height%3D%2296%22%20rx%3D%2220%22%20fill%3D%22%2314b8a6%22%2F%3E%3Ctext%20x%3D%2248%22%20y%3D%2250%22%20dy%3D%220.36em%22%20text-anchor%3D%22middle%22%20font-family%3D%22system-ui%2C%20-apple-system%2C%20'Segoe%20UI'%2C%20sans-serif%22%20font-size%3D%2244%22%20font-weight%3D%22700%22%20fill%3D%22%23ffffff%22%3E%E5%AD%97%3C%2Ftext%3E%3C%2Fsvg%3E", needVpn: false, frequency: 76, id: "s-mvso1u5rgqnj0"},
+      {name: "毕业宝AI论文降重", url: "https://www.biyebao.com", description: "论文降重神器！学生都在用的AI论文降重辅助AI工具", logo: "data:image/svg+xml,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20width%3D%2296%22%20height%3D%2296%22%20viewBox%3D%220%200%2096%2096%22%3E%3Crect%20width%3D%2296%22%20height%3D%2296%22%20rx%3D%2220%22%20fill%3D%22%238b5cf6%22%2F%3E%3Ctext%20x%3D%2248%22%20y%3D%2250%22%20dy%3D%220.36em%22%20text-anchor%3D%22middle%22%20font-family%3D%22system-ui%2C%20-apple-system%2C%20'Segoe%20UI'%2C%20sans-serif%22%20font-size%3D%2244%22%20font-weight%3D%22700%22%20fill%3D%22%23ffffff%22%3E%E6%AF%95%3C%2Ftext%3E%3C%2Fsvg%3E", needVpn: false, frequency: 72, aliases: ["论文降重"], id: "s-mvso1u5rjw99y"},
+    ],
+  },
   ]);
   return baseSnapshot({
     groups,
-    widgets: ['task', 'news', 'trending', 'tools'],
+    widgets: ["task", "news", "tools"],
+    widgetLayouts: {
+    "task": {"colSpan": 1, "heightUnits": 1},
+    "news": {"colSpan": 1, "heightUnits": 1},
+    "trending": {"colSpan": 2, "heightUnits": 1},
+    "tools": {"colSpan": 1, "heightUnits": 1},
+    "colors": {"colSpan": 2, "heightUnits": 1}
+  },
     groupLayouts: {
-      code: { colSpan: 2, heightUnits: 2 },
-    },
-    cardOrder: [
-      groupCardKey('code'),
-      groupCardKey('ai-chat'),
-      widgetCardKey('news'),
-      widgetCardKey('task'),
-      groupCardKey('ai-platform'),
-      widgetCardKey('trending'),
-      groupCardKey('office'),
-      groupCardKey('writing'),
-      widgetCardKey('tools'),
-    ],
+    "code": {"colSpan": 2, "heightUnits": 2},
+    "combo:c-mvso28jacsbu5": {"colSpan": 1, "heightUnits": 1}
+  },
+    cardOrder: ["group:code", "group:ai-platform", "group:ai-chat", "widget:tools", "widget:news", "widget:task", "combo:c-mvso28jacsbu5"],
     cardCols: {
-      [groupCardKey('code')]: 0,
-      [groupCardKey('ai-chat')]: 2,
-      [widgetCardKey('news')]: 0,
-      [widgetCardKey('task')]: 2,
-      [groupCardKey('ai-platform')]: 3,
-      [widgetCardKey('trending')]: 2,
-      [groupCardKey('office')]: 0,
-      [groupCardKey('writing')]: 1,
-      [widgetCardKey('tools')]: 2,
-    },
+    "group:code": 0,
+    "group:ai-chat": 2,
+    "widget:news": 0,
+    "widget:task": 2,
+    "group:ai-platform": 1,
+    "widget:trending": 2,
+    "group:office": 0,
+    "group:writing": 1,
+    "widget:tools": 3,
+    "combo:c-mvso28jacsbu5": 0
+  },
+    combos: [{"id": "c-mvso28jacsbu5", "groupIds": ["writing", "office"], "activeGroupId": "writing"}],
+    widgetStacks: [],
+    cardFaceStyles: {},
+    widgetTints: {
+    "widget:task": 4,
+    "widget:news": 7,
+    "widget:trending": 6,
+    "widget:tools": 5
+  },
+    appearance: {
+    "background": {"presetId": "violet", "oceanColor": "#0d2140"},
+    "theme": "dark",
+    "groupCardAlpha": 0.4,
+    "widgetAlpha": 0.888888888888889,
+    "bgBlur": 0.3
+  },
   });
 }
 
-/**
- * 工具预设：整页只有小组件、没有任何站点编组（全组件，第一百零七轮起含中式色卡）。
- * 计划给 2 宽 × 2 高的大尺寸，资讯 2×2 大卡，
- * 热门话题与文件工具收尾，中式色卡落左栏末位。
- */
 export function buildToolsPreset(): CompositionSnapshot {
   return baseSnapshot({
     groups: [],
@@ -239,14 +397,6 @@ export function buildToolsPreset(): CompositionSnapshot {
   });
 }
 
-/**
- * 娱乐导航预设：六个娱乐编组，站点全部取自硬核指南（yinghezhinan.com）
- * 六个分类的详情页外链实测（2026-10-28），只收能直接打开的网站，纯 APP
- * 下载入口的条目不收（预设里放不下下载链接）。组内口径与 poolGroup 一致：
- * 文件夹卡、前两站置顶、频率按顺序递减。
- * 注意：本预设是复用口径的例外——导航页池里没有娱乐分类，站点只能写字面量，
- * URL 均来自源站详情页实测、非编造。
- */
 /**
  * 娱乐导航预设（2026-10-29 用户定稿）：直接取用户导出的「我的」预设快照
  * （ainav-data-2.json 的 myPreset），逐项原样落模板——组、站点、顺序、尺寸、

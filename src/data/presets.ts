@@ -1,4 +1,4 @@
-import { getSiteLogo, navGroups, type NavGroup } from './groups';
+import { navGroups, type NavGroup } from './groups';
 import { toolsByCategory } from './navPool';
 import {
   DEFAULT_PRESET_APPEARANCE,
@@ -248,6 +248,14 @@ export function buildToolsPreset(): CompositionSnapshot {
  * URL 均来自源站详情页实测、非编造。
  */
 function entertainmentGroups(): NavGroup[] {
+  /** 各站自己的 /favicon.ico（与本站同源，国内可达；拿不到时卡面 onError 回落字母） */
+  const originFavicon = (url: string): string => {
+    try {
+      return `${new URL(url).origin}/favicon.ico`;
+    } catch {
+      return '';
+    }
+  };
   const g = (id: string, name: string, sites: Array<[string, string, string]>): NavGroup => ({
     id,
     name,
@@ -256,7 +264,7 @@ function entertainmentGroups(): NavGroup[] {
       name: siteName,
       url,
       description,
-      logo: getSiteLogo(siteName),
+      logo: originFavicon(url),
       needVpn: false,
       pinned: i < 2,
       frequency: 100 - i * 4,

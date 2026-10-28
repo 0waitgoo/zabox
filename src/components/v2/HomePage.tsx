@@ -817,7 +817,7 @@ export default function HomePage({ onNavigate, store }: { onNavigate: (page: str
             return;
           }
           const lay = groupLayoutOf(groupLayouts, g.id);
-          const shown = Math.min(g.sites.length, lay.heightUnits === 2 ? 4 : 2);
+          const shown = Math.min(g.sites.length, lay.heightUnits === 2 ? 5 : 2);
           map.set(key, shown > 0 ? 68 + shown * 52 : 88);
           return;
         }
@@ -1468,7 +1468,8 @@ export default function HomePage({ onNavigate, store }: { onNavigate: (page: str
   const handleCardPointerDown = (e: React.PointerEvent, key: string) => {
     if (e.button !== 0 || activeDragRef.current || pendingDragRef.current) return;
     const target = e.target as HTMLElement;
-    if (target.closest('input, textarea, select, [contenteditable="true"], [data-nodrag]')) return;
+    // 收起网格站点行是跨组拖拽源（长按 1 秒武装）：不登记整卡拖拽，卡片改从标题/空白处拖
+    if (target.closest('input, textarea, select, [contenteditable="true"], [data-nodrag], [data-collapsed-grid] [data-site-drag-id]')) return;
     suppressClickRef.current = false;
     // 组合卡 tab 头按下：记为「把该组拖出组合」的候选拖拽（超过阈值才激活，普通点击仍是切 tab）
     const tabEl = target.closest<HTMLElement>('[data-combo-tab-drag]');
@@ -1574,6 +1575,7 @@ export default function HomePage({ onNavigate, store }: { onNavigate: (page: str
                 else wrapperRefs.current.delete(key);
               }}
               data-card-key={key}
+              data-group-card={item.group ? item.group.id : undefined}
               className="scroll-mt-20 relative"
               style={{
                 gridColumn: `${(pos?.col ?? 0) + 1} / span ${span}`,

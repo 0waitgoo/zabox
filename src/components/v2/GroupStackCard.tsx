@@ -1,6 +1,7 @@
 import React from 'react';
 import { motion } from 'motion/react';
-import { groupIcon, siteIconSrc, siteLogoFallback, sortSites, type NavGroup, type SiteEntry } from '../../data/groups';
+import { groupIcon, siteIconSrc, sortSites, type NavGroup, type SiteEntry } from '../../data/groups';
+import { cachedIconSrc, nextFallbackIconSrc, storeIconSrc } from './Card';
 
 /**
  * C 型 · 编组堆叠卡（默认 1 栏 × 1X）——「极简文件夹」卡面（第十二轮，用户在第三轮线稿中选定方案四）
@@ -116,6 +117,9 @@ export function StackCardFrame({
 
 /** 组标题图标瓷砖（头图标规则与普通 C 卡一致：组首站图标，无站点时回落组名首字） */
 export function StackGroupIcon({ group, size = 30 }: { group: NavGroup; size?: number }) {
+  const first = sortSites(group.sites)[0];
+  const initial = groupIcon(group);
+  const iconName = first?.name ?? group.name;
   return (
     <div
       className="site-icon-frame rounded-[9px] bg-white flex items-center justify-center overflow-hidden shrink-0"
@@ -123,26 +127,23 @@ export function StackGroupIcon({ group, size = 30 }: { group: NavGroup; size?: n
     >
       {group.sites.length > 0 ? (
         <img
-          src={groupIcon(group)}
+          src={cachedIconSrc(first?.url, initial, iconName) ?? initial}
           alt={group.name}
           loading="lazy"
           className="object-contain"
           style={{ width: size * 0.63, height: size * 0.63 }}
+          onLoad={(e) => {
+            const target = e.target as HTMLImageElement;
+            if (target.src.includes('/favicon.ico') || target.src.startsWith('data:')) {
+              storeIconSrc(first?.url, initial, iconName, target.src);
+            }
+          }}
           onError={(e) => {
             const target = e.target as HTMLImageElement;
             // 组头图标加载失败 → 二段回落（同 SiteTile：本地图标 404 → 该站 favicon → 字母）；字标本身再失败才隐藏
-            const first = sortSites(group.sites)[0];
-            if (target.src.startsWith('data:')) {
-              target.style.display = 'none';
-            } else if (target.src.includes('/favicon.ico') || !first) {
-              target.src = siteLogoFallback(first?.name ?? group.name);
-            } else {
-              try {
-                target.src = `${new URL(first.url).origin}/favicon.ico`;
-              } catch {
-                target.src = siteLogoFallback(first.name);
-              }
-            }
+            const next = nextFallbackIconSrc(target.src, first?.url, iconName);
+            if (next !== undefined) target.src = next;
+            else target.style.display = 'none';
           }}
         />
       ) : (
@@ -170,6 +171,8 @@ const FACE_TILE_VARS = {
 
 /** 单个站点瓷砖（白底圆角块 + 站点图标），尺寸走全形态统一变量；点击直达并阻止冒泡 */
 function SiteTile({ site }: { site: SiteEntry }) {
+  const initial = siteIconSrc(site);
+  const src = cachedIconSrc(site.url, initial, site.name) ?? initial;
   const openSite = (e: React.MouseEvent) => {
     e.stopPropagation();
     window.open(site.url, '_blank');
@@ -185,23 +188,21 @@ function SiteTile({ site }: { site: SiteEntry }) {
     >
       <span className="site-icon-frame block w-full h-full rounded-[13px] bg-white overflow-hidden transition-transform duration-150 group-hover/face:scale-110">
         <img
-          src={siteIconSrc(site)}
+          src={src}
           alt={site.name}
           loading="lazy"
           className={`w-full h-full object-contain p-[16%] ${site.dead ? 'grayscale opacity-60' : ''}`}
+          onLoad={(e) => {
+            const target = e.target as HTMLImageElement;
+            if (target.src.includes('/favicon.ico') || target.src.startsWith('data:')) {
+              storeIconSrc(site.url, initial, site.name, target.src);
+            }
+          }}
           onError={(e) => {
             const target = e.target as HTMLImageElement;
             // 二段回落（2026-10-28 晚）：本地图标 404 → 该站自己的 /favicon.ico → 字母
-            if (target.src.startsWith('data:')) return;
-            if (target.src.includes('/favicon.ico')) {
-              target.src = siteLogoFallback(site.name);
-              return;
-            }
-            try {
-              target.src = `${new URL(site.url).origin}/favicon.ico`;
-            } catch {
-              target.src = siteLogoFallback(site.name);
-            }
+            const next = nextFallbackIconSrc(target.src, site.url, site.name);
+            if (next !== undefined) target.src = next;
           }}
         />
       </span>

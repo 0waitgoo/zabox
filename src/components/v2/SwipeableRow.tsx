@@ -16,6 +16,9 @@ import { Pencil, Trash2 } from 'lucide-react';
  *   照常激活（它们的阈值判定用起手累计值，不依赖被截断的那几帧）；
  * - 静止长按没有位移、不会认领；按压中出现 contextmenu（菜单已开）即取消待命；
  * - 第二指落下（双指缩放）取消待命；已认领的滑动取消后回弹到手势前状态。
+ * - 跨组拖拽锁（gestureLock）：宿主在跨组武装（按住满 1 秒）后返回 true，
+ *   本行尚未认领时立即释放本次手势、不截断后续 move，让冒泡阶段的跨组拖拽接管；
+ *   已认领的左滑不受锁影响（武装迟到不抢已认领的手势）。
  *
  * 同一列表同时只开一行：openKey 由列表父级持有。点已打开行的行身 = 收起而不是
  * 打开站点（由传给 children 的 guard 在 click 时拦截）；刚结束一次左滑的 click 同样被 guard 吞掉。
@@ -34,6 +37,7 @@ export default function SwipeableRow({
   onOpenKeyChange,
   onEdit,
   onDelete,
+  gestureLock,
   children,
 }: {
   /** 行标识（同一列表内唯一，通常站点 id） */
@@ -43,6 +47,8 @@ export default function SwipeableRow({
   onOpenKeyChange: (key: string | null) => void;
   onEdit: () => void;
   onDelete: () => void;
+  /** 跨组拖拽锁：返回 true 时尚未认领的手势立即释放（不认领、不截断） */
+  gestureLock?: () => boolean;
   /** 行内容渲染：guard() 在行身 click 里先问——返回 true 表示这次 click 已被左滑体系处理（吞掉） */
   children: (guard: () => boolean) => React.ReactNode;
 }) {
@@ -118,6 +124,11 @@ export default function SwipeableRow({
 
     const onMove = (ev: PointerEvent) => {
       if (ev.pointerId !== g.pointerId) return;
+      // 跨组已武装且本行尚未认领：立即释放，不认领、不截断，跨组拖拽接管
+      if (!g.claimed && gestureLock?.()) {
+        cleanup();
+        return;
+      }
       const dx = ev.clientX - g.startX;
       const dy = ev.clientY - g.startY;
       if (!g.claimed) {

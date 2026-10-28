@@ -96,6 +96,8 @@ export default function useLongPressMenu() {
       const t = e.target as HTMLElement | null;
       if (!t || typeof t.closest !== 'function') return;
       if (t.closest(EDITABLE_SELECTOR)) return; // 输入区不触发（还要选中/粘贴）
+      // 收起网格站点行：长按 1 秒属于跨组拖拽武装，不开菜单（展开行与桌面真实右键不受影响）
+      if (t.closest('[data-collapsed-grid] [data-site-drag-id]')) return;
       press = { pointerId: e.pointerId, target: t, x: e.clientX, y: e.clientY, nativeMenuSeen: false };
       clearTimer();
       timer = window.setTimeout(fire, LONG_PRESS_MS);

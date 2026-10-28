@@ -6,11 +6,12 @@ import type { LocalStore } from '../../store/localStore';
 import { SiteLogo } from './Card';
 import GroupExpandedBody, { SiteTagBadges } from './GroupExpanded';
 import SwipeableRow from './SwipeableRow';
+import { useSiteDragSort } from './useSiteDragSort';
 
 /**
  * B 型 · 编组列表卡（收起态占格由右键布局决定：默认 2 栏 × 2x）
  * 站点行式排布（图标 + 名称 + 一句介绍 + 标签，同旧站 AI 导航）。
- * 收起只显示站点：可见数按布局算（栏数 × 每列行数，2x 每列 4 行、1x 每列 2 行）。
+ * 收起只显示站点：可见数按布局算（栏数 × 每列行数，2x 每列 5 行、1x 每列 2 行）。
  * 展开 / 收起入口（第十六轮修正，整卡单击太容易误触）：头部组名后的小胶囊按钮——收起态显示「展开」、展开态显示「收起」
  * （第三十/三十一轮最终形态；第十六轮的卡底渐隐提示条与卡底展开小按钮、第三十轮前的卡底收起条均已退役）。
  * 单击卡面空白处不展开也不收起，点站点行仍是打开网站。
@@ -38,15 +39,24 @@ export default function GroupListCard({
   store: LocalStore;
   /** 收起态宽度（右键布局）：1 栏时站点单列；2 栏时 3 列（第二十轮，与展开态统一） */
   colSpan?: 1 | 2;
-  /** 收起态高度（右键布局）：2x 每列 4 行；1x 每列 2 行——实际可见数按此计算，溢出提示的 N 才准确 */
+  /** 收起态高度（右键布局）：2x 每列 5 行；1x 每列 2 行——实际可见数按此计算，溢出提示的 N 才准确 */
   heightUnits?: 1 | 2;
   delay?: number;
 }) {
   const sorted = sortSites(group.sites);
   const cols = colSpan === 1 ? 1 : 3;
-  const rowsPerCol = heightUnits === 2 ? 4 : 2;
+  const rowsPerCol = heightUnits === 2 ? 5 : 2;
   const visibleCount = cols * rowsPerCol;
   const rows = sorted.slice(0, visibleCount);
+
+  // 收起态跨组拖拽（长按 1 秒武装）：收起网格本身无组内排序语义，只做跨组移动；
+  // 武装后拖到别的组卡松手即 moveSite，同组/空白取消；展开体不接跨组、行为不变
+  const crossDrag = useSiteDragSort({
+    sites: sorted,
+    groupId: group.id,
+    crossGroupOnly: true,
+    onMoveToGroup: (siteId, targetGroupId) => store.moveSite(group.id, siteId, targetGroupId),
+  });
 
   // 展开态组操作（原在展开体顶部一行，第十二轮上提到标题行）
   const [renaming, setRenaming] = useState(false);
@@ -238,6 +248,8 @@ export default function GroupListCard({
           <div
             data-collapsed-grid
             className={`grid gap-x-2 content-start ${colSpan === 1 ? 'grid-cols-1' : 'grid-cols-1 min-[480px]:grid-cols-3'}`}
+            onPointerDown={crossDrag.onContainerPointerDown}
+            onDragStart={crossDrag.onContainerDragStart}
             onPointerDownCapture={(e) => {
               // 左滑操作条开着时，按到该行之外先收起（第七十三轮）
               if (!swipeOpenId) return;
@@ -253,6 +265,7 @@ export default function GroupListCard({
                 rowKey={site.id ?? site.name}
                 openKey={swipeOpenId}
                 onOpenKeyChange={setSwipeOpenId}
+                gestureLock={crossDrag.isCrossArmed}
                 onEdit={() => {
                   if (!site.id) return;
                   setEditRequestId(site.id);
@@ -264,9 +277,10 @@ export default function GroupListCard({
               >
                 {(swipeGuard) => (
                   <button
+                    data-site-drag-id={site.id}
                     onClick={(e) => {
                       e.stopPropagation();
-                      if (swipeGuard()) return;
+                      if (swipeGuard() || crossDrag.consumeSuppressClick()) return;
                       window.open(site.url, '_blank');
                     }}
                     className="flex items-center gap-2.5 px-2 py-[7px] w-full rounded-2xl hover:bg-white/6 text-left transition-colors"
@@ -294,6 +308,7 @@ export default function GroupListCard({
           {/* 收起态列表到底自然结束：底部渐隐提示条与卡底「展开」小按钮已删除（第三十一轮），展开入口统一在头部 */}
         </div>
       )}
+      {crossDrag.dragLayer}
     </motion.div>
   );
 }

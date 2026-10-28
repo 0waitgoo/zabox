@@ -1469,7 +1469,7 @@ export default function HomePage({ onNavigate, store }: { onNavigate: (page: str
   const handleCardPointerDown = (e: React.PointerEvent, key: string) => {
     if (e.button !== 0 || activeDragRef.current || pendingDragRef.current) return;
     const target = e.target as HTMLElement;
-    // 收起网格站点行是跨组拖拽源（长按 1 秒武装）：不登记整卡拖拽，卡片改从标题/空白处拖
+    // 收起网格站点行是跨组拖拽源（随时按住都可拖）：不登记整卡拖拽，卡片改从标题/空白处拖
     if (target.closest('input, textarea, select, [contenteditable="true"], [data-nodrag], [data-cross-source] [data-site-drag-id]')) return;
     suppressClickRef.current = false;
     // 组合卡 tab 头按下：记为「把该组拖出组合」的候选拖拽（超过阈值才激活，普通点击仍是切 tab）

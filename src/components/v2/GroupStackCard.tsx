@@ -273,7 +273,7 @@ export function StackSiteTiles({
   const zoneRef = React.useRef<HTMLDivElement | null>(null);
   const fitCount = useRowFitCount(zoneRef, heightUnits === 1);
   const visible = heightUnits === 1 ? sorted.slice(0, fitCount) : sorted;
-  // 卡面瓷砖跨组拖拽（与 B 卡收起网格同规则：按住 1 秒武装，拖到别的组卡松手即 moveSite；
+  // 卡面瓷砖跨组拖拽（与 B 卡收起网格同规则：随时按住都可拖，拖到别的组卡松手即 moveSite；
   // 组合卡 active 组瓷砖同样走这里；弹窗（GroupPanel）内瓷砖不接——弹窗盖住目标卡，拖不出去）
   const crossDrag = useSiteDragSort({
     sites: sorted,

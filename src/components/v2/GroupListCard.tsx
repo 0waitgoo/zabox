@@ -49,8 +49,8 @@ export default function GroupListCard({
   const visibleCount = cols * rowsPerCol;
   const rows = sorted.slice(0, visibleCount);
 
-  // 收起态跨组拖拽（长按 1 秒武装）：收起网格本身无组内排序语义，只做跨组移动；
-  // 武装后拖到别的组卡松手即 moveSite，同组/空白取消；展开体不接跨组、行为不变
+  // 收起态跨组拖拽（随时按住都可拖）：收起网格本身无组内排序语义，只做跨组移动；
+  // 拖到别的组卡松手即 moveSite，同组/空白取消；展开体不接跨组、行为不变
   const crossDrag = useSiteDragSort({
     sites: sorted,
     groupId: group.id,
@@ -266,7 +266,8 @@ export default function GroupListCard({
                 rowKey={site.id ?? site.name}
                 openKey={swipeOpenId}
                 onOpenKeyChange={setSwipeOpenId}
-                gestureLock={crossDrag.isCrossArmed}
+                gestureLock={crossDrag.isCrossActive}
+                onDragEscape={(x, y) => crossDrag.activateCrossNow(x, y)}
                 onEdit={() => {
                   if (!site.id) return;
                   setEditRequestId(site.id);

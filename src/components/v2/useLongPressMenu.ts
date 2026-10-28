@@ -18,9 +18,9 @@ import { DRAG_THRESHOLD } from './useSiteDragSort';
  *   吞掉），防止各 pending 拖拽在菜单已开后迟到激活；松手的 click 按「松手点」
  *   吞掉，避免穿透触发底层点击（与右键语义一致：右键松手本就不产生 click，
  *   操作菜单要松手后再点）。
- * - 跨组拖拽源例外（收起网格行 / C 卡面瓷砖，与长按 1 秒跨组拖拽互斥）：500ms 不直接开菜单（否则冻结
- *   位移、拖拽起不来），位移容差收紧到拖拽激活阈值 7px；按住不动满 500ms 后松手
- *   才开菜单（松手 click 照常抑制），按住 1 秒再拖则走跨组拖拽、菜单不开。
+ * - 跨组拖拽源例外（收起网格行 / C 卡面瓷砖，与跨组拖拽互斥）：500ms 不直接开菜单（否则冻结
+ *   位移、拖拽起不来），位移容差 7px（小于跨组激活 12px，菜单先取消、拖拽随后接管）；
+ *   按住不动满 500ms 后松手才开菜单（松手 click 照常抑制），按住拖动则走跨组拖拽、菜单不开。
  *   卡片空白/标题等其他区域仍是 500ms 直接开菜单，尺寸菜单等入口不受影响。
  *
  * 移动端原生冲突：Android Chrome 长按会由浏览器先发真实 contextmenu（既有路由
@@ -105,8 +105,8 @@ export default function useLongPressMenu() {
       const t = e.target as HTMLElement | null;
       if (!t || typeof t.closest !== 'function') return;
       if (t.closest(EDITABLE_SELECTOR)) return; // 输入区不触发（还要选中/粘贴）
-      // 跨组拖拽源（收起网格行 / C 卡面瓷砖）：500ms 不直接开菜单（否则冻结后续位移、按住 1 秒再拖的跨组拖拽起不来）；
-      // 改松手时开（见 onPointerEnd）：按住不动满 500ms 后松手 = 菜单，按住 1 秒再拖 = 跨组移动
+      // 跨组拖拽源（收起网格行 / C 卡面瓷砖）：500ms 不直接开菜单（否则冻结后续位移、拖动的跨组拖拽起不来）；
+      // 改松手时开（见 onPointerEnd）：按住不动满 500ms 后松手 = 菜单，按住拖动 = 跨组移动
       const isCrossSource = !!t.closest('[data-cross-source] [data-site-drag-id]');
       press = { pointerId: e.pointerId, target: t, x: e.clientX, y: e.clientY, nativeMenuSeen: false, isCrossSource, t: Date.now() };
       clearTimer();
@@ -121,7 +121,7 @@ export default function useLongPressMenu() {
       }
       const p = press;
       if (!p || e.pointerId !== p.pointerId) return;
-      // 跨组拖拽源位移容差收紧到拖拽激活阈值：一动（≥7px）即取消松手菜单，拖拽与菜单互斥；
+      // 跨组拖拽源位移容差 7px（小于跨组激活 12px）：一动即取消松手菜单，拖拽随后接管，互不抢；
       // 其他区域仍用 10px（卡片拖拽排序等的既有模型）
       const tol = p.isCrossSource ? DRAG_THRESHOLD : MOVE_TOLERANCE_PX;
       if (Math.hypot(e.clientX - p.x, e.clientY - p.y) > tol) cancelPress();

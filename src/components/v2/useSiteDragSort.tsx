@@ -13,18 +13,20 @@ import type { SiteEntry } from '../../data/groups';
  * Esc / pointercancel 取消；拖完紧随的那次 click 被吞掉，避免顺带打开站点。
  * 参与拖动的站点元素需带 data-site-drag-id={site.id}；编辑表单、添加块等没有此标记，不参与。
  *
- * 跨组移动（长按 1 秒武装）：crossGroupOnly 容器只做跨组移动、不做组内排序。
- * 按住满 1 秒才武装（武装前移动超阈值即判为滑动/滚动、取消武装）；武装后拖动只跟随
- * 快照、源行保持原样不占位不重排，松手时按指针下 data-group-card 卡片判定目标组，
- * 落在别的组卡上即 onMoveToGroup，同组或空白处 = 取消。武装期间左滑由宿主的
- * gestureLock 释放（见 SwipeableRow），展开体不接跨组、行为 100% 不变。
+ * 跨组移动（随时按住都可拖）：crossGroupOnly 容器只做跨组移动、不做组内排序。
+ * 不再等 1 秒武装——按下后位移过 12px 即进跨组模式；拖动只跟随快照、
+ * 源行保持原样不占位不重排，松手时按指针下 data-group-card 卡片判定目标组，
+ * 落在别的组卡上即 onMoveToGroup，同组或空白处 = 取消。与左滑的方向仲裁
+ * （见 SwipeableRow）：左滑在捕获阶段先认领并截断，往右/纵向拖释放给这里，
+ * 对角大位移同样释放；激活阈值 12px 高于左滑判定 10px，左滑认领前这里看不到位移。
+ * 已认领的左滑拖出 150px 后经 activateCrossNow 转交跨组（往左拖出本组也是跨组移动）。
  * 与长按菜单的互斥：收起行按住不动的菜单由长按层在松手时开（500ms 不直接开，
- * 否则冻结位移、拖拽起不来）；位移一过 7px 阈值，长按层的松手菜单即取消。
+ * 否则冻结位移、拖拽起不来）；位移一过 7px，长按层的松手菜单即取消（早于跨组激活 12px）。
  */
 const DRAG_THRESHOLD = 7;
 export { DRAG_THRESHOLD };
-/** 按住武装时长（ms）：收起网格站点行按住满此时长再拖 = 跨组移动 */
-const CROSS_ARM_MS = 1000;
+/** 跨组激活位移（px）：高于左滑判定 10px，左滑认领前冒泡阶段看不到位移，不抢左滑 */
+const CROSS_ACTIVATE_PX = 12;
 
 export function useSiteDragSort({
   sites,
@@ -49,8 +51,9 @@ export function useSiteDragSort({
   const [clone, setClone] = useState<{ html: string; w: number; h: number } | null>(null);
   const cloneRef = useRef<HTMLDivElement>(null);
   const containerRef = useRef<HTMLElement | null>(null);
-  const pendingRef = useRef<{ id: string; pointerId: number; startX: number; startY: number; armed: boolean } | null>(null);
-  const armTimerRef = useRef<number | null>(null);
+  const pendingRef = useRef<{ id: string; pointerId: number; startX: number; startY: number } | null>(null);
+  /** effect 内建的激活函数（左滑超距逃逸用）：组件体内的 activateCrossNow 经它调用 */
+  const activateRef = useRef<((pending: { id: string; pointerId: number; startX: number; startY: number }, x: number, y: number) => boolean) | null>(null);
   const activeRef = useRef<{
     id: string;
     pointerId: number;
@@ -75,13 +78,6 @@ export function useSiteDragSort({
   onMoveToGroupRef.current = onMoveToGroup;
   const groupIdRef = useRef(groupId);
   groupIdRef.current = groupId;
-
-  const clearArmTimer = () => {
-    if (armTimerRef.current !== null) {
-      window.clearTimeout(armTimerRef.current);
-      armTimerRef.current = null;
-    }
-  };
 
   const clearCrossHighlight = () => {
     const t = crossTargetRef.current;
@@ -126,7 +122,6 @@ export function useSiteDragSort({
       }
       activeRef.current = null;
       pendingRef.current = null;
-      clearArmTimer();
       const crossTarget = crossTargetRef.current;
       clearCrossHighlight();
       document.body.style.cursor = '';
@@ -203,53 +198,59 @@ export function useSiteDragSort({
       }
     };
 
+    /** 由待命转激活（onPointerMove 越阈值 / 左滑超距逃逸共用）：建快照、置 active */
+    const activateFromPending = (
+      pending: { id: string; pointerId: number; startX: number; startY: number },
+      x: number,
+      y: number,
+    ): boolean => {
+      const container = containerRef.current;
+      const el = container?.querySelector(`[data-site-drag-id="${pending.id}"]`);
+      if (!el) {
+        pendingRef.current = null;
+        return false;
+      }
+      const rect = el.getBoundingClientRect();
+      const rects = new Map<string, DOMRect>();
+      container.querySelectorAll('[data-site-drag-id]').forEach((n) => {
+        const nid = (n as HTMLElement).dataset.siteDragId;
+        if (nid) rects.set(nid, n.getBoundingClientRect());
+      });
+      pendingRef.current = null;
+      activeRef.current = {
+        id: pending.id,
+        pointerId: pending.pointerId,
+        offsetX: pending.startX - rect.left,
+        offsetY: pending.startY - rect.top,
+        lastX: x,
+        lastY: y,
+        rects,
+        mode: crossGroupOnly ? 'cross' : 'sort',
+      };
+      if (!crossGroupOnly) {
+        setPreview(sitesRef.current.map((s) => s.id).filter((x): x is string => !!x));
+      }
+      setDragId(pending.id);
+      setClone({ html: el.outerHTML, w: rect.width, h: rect.height });
+      document.body.style.cursor = 'grabbing';
+      document.body.style.userSelect = 'none';
+      if (crossGroupOnly) updateCrossTarget(x, y);
+      return true;
+    };
+    activateRef.current = activateFromPending;
+
     const onPointerMove = (e: PointerEvent) => {
       const pending = pendingRef.current;
       if (!activeRef.current && pending && e.pointerId === pending.pointerId) {
         const moved = Math.hypot(e.clientX - pending.startX, e.clientY - pending.startY);
         if (crossGroupOnly) {
-          // 跨组容器：武装前移动 = 滑动/滚动/快拖，不是按住拖——取消武装与待命
-          if (!pending.armed) {
-            if (moved >= DRAG_THRESHOLD) {
-              clearArmTimer();
-              pendingRef.current = null;
-            }
-            return;
-          }
-          if (moved < DRAG_THRESHOLD) return;
+          // 跨组：随时按住都可拖（不再等武装）；激活阈值 12px 高于左滑判定 10px，
+          // 左滑在捕获阶段先认领并截断，往右/纵向拖释放，冒泡阶段的这里才能看到位移
+          if (moved < CROSS_ACTIVATE_PX) return;
         } else if (moved < DRAG_THRESHOLD) {
           return;
         }
-        const container = containerRef.current;
-        const el = container?.querySelector(`[data-site-drag-id="${pending.id}"]`);
-        if (!el) {
-          pendingRef.current = null;
-          return;
-        }
-        const rect = el.getBoundingClientRect();
-        const rects = new Map<string, DOMRect>();
-        container.querySelectorAll('[data-site-drag-id]').forEach((n) => {
-          const nid = (n as HTMLElement).dataset.siteDragId;
-          if (nid) rects.set(nid, n.getBoundingClientRect());
-        });
-        pendingRef.current = null;
-        activeRef.current = {
-          id: pending.id,
-          pointerId: pending.pointerId,
-          offsetX: pending.startX - rect.left,
-          offsetY: pending.startY - rect.top,
-          lastX: e.clientX,
-          lastY: e.clientY,
-          rects,
-          mode: crossGroupOnly ? 'cross' : 'sort',
-        };
-        if (!crossGroupOnly) {
-          setPreview(sitesRef.current.map((s) => s.id).filter((x): x is string => !!x));
-        }
-        setDragId(pending.id);
-        setClone({ html: el.outerHTML, w: rect.width, h: rect.height });
-        document.body.style.cursor = 'grabbing';
-        document.body.style.userSelect = 'none';
+        activateFromPending(pending, e.clientX, e.clientY);
       }
       const d = activeRef.current;
       if (d && e.pointerId === d.pointerId) {
@@ -265,7 +266,6 @@ export function useSiteDragSort({
      * 同一指自己的 pointerdown 在 React 容器处理器之后到达（id 相同，不受影响）。 */
     const onSecondPointerDown = (e: PointerEvent) => {
       if (pendingRef.current && e.pointerId !== pendingRef.current.pointerId) {
-        clearArmTimer();
         pendingRef.current = null;
       }
       if (activeRef.current && e.pointerId !== activeRef.current.pointerId) endDrag(false);
@@ -273,14 +273,12 @@ export function useSiteDragSort({
 
     const onPointerUp = (e: PointerEvent) => {
       if (pendingRef.current && e.pointerId === pendingRef.current.pointerId) {
-        clearArmTimer();
         pendingRef.current = null;
       }
       if (activeRef.current && e.pointerId === activeRef.current.pointerId) endDrag(true);
     };
     const onPointerCancel = (e: PointerEvent) => {
       if (pendingRef.current && e.pointerId === pendingRef.current.pointerId) {
-        clearArmTimer();
         pendingRef.current = null;
       }
       if (activeRef.current && e.pointerId === activeRef.current.pointerId) endDrag(false);
@@ -300,7 +298,7 @@ export function useSiteDragSort({
       window.removeEventListener('pointerup', onPointerUp);
       window.removeEventListener('pointercancel', onPointerCancel);
       window.removeEventListener('keydown', onKeyDown);
-      clearArmTimer();
+      activateRef.current = null;
     };
   }, []);
 
@@ -312,8 +310,7 @@ export function useSiteDragSort({
     }
   }, [clone]);
 
-  /** 挂到站点网格容器上：只负责记下起手（哪个站点、从哪按），越过阈值的判定在 window pointermove 里；
-   * 跨组容器同时起 1 秒武装定时器（武装前移动/松手/取消即清除，武装后才可拖出本组） */
+  /** 挂到站点网格容器上：只负责记下起手（哪个站点、从哪按），越过阈值的判定在 window pointermove 里 */
   const onContainerPointerDown = (e: React.PointerEvent) => {
     if (e.button !== 0 || activeRef.current || pendingRef.current) return;
     const t = e.target as HTMLElement;
@@ -321,16 +318,7 @@ export function useSiteDragSort({
     const el = t.closest<HTMLElement>('[data-site-drag-id]');
     if (!el || !el.dataset.siteDragId || !e.currentTarget.contains(el)) return;
     containerRef.current = e.currentTarget as HTMLElement;
-    pendingRef.current = { id: el.dataset.siteDragId, pointerId: e.pointerId, startX: e.clientX, startY: e.clientY, armed: false };
-    if (crossGroupOnly) {
-      clearArmTimer();
-      const pid = e.pointerId;
-      armTimerRef.current = window.setTimeout(() => {
-        armTimerRef.current = null;
-        const p = pendingRef.current;
-        if (p && p.pointerId === pid) p.armed = true;
-      }, CROSS_ARM_MS);
-    }
+    pendingRef.current = { id: el.dataset.siteDragId, pointerId: e.pointerId, startX: e.clientX, startY: e.clientY };
   };
 
   /** 挂到同一容器上：站点 Logo 是 <img>，按下拖动会触发浏览器原生图片拖拽、接管 pointermove，必须拦下 */
@@ -345,8 +333,15 @@ export function useSiteDragSort({
     return false;
   };
 
-  /** 跨组武装状态（供左滑 gestureLock 读）：本次按压是否已满 1 秒武装 */
-  const isCrossArmed = () => pendingRef.current?.armed === true;
+  /** 跨组激活状态（供左滑 gestureLock 读）：本次按压是否已进跨组拖拽 */
+  const isCrossActive = () => activeRef.current?.mode === 'cross';
+
+  /** 左滑超距逃逸：已认领的左滑拖出 150px 后转交跨组拖拽（仅跨组容器；待命已不在时返回 false，左滑继续） */
+  const activateCrossNow = (x: number, y: number) => {
+    const pending = pendingRef.current;
+    if (!pending || activeRef.current || !crossGroupOnly) return false;
+    return activateRef.current?.(pending, x, y) ?? false;
+  };
 
   /** 占位只属于组内排序：跨组模式源行保持原样，不套虚线占位 */
   const isDragging = (site: SiteEntry) => activeRef.current?.mode === 'sort' && dragId !== null && site.id === dragId;
@@ -365,7 +360,7 @@ export function useSiteDragSort({
     </div>
   ) : null;
 
-  return { items, isDragging, isCrossArmed, onContainerPointerDown, onContainerDragStart, consumeSuppressClick, dragLayer };
+  return { items, isDragging, isCrossActive, activateCrossNow, onContainerPointerDown, onContainerDragStart, consumeSuppressClick, dragLayer };
 }
 
 /** 被拖站点在原位的占位样式（与主页拖拽占位同语言：靛蓝虚线框 + 淡蓝底）。

@@ -166,8 +166,8 @@ const getLogo = (name: string): string => {
 
 /**
  * 娱乐导航分类（2026-10-28）：与主页娱乐导航预设同源（硬核指南六分类详情页实测外链），
- * 导航页平铺 48 站；图标取各站自己的 /favicon.ico（与本站同源、国内可达），
- * 拿不到时 NavPage 的 onError 回落字母。
+ * 导航页按视频/二次元/音乐/阅读/游戏/娱乐六组分开呈现；图标取各站自己的 /favicon.ico
+ * （与本站同源、国内可达），拿不到时 NavPage 的 onError 回落字母。
  */
 const entertainmentSites: Array<[string, string, string]> = [
   ['看看鸭', 'https://www.kankanya.me/', '高清在线追剧的综合视频网站'],
@@ -220,15 +220,33 @@ const entertainmentSites: Array<[string, string, string]> = [
   ['TVGarden', 'https://tv.garden/', '全球在线直播电视聚合平台'],
 ];
 
-const entertainmentNav: NavPoolSite[] = entertainmentSites.map(([name, url, description]) => {
-  let logo = '';
-  try {
-    logo = `${new URL(url).origin}/favicon.ico`;
-  } catch {
-    // URL 不合法时留空，渲染层回落字母
-  }
-  return { name, logo, description, url, needVpn: false };
-});
+/**
+ * 娱乐导航六分类（2026-10-28 晚，用户纠正：导航页点“娱乐导航”要只显示娱乐内容并按分类分开，
+ * 不再是底部一个 48 站平铺区）：与主页娱乐导航预设同源（硬核指南六分类详情页实测外链）；
+ * 下标按 entertainmentSites 的顺序切分，增删站点时同步改这里的边界。
+ * 图标取各站自己的 /favicon.ico，拿不到时 NavPage 的 onError 回落字母。
+ */
+const entertainmentCategoryBounds: Array<[string, number, number]> = [
+  ['视频', 0, 9],
+  ['二次元', 9, 18],
+  ['音乐', 18, 27],
+  ['阅读', 27, 37],
+  ['游戏', 37, 47],
+  ['娱乐', 47, 48],
+];
+
+const entertainmentCategories: Record<string, NavPoolSite[]> = {};
+for (const [category, start, end] of entertainmentCategoryBounds) {
+  entertainmentCategories[category] = entertainmentSites.slice(start, end).map(([name, url, description]) => {
+    let logo = '';
+    try {
+      logo = `${new URL(url).origin}/favicon.ico`;
+    } catch {
+      // URL 不合法时留空，渲染层回落字母
+    }
+    return { name, logo, description, url, needVpn: false };
+  });
+}
 
 export const toolsByCategory: Record<string, NavPoolSite[]> = {
   '聊天机器人': [
@@ -398,5 +416,5 @@ export const toolsByCategory: Record<string, NavPoolSite[]> = {
     { name: '讯飞开放平台', logo: getLogo('讯飞开放平台'), description: '科大讯飞AI技术开放平台', url: 'https://www.xfyun.cn', needVpn: false },
     { name: 'HuggingFace', logo: getLogo('huggingface'), description: '全球 AI 模型与数据集社区', url: 'https://huggingface.co/', needVpn: true },
   ],
-  '娱乐导航': entertainmentNav,
+  ...entertainmentCategories,
 };

@@ -1,32 +1,40 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { motion } from 'motion/react';
 import { siteLogoFallback } from '../../data/groups';
 import { toolsByCategory } from '../../data/navPool';
 
+/** 娱乐六分类（与 navPool 娱乐分组同名）：筛选时只留这六组 */
+const ENT_CATEGORIES = ['视频', '二次元', '音乐', '阅读', '游戏', '娱乐'];
+
 function NavPage() {
+  // 娱乐筛选（2026-10-28 晚）：点“娱乐导航”只显示娱乐六分类，再点“全部网站”回到全部
+  const [entOnly, setEntOnly] = useState(false);
   const handleClick = (url: string) => {
     window.open(url, '_blank');
   };
+
+  const visibleEntries = Object.entries(toolsByCategory).filter(
+    ([category]) => !entOnly || ENT_CATEGORIES.includes(category),
+  );
 
   return (
     <div className="space-y-8">
       <div className="flex items-center justify-between">
         <h2 className="text-xl font-bold tracking-tight">
-          AI网站导航
+          {entOnly ? '娱乐导航' : 'AI网站导航'}
         </h2>
         <button
           type="button"
           data-nav-entertainment
-          onClick={() => document.getElementById('nav-entertainment')?.scrollIntoView({ behavior: 'smooth', block: 'start' })}
+          onClick={() => setEntOnly(!entOnly)}
           className="rounded-full border border-white/10 bg-white/5 px-3.5 py-1.5 text-sm text-white/80 hover:bg-white/10 hover:text-white transition-colors"
         >
-          娱乐导航
+          {entOnly ? '全部网站' : '娱乐导航'}
         </button>
       </div>
-      {Object.entries(toolsByCategory).map(([category, tools], categoryIdx) => (
+      {visibleEntries.map(([category, tools], categoryIdx) => (
         <motion.div
           key={category}
-          id={category === '娱乐导航' ? 'nav-entertainment' : undefined}
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}
           transition={{ duration: 0.3, delay: categoryIdx * 0.05 }}

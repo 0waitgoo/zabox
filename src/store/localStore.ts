@@ -1430,6 +1430,24 @@ export function useLocalStore() {
     [update],
   );
 
+  /** 跨组移动（长按 1 秒拖拽）：源组取出、目标组末尾追加，属性（置顶等）原样保留；同组/不存在 = 不动 */
+  const moveSite = useCallback(
+    (fromGroupId: string, siteId: string, toGroupId: string) => {
+      if (fromGroupId === toGroupId) return;
+      update((d) => {
+        const from = d.groups.find((g) => g.id === fromGroupId);
+        const to = d.groups.find((g) => g.id === toGroupId);
+        if (!from || !to) return d;
+        const idx = from.sites.findIndex((s) => s.id === siteId);
+        if (idx < 0) return d;
+        const [site] = from.sites.splice(idx, 1);
+        to.sites = [...to.sites, site];
+        return d;
+      });
+    },
+    [update],
+  );
+
   const addGroup = useCallback((name: string, display: GroupDisplay): string => {
     const id = genId('g');
     update((d) => {
@@ -2455,6 +2473,7 @@ export function useLocalStore() {
     addSite,
     updateSite,
     deleteSite,
+    moveSite,
     reorderSites,
     addGroup,
     renameGroup,

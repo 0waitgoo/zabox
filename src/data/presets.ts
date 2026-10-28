@@ -74,15 +74,25 @@ function baseSnapshot(partial: Partial<CompositionSnapshot>): CompositionSnapsho
  * 默认预设（第一百零九轮）：用户 live 布局——与 seedData（新访客/恢复默认）
  * 同源共用 store 里的 DEFAULT_PRESET_* 常量，逐项一致（组、站点、顺序、尺寸、
  * 栏位、组合、摞）。底色不进预设（widgetTints 留空，应用时按既有口径走）。
+ * 2026-10-29 用户定：末尾追加娱乐导航的视频、游戏两个分类（与娱乐预设同源，
+ * 尺寸与栏位照搬娱乐预设：视频 2×2 落 1 栏、游戏 1×2 落 0 栏）；种子数据不动，
+ * 只改默认预设模板。
  */
 export function buildDefaultPreset(): CompositionSnapshot {
+  const entGroups = prepareGroups(
+    entertainmentGroups().filter((g) => g.id === 'ent-video' || g.id === 'ent-game'),
+  );
   return baseSnapshot({
-    groups: defaultPresetGroups(),
+    groups: [...defaultPresetGroups(), ...entGroups],
     widgets: [...ALL_WIDGET_IDS],
     widgetLayouts: structuredClone(DEFAULT_PRESET_WIDGET_LAYOUTS),
-    groupLayouts: structuredClone(DEFAULT_PRESET_GROUP_LAYOUTS),
-    cardOrder: [...DEFAULT_PRESET_CARD_ORDER],
-    cardCols: { ...DEFAULT_PRESET_CARD_COLS },
+    groupLayouts: {
+      ...structuredClone(DEFAULT_PRESET_GROUP_LAYOUTS),
+      'ent-video': { colSpan: 2, heightUnits: 2 },
+      'ent-game': { colSpan: 1, heightUnits: 2 },
+    },
+    cardOrder: [...DEFAULT_PRESET_CARD_ORDER, 'group:ent-video', 'group:ent-game'],
+    cardCols: { ...DEFAULT_PRESET_CARD_COLS, 'group:ent-video': 1, 'group:ent-game': 0 },
     combos: structuredClone(DEFAULT_PRESET_COMBOS),
     widgetStacks: structuredClone(DEFAULT_PRESET_WIDGET_STACKS),
   });

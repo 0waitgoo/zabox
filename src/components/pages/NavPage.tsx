@@ -14,10 +14,19 @@ function NavPage() {
         <h2 className="text-xl font-bold tracking-tight">
           AI网站导航
         </h2>
+        <button
+          type="button"
+          data-nav-entertainment
+          onClick={() => document.getElementById('nav-entertainment')?.scrollIntoView({ behavior: 'smooth', block: 'start' })}
+          className="rounded-full border border-white/10 bg-white/5 px-3.5 py-1.5 text-sm text-white/80 hover:bg-white/10 hover:text-white transition-colors"
+        >
+          娱乐导航
+        </button>
       </div>
       {Object.entries(toolsByCategory).map(([category, tools], categoryIdx) => (
         <motion.div
           key={category}
+          id={category === '娱乐导航' ? 'nav-entertainment' : undefined}
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}
           transition={{ duration: 0.3, delay: categoryIdx * 0.05 }}

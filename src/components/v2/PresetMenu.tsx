@@ -9,7 +9,7 @@ import AppearanceSection from './AppearanceSection';
  * 「预设」入口（第一百零六轮建、第一百零九轮改语义，接替原顶栏扳手；
  * 第一百一十一轮起顶栏背景按钮并入本面板）：布局/模板图标点开浮层，
  * 六套主页构成一键切换——一排两个，顺序 默认 / 我的 / 设计师 / 程序员 / 工具 / 娱乐导航
- * （娱乐导航最后一个），下方是「外观」节。
+ * （娱乐导航最后一个），下方是「外观」节。娱乐导航卡单独高亮（2026-10-29 用户定）。
  * 切换换主页构成（编组、组件、布局）与外观（背景、明暗、透明度、模糊），计划数据不动，
  * 无二次确认：排版或外观一改动就自动存进「我的」（状态机见 store.update 与偏好订阅桥接），
  * 内置预设之间互切不覆盖存档。
@@ -63,13 +63,16 @@ export default function PresetMenu({ store }: { store: LocalStore }) {
 
   // 预设卡（2026-10-27 用户定）：一排两个，顺序 默认 / 我的 / 设计师 / 程序员 / 工具 / 娱乐导航
   // （娱乐导航最后一个）；卡片窄，名在上、短述在下单行截断，勾放名右
-  const cardClass = (current: boolean, disabled = false) =>
+  // 2026-10-29 用户定：娱乐导航卡单独高亮（紫色边框 + 紫底 + 辉光），选中与否都一眼可见
+  const cardClass = (current: boolean, disabled = false, highlight = false) =>
     `w-full flex flex-col gap-0.5 px-3 py-2 rounded-2xl border text-left transition-all ${
-      current
-        ? 'border-indigo-400/80 bg-white/8'
-        : disabled
-          ? 'border-white/5 opacity-45 cursor-default'
-          : 'border-white/10 hover:border-white/30 hover:bg-white/[0.04]'
+      highlight
+        ? 'border-violet-400/70 bg-violet-500/15 shadow-[0_0_18px_rgba(167,139,250,0.35)] hover:border-violet-300/90'
+        : current
+          ? 'border-indigo-400/80 bg-white/8'
+          : disabled
+            ? 'border-white/5 opacity-45 cursor-default'
+            : 'border-white/10 hover:border-white/30 hover:bg-white/[0.04]'
     }`;
   const checkmark = (
     <span className="ml-auto shrink-0 w-[18px] h-[18px] rounded-full bg-indigo-500 flex items-center justify-center">
@@ -78,14 +81,16 @@ export default function PresetMenu({ store }: { store: LocalStore }) {
   );
   const builtinCard = (meta: (typeof BUILTIN_PRESET_META)[number]) => {
     const current = activePreset === meta.id;
+    const highlight = meta.id === 'entertainment';
     return (
       <button
         key={meta.id}
         data-preset-option={meta.id}
         data-preset-current={current || undefined}
+        data-preset-highlight={highlight || undefined}
         title={meta.desc}
         onClick={() => pick(meta.id)}
-        className={cardClass(current)}
+        className={cardClass(current, false, highlight)}
       >
         <span className="flex items-center gap-1 w-full">
           <span className="text-[13px] font-medium text-white/90">{meta.name}</span>

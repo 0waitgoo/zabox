@@ -6,6 +6,7 @@ import { SiteLogo } from './Card';
 import SiteContextMenu, { siteMenuPosition, type SiteMenuState } from './SiteContextMenu';
 import { SITE_DRAG_PLACEHOLDER_STYLE, useSiteDragSort } from './useSiteDragSort';
 import SwipeableRow from './SwipeableRow';
+import SitePoolPicker from './SitePoolPicker';
 
 /** 站点名称 / 说明的长度上限（第十六轮⑦）：表单 maxLength + 计数，保存时再硬截断兜底 */
 export const SITE_NAME_MAX = 20;
@@ -483,7 +484,7 @@ export default function GroupExpandedBody({
   editRequestId?: string | null;
   onEditRequestDone?: () => void;
 }) {
-  const [adding, setAdding] = useState(false);
+  const [addMode, setAddMode] = useState<'choice' | 'custom' | 'pool' | null>(null);
   const [menu, setMenu] = useState<SiteMenuState | null>(null);
   const [editingSiteId, setEditingSiteId] = useState<string | null>(null);
   /** 左滑操作条当前打开的行（第七十三轮）：同列表只开一行 */
@@ -515,7 +516,7 @@ export default function GroupExpandedBody({
     <div className="flex-1 min-h-0 flex flex-col" onClick={(e) => e.stopPropagation()}>
       {/* 站点列表：卡内滚动（data-nodrag：此区域内按下拖动不触发整卡拖拽排序） */}
       <div data-nodrag className="flex-1 min-h-0 overflow-y-auto pr-1 -mr-1">
-        {sorted.length === 0 && !adding && (
+        {sorted.length === 0 && !addMode && (
           <p className="text-xs text-white/35 py-6 text-center">这个编组还没有网站，点「增加网站」加上第一个吧</p>
         )}
         <div
@@ -573,26 +574,81 @@ export default function GroupExpandedBody({
               )}
             </React.Fragment>
           ))}
-          {/* 加站格子：紧跟最后一个站点，与站点行同尺寸的虚线框（唯一的加站入口） */}
-          {!adding && (
+          {/* 加站格子：紧跟最后一个站点，与站点行同尺寸的虚线框（唯一的加站入口）；
+              点开先二选一：自定义（手动输名称网址）/ 在杂盒里找（导航池多选加入） */}
+          {!addMode && (
             <button
-              onClick={() => setAdding(true)}
+              onClick={() => setAddMode('choice')}
               className="flex items-center justify-center gap-1 px-2 py-[7px] min-h-[48px] rounded-2xl border border-dashed border-white/15 text-[11px] text-white/50 hover:text-white/85 hover:border-white/30 transition-colors"
             >
               <Plus size={13} /> 增加网站
             </button>
           )}
         </div>
-        {adding && (
+        {addMode === 'choice' && (
+          <div className="mt-2 rounded-2xl border border-white/10 bg-white/[0.03] p-3">
+            <div className="grid grid-cols-2 gap-2">
+              <button
+                data-add-choice-custom
+                onClick={() => setAddMode('custom')}
+                className="rounded-xl border border-white/10 bg-white/[0.03] hover:border-white/25 px-3 py-2.5 text-left transition-colors"
+              >
+                <span className="block text-[12px] font-medium">自定义</span>
+                <span className="block text-[11px] text-white/40 mt-0.5">手动输入名称和网址</span>
+              </button>
+              <button
+                data-add-choice-pool
+                onClick={() => setAddMode('pool')}
+                className="rounded-xl border border-indigo-400/40 bg-indigo-500/10 hover:border-indigo-400/70 px-3 py-2.5 text-left transition-colors"
+              >
+                <span className="block text-[12px] font-medium">在杂盒里找</span>
+                <span className="block text-[11px] text-white/40 mt-0.5">从导航站里多选加入</span>
+              </button>
+            </div>
+            <button
+              onClick={() => setAddMode(null)}
+              className="mt-2 w-full py-1.5 rounded-xl bg-white/10 text-[12px] text-white/70 hover:text-white transition-colors"
+            >
+              取消
+            </button>
+          </div>
+        )}
+        {addMode === 'custom' && (
           <div className="mt-2">
             <SiteForm
               onSubmit={(draft) => {
                 store.addSite(group.id, draft);
-                setAdding(false);
+                setAddMode(null);
               }}
-              onCancel={() => setAdding(false)}
+              onCancel={() => setAddMode('choice')}
             />
           </div>
+        )}
+        {addMode === 'pool' && (
+          <SitePoolPicker
+            group={group}
+            onAdd={(sites) => {
+              // 池子条目直转 SiteDraft：图标用池子自带 logo（品牌图或各站 favicon），
+              // VPN 标记转标签；一次加多个，顺序按池子原顺序
+              for (const s of sites) {
+                store.addSite(group.id, {
+                  name: s.name,
+                  url: s.url,
+                  description: s.description,
+                  aliases: [],
+                  pinned: false,
+                  tags: s.needVpn ? ['VPN'] : [],
+                  iconMode: 'auto',
+                  iconText: '',
+                  iconImage: '',
+                  autoLogo: s.logo,
+                });
+              }
+              setAddMode(null);
+            }}
+            onBack={() => setAddMode('choice')}
+            onClose={() => setAddMode(null)}
+          />
         )}
       </div>
 

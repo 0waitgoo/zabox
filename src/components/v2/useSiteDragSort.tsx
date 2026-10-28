@@ -50,6 +50,9 @@ export function useSiteDragSort({
   const [dragId, setDragId] = useState<string | null>(null);
   const [clone, setClone] = useState<{ html: string; w: number; h: number } | null>(null);
   const cloneRef = useRef<HTMLDivElement>(null);
+  /** 快照 fixed 定位的实际原点：祖先带 transform（如 C 卡框 whileHover 悬停上浮）时 fixed 改以该祖先
+   * 为包含块，视口坐标须减去此原点；无 transform 祖先时原点为 (0,0)，行为不变 */
+  const originRef = useRef<{ x: number; y: number } | null>(null);
   const containerRef = useRef<HTMLElement | null>(null);
   const pendingRef = useRef<{ id: string; pointerId: number; startX: number; startY: number } | null>(null);
   /** effect 内建的激活函数（左滑超距逃逸用）：组件体内的 activateCrossNow 经它调用 */
@@ -110,7 +113,8 @@ export function useSiteDragSort({
     const positionClone = (x: number, y: number) => {
       const d = activeRef.current;
       if (d && cloneRef.current) {
-        cloneRef.current.style.transform = `translate(${x - d.offsetX}px, ${y - d.offsetY}px)`;
+        const o = originRef.current ?? { x: 0, y: 0 };
+        cloneRef.current.style.transform = `translate(${x - d.offsetX - o.x}px, ${y - d.offsetY - o.y}px)`;
       }
     };
 
@@ -130,6 +134,7 @@ export function useSiteDragSort({
       setPreview(null);
       setDragId(null);
       setClone(null);
+      originRef.current = null;
       if (d.mode === 'cross') {
         // 跨组提交：目标组存在且不是源组才移动；同组/空白 = 取消
         if (commit && crossTarget && crossTarget.groupId !== groupIdRef.current) {
@@ -302,11 +307,14 @@ export function useSiteDragSort({
     };
   }, []);
 
-  // 快照挂载后先定位到抓起处，避免首帧闪到角落
+  // 快照挂载后先定位到抓起处，避免首帧闪到角落；挂载瞬间尚未设 transform，
+  // 此时量到的 rect 就是 fixed 的实际原点（有 transform 祖先时为该祖先原点）
   useEffect(() => {
     const d = activeRef.current;
     if (clone && d && cloneRef.current) {
-      cloneRef.current.style.transform = `translate(${d.lastX - d.offsetX}px, ${d.lastY - d.offsetY}px)`;
+      const r = cloneRef.current.getBoundingClientRect();
+      originRef.current = { x: r.left, y: r.top };
+      cloneRef.current.style.transform = `translate(${d.lastX - d.offsetX - r.left}px, ${d.lastY - d.offsetY - r.top}px)`;
     }
   }, [clone]);
 
@@ -346,10 +354,13 @@ export function useSiteDragSort({
   /** 占位只属于组内排序：跨组模式源行保持原样，不套虚线占位 */
   const isDragging = (site: SiteEntry) => activeRef.current?.mode === 'sort' && dragId !== null && site.id === dragId;
 
-  /** 拖动中的浮动快照（渲染在容器外层即可，fixed 定位；样式与主页拖拽快照同语言） */
+  /** 拖动中的浮动快照（渲染在容器外层即可，fixed 定位；样式与主页拖拽快照同语言。
+   * 注意：fixed 的实际原点受 transform 祖先影响（C 卡框 whileHover），定位时须减去
+   * 挂载瞬间量到的原点（见 originRef），否则快照会按卡片原点整体错位、看着像从别处拖起） */
   const dragLayer = clone ? (
     <div
       ref={cloneRef}
+      data-drag-clone
       className="fixed left-0 top-0 z-[85] pointer-events-none will-change-transform"
       style={{ width: clone.w, height: clone.h }}
     >

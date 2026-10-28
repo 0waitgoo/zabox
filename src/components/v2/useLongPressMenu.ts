@@ -1,4 +1,5 @@
 import { useEffect } from 'react';
+import { DRAG_THRESHOLD } from './useSiteDragSort';
 
 /**
  * 全局「原位长按触发右键菜单」（第七十轮）。
@@ -17,6 +18,10 @@ import { useEffect } from 'react';
  *   吞掉），防止各 pending 拖拽在菜单已开后迟到激活；松手的 click 按「松手点」
  *   吞掉，避免穿透触发底层点击（与右键语义一致：右键松手本就不产生 click，
  *   操作菜单要松手后再点）。
+ * - 收起网格站点行例外（与长按 1 秒跨组拖拽互斥）：500ms 不直接开菜单（否则冻结
+ *   位移、拖拽起不来），位移容差收紧到拖拽激活阈值 7px；按住不动满 500ms 后松手
+ *   才开菜单（松手 click 照常抑制），按住 1 秒再拖则走跨组拖拽、菜单不开。
+ *   卡片空白/标题等其他区域仍是 500ms 直接开菜单，尺寸菜单等入口不受影响。
  *
  * 移动端原生冲突：Android Chrome 长按会由浏览器先发真实 contextmenu（既有路由
  * 已开菜单）——本层监听到后置标记并取消合成，避免同一次按压开两次；iOS Safari
@@ -39,6 +44,10 @@ interface PressState {
   x: number;
   y: number;
   nativeMenuSeen: boolean;
+  /** 收起网格站点行：500ms 不直接开菜单，改松手时开（与跨组拖拽互斥，见 onPointerEnd） */
+  isCollapsedRow: boolean;
+  /** 按下时刻（ms）：松手菜单要求按住满 LONG_PRESS_MS */
+  t: number;
 }
 
 export default function useLongPressMenu() {
@@ -96,11 +105,12 @@ export default function useLongPressMenu() {
       const t = e.target as HTMLElement | null;
       if (!t || typeof t.closest !== 'function') return;
       if (t.closest(EDITABLE_SELECTOR)) return; // 输入区不触发（还要选中/粘贴）
-      // 收起网格站点行：长按 1 秒属于跨组拖拽武装，不开菜单（展开行与桌面真实右键不受影响）
-      if (t.closest('[data-collapsed-grid] [data-site-drag-id]')) return;
-      press = { pointerId: e.pointerId, target: t, x: e.clientX, y: e.clientY, nativeMenuSeen: false };
+      // 收起网格站点行：500ms 不直接开菜单（否则冻结后续位移、按住 1 秒再拖的跨组拖拽起不来）；
+      // 改松手时开（见 onPointerEnd）：按住不动满 500ms 后松手 = 菜单，按住 1 秒再拖 = 跨组移动
+      const isCollapsedRow = !!t.closest('[data-collapsed-grid] [data-site-drag-id]');
+      press = { pointerId: e.pointerId, target: t, x: e.clientX, y: e.clientY, nativeMenuSeen: false, isCollapsedRow, t: Date.now() };
       clearTimer();
-      timer = window.setTimeout(fire, LONG_PRESS_MS);
+      if (!isCollapsedRow) timer = window.setTimeout(fire, LONG_PRESS_MS);
     };
 
     const onPointerMoveCapture = (e: PointerEvent) => {
@@ -111,13 +121,26 @@ export default function useLongPressMenu() {
       }
       const p = press;
       if (!p || e.pointerId !== p.pointerId) return;
-      if (Math.hypot(e.clientX - p.x, e.clientY - p.y) > MOVE_TOLERANCE_PX) cancelPress();
+      // 收起行位移容差收紧到跨组拖拽的激活阈值：一动（≥7px）即取消松手菜单，拖拽与菜单互斥；
+      // 其他区域仍用 10px（卡片拖拽排序等的既有模型）
+      const tol = p.isCollapsedRow ? DRAG_THRESHOLD : MOVE_TOLERANCE_PX;
+      if (Math.hypot(e.clientX - p.x, e.clientY - p.y) > tol) cancelPress();
     };
 
     const onPointerEnd = (e: PointerEvent) => {
       if (frozenPointerId !== null && e.pointerId === frozenPointerId) {
         frozenPointerId = null;
         suppressClick = { x: e.clientX, y: e.clientY, at: Date.now() };
+      }
+      // 收起行松手菜单（仅松手、不含取消）：按住不动满 500ms、位移未超拖拽阈值（动过已被取消）、
+      // 浏览器没先开菜单——fire() 后紧接着的 frozen 分支会把松手 click 抑制记下来，菜单打开后不穿透开站点
+      if (e.type === 'pointerup' && press && press.isCollapsedRow && !press.nativeMenuSeen && Date.now() - press.t >= LONG_PRESS_MS) {
+        fire();
+        if (frozenPointerId !== null && e.pointerId === frozenPointerId) {
+          frozenPointerId = null;
+          suppressClick = { x: e.clientX, y: e.clientY, at: Date.now() };
+        }
+        return;
       }
       if (press && e.pointerId === press.pointerId) cancelPress();
     };

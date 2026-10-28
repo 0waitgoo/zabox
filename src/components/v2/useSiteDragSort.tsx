@@ -18,8 +18,11 @@ import type { SiteEntry } from '../../data/groups';
  * 快照、源行保持原样不占位不重排，松手时按指针下 data-group-card 卡片判定目标组，
  * 落在别的组卡上即 onMoveToGroup，同组或空白处 = 取消。武装期间左滑由宿主的
  * gestureLock 释放（见 SwipeableRow），展开体不接跨组、行为 100% 不变。
+ * 与长按菜单的互斥：收起行按住不动的菜单由长按层在松手时开（500ms 不直接开，
+ * 否则冻结位移、拖拽起不来）；位移一过 7px 阈值，长按层的松手菜单即取消。
  */
 const DRAG_THRESHOLD = 7;
+export { DRAG_THRESHOLD };
 /** 按住武装时长（ms）：收起网格站点行按住满此时长再拖 = 跨组移动 */
 const CROSS_ARM_MS = 1000;
 

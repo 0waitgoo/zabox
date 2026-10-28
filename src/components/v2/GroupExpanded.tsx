@@ -442,7 +442,7 @@ function EditableSiteRow({
         }}
         className="flex items-center gap-2.5 flex-1 min-w-0 text-left"
       >
-        <SiteLogo logo={siteIconSrc(site)} name={site.name} size={34} imgSize={23} grayscale={site.dead} />
+        <SiteLogo logo={siteIconSrc(site)} name={site.name} url={site.url} size={34} imgSize={23} grayscale={site.dead} />
         <span className="flex-1 min-w-0">
           <span className="flex items-center gap-1.5">
             <span className={`text-[13px] font-semibold truncate min-w-0 ${site.dead ? 'text-white/45' : ''}`}>{site.name}</span>

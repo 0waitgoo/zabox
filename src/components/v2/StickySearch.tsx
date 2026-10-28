@@ -146,7 +146,7 @@ export default function StickySearch({
                       onClick={() => openSite(site.url)}
                       className="w-full flex items-center gap-3 px-3 py-2 rounded-2xl hover:bg-white/8 text-left transition-colors group/item"
                     >
-                      <SiteLogo logo={siteIconSrc(site)} name={site.name} size={32} imgSize={22} />
+                      <SiteLogo logo={siteIconSrc(site)} name={site.name} url={site.url} size={32} imgSize={22} />
                       <span className="flex-1 min-w-0">
                         <span className="flex items-center gap-2">
                           <span className="text-sm font-medium truncate">{site.name}</span>

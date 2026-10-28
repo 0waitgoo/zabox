@@ -130,11 +130,18 @@ export function StackGroupIcon({ group, size = 30 }: { group: NavGroup; size?: n
           style={{ width: size * 0.63, height: size * 0.63 }}
           onError={(e) => {
             const target = e.target as HTMLImageElement;
-            // 组头图标加载失败 → 回落首站站名首字字标（第八十四轮）；字标本身再失败才隐藏
-            if (!target.src.startsWith('data:')) {
-              target.src = siteLogoFallback(sortSites(group.sites)[0]?.name ?? group.name);
-            } else {
+            // 组头图标加载失败 → 二段回落（同 SiteTile：本地图标 404 → 该站 favicon → 字母）；字标本身再失败才隐藏
+            const first = sortSites(group.sites)[0];
+            if (target.src.startsWith('data:')) {
               target.style.display = 'none';
+            } else if (target.src.includes('/favicon.ico') || !first) {
+              target.src = siteLogoFallback(first?.name ?? group.name);
+            } else {
+              try {
+                target.src = `${new URL(first.url).origin}/favicon.ico`;
+              } catch {
+                target.src = siteLogoFallback(first.name);
+              }
             }
           }}
         />
@@ -184,7 +191,17 @@ function SiteTile({ site }: { site: SiteEntry }) {
           className={`w-full h-full object-contain p-[16%] ${site.dead ? 'grayscale opacity-60' : ''}`}
           onError={(e) => {
             const target = e.target as HTMLImageElement;
-            if (!target.src.startsWith('data:')) target.src = siteLogoFallback(site.name);
+            // 二段回落（2026-10-28 晚）：本地图标 404 → 该站自己的 /favicon.ico → 字母
+            if (target.src.startsWith('data:')) return;
+            if (target.src.includes('/favicon.ico')) {
+              target.src = siteLogoFallback(site.name);
+              return;
+            }
+            try {
+              target.src = `${new URL(site.url).origin}/favicon.ico`;
+            } catch {
+              target.src = siteLogoFallback(site.name);
+            }
           }}
         />
       </span>

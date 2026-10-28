@@ -338,7 +338,7 @@ export function GroupPanelSection({
                   className="flex flex-col items-center gap-1.5 w-full mt-4"
                 >
                   {/* mt-4（第四十九轮）：图标区下移避开右上角徽标带，徽标独占格子右上角、与图标零重叠 */}
-                  <SiteLogo logo={siteIconSrc(site)} name={site.name} size={40} imgSize={28} grayscale={site.dead} />
+                  <SiteLogo logo={siteIconSrc(site)} name={site.name} url={site.url} size={40} imgSize={28} grayscale={site.dead} />
                   <span className={`text-[11px] font-medium w-full text-center truncate ${site.dead ? 'text-white/45' : 'text-white/85'}`}>
                     {site.name}
                   </span>

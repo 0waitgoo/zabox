@@ -271,7 +271,7 @@ export default function GroupListCard({
                     }}
                     className="flex items-center gap-2.5 px-2 py-[7px] w-full rounded-2xl hover:bg-white/6 text-left transition-colors"
                   >
-                    <SiteLogo logo={siteIconSrc(site)} name={site.name} size={34} imgSize={23} grayscale={site.dead} />
+                    <SiteLogo logo={siteIconSrc(site)} name={site.name} url={site.url} size={34} imgSize={23} grayscale={site.dead} />
                     <span className="flex-1 min-w-0">
                       <span className="flex items-center gap-1.5">
                         <span className={`text-[13px] font-semibold truncate min-w-0 ${site.dead ? 'text-white/45' : ''}`}>{site.name}</span>

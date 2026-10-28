@@ -70,6 +70,7 @@ export function CardIconBadge({ children, className = 'bg-indigo-500 text-white'
 export function SiteLogo({
   logo,
   name,
+  url,
   size = 36,
   imgSize = 26,
   className = '',
@@ -77,6 +78,8 @@ export function SiteLogo({
 }: {
   logo: string;
   name: string;
+  /** 站点地址（可选）：图标加载失败时先试该站自己的 /favicon.ico，再回落字母 */
+  url?: string;
   size?: number;
   imgSize?: number;
   className?: string;
@@ -96,8 +99,22 @@ export function SiteLogo({
         style={{ width: imgSize, height: imgSize }}
         onError={(e) => {
           const target = e.target as HTMLImageElement;
-          // 兜底终点 = 站名首字字标（第八十四轮，siteLogoFallback 本地生成 data URI，不会再失败）
-          if (!target.src.startsWith('data:')) target.src = siteLogoFallback(name);
+          // 二段回落（2026-10-28 晚）：本地图标 404 → 该站自己的 /favicon.ico → 字母；
+          // 解决已应用预设的旧数据（存的是 /icon_APP/ 路径）不随预设定义更新的问题
+          if (target.src.startsWith('data:')) return;
+          if (target.src.includes('/favicon.ico')) {
+            target.src = siteLogoFallback(name);
+            return;
+          }
+          if (url) {
+            try {
+              target.src = `${new URL(url).origin}/favicon.ico`;
+              return;
+            } catch {
+              // URL 不合法时直接回落字母
+            }
+          }
+          target.src = siteLogoFallback(name);
         }}
       />
     </div>

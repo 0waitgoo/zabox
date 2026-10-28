@@ -1,7 +1,9 @@
 import React from 'react';
 import { motion } from 'motion/react';
 import { groupIcon, siteIconSrc, sortSites, type NavGroup, type SiteEntry } from '../../data/groups';
+import type { LocalStore } from '../../store/localStore';
 import { cachedIconSrc, nextFallbackIconSrc, storeIconSrc } from './Card';
+import { useSiteDragSort } from './useSiteDragSort';
 
 /**
  * C 型 · 编组堆叠卡（默认 1 栏 × 1X）——「极简文件夹」卡面（第十二轮，用户在第三轮线稿中选定方案四）
@@ -169,12 +171,14 @@ const FACE_TILE_VARS = {
   '--face-tile-gap': '10px',
 } as React.CSSProperties;
 
-/** 单个站点瓷砖（白底圆角块 + 站点图标），尺寸走全形态统一变量；点击直达并阻止冒泡 */
-function SiteTile({ site }: { site: SiteEntry }) {
+/** 单个站点瓷砖（白底圆角块 + 站点图标），尺寸走全形态统一变量；点击直达并阻止冒泡；
+ * 跨组拖拽源：带 data-site-drag-id，拖完的 click 由宿主 guardClick 吞掉 */
+function SiteTile({ site, guardClick }: { site: SiteEntry; guardClick?: () => boolean }) {
   const initial = siteIconSrc(site);
   const src = cachedIconSrc(site.url, initial, site.name) ?? initial;
   const openSite = (e: React.MouseEvent) => {
     e.stopPropagation();
+    if (guardClick?.()) return;
     window.open(site.url, '_blank');
   };
   return (
@@ -182,6 +186,7 @@ function SiteTile({ site }: { site: SiteEntry }) {
       type="button"
       title={site.name}
       data-face-site={site.name}
+      data-site-drag-id={site.id}
       onClick={openSite}
       className="group/face shrink-0 rounded-[13px] hover:z-20"
       style={{ width: 'var(--face-tile-size)', height: 'var(--face-tile-size)' }}
@@ -254,10 +259,12 @@ function useRowFitCount(zoneRef: React.RefObject<HTMLDivElement | null>, enabled
  */
 export function StackSiteTiles({
   group,
+  store,
   colSpan = 1,
   heightUnits = 1,
 }: {
   group: NavGroup;
+  store: LocalStore;
   /** 仅签名兼容：排布只按高度分支（第五十六轮），宽度只影响每行可容纳数 */
   colSpan?: 1 | 2;
   heightUnits?: 1 | 2;
@@ -266,10 +273,22 @@ export function StackSiteTiles({
   const zoneRef = React.useRef<HTMLDivElement | null>(null);
   const fitCount = useRowFitCount(zoneRef, heightUnits === 1);
   const visible = heightUnits === 1 ? sorted.slice(0, fitCount) : sorted;
+  // 卡面瓷砖跨组拖拽（与 B 卡收起网格同规则：按住 1 秒武装，拖到别的组卡松手即 moveSite；
+  // 组合卡 active 组瓷砖同样走这里；弹窗（GroupPanel）内瓷砖不接——弹窗盖住目标卡，拖不出去）
+  const crossDrag = useSiteDragSort({
+    sites: sorted,
+    groupId: group.id,
+    crossGroupOnly: true,
+    onMoveToGroup: (siteId, targetGroupId) => store.moveSite(group.id, siteId, targetGroupId),
+  });
   return (
+    <>
     <div
       ref={zoneRef}
       data-tiles-zone
+      data-cross-source
+      onPointerDown={crossDrag.onContainerPointerDown}
+      onDragStart={crossDrag.onContainerDragStart}
       style={FACE_TILE_VARS}
       className={`flex-1 min-h-0 flex pt-3 relative ${
         /* 1x：补 pb-3 与 pt-3 对称，单行在整个图标区（含内边距）内真正垂直居中；水平靠左（第六十三轮） */
@@ -286,7 +305,7 @@ export function StackSiteTiles({
         >
           {visible.map((site) => (
             <React.Fragment key={site.id ?? site.name}>
-              <SiteTile site={site} />
+              <SiteTile site={site} guardClick={crossDrag.consumeSuppressClick} />
             </React.Fragment>
           ))}
         </div>
@@ -298,23 +317,34 @@ export function StackSiteTiles({
         >
           {visible.map((site) => (
             <React.Fragment key={site.id ?? site.name}>
-              <SiteTile site={site} />
+              <SiteTile site={site} guardClick={crossDrag.consumeSuppressClick} />
             </React.Fragment>
           ))}
         </div>
       )}
+      {/* 按住提示（仅 1x 卡面：单行垂直居中、上下有空隙，绝对定位不占布局、不拦截点击；
+          2x 瓷砖从顶部流式排满到底，底部无空隙可放，不显示） */}
+      {group.sites.length > 0 && heightUnits === 1 && (
+        <div className="absolute bottom-0 left-0 right-0 text-center text-[10px] leading-4 text-white/35 pointer-events-none">
+          按住站点可拖到其他组
+        </div>
+      )}
     </div>
+    {crossDrag.dragLayer}
+    </>
   );
 }
 
 export default function GroupStackCard({
   group,
+  store,
   onOpen,
   delay = 0,
   colSpan = 1,
   heightUnits = 1,
 }: {
   group: NavGroup;
+  store: LocalStore;
   onOpen: (group: NavGroup) => void;
   delay?: number;
   /** 右键布局宽度（瓷砖尺寸已全形态统一，此值不再影响图标大小） */
@@ -335,7 +365,7 @@ export default function GroupStackCard({
       <div className="mt-3 h-px bg-white/[0.08] shrink-0" />
 
       {/* 底部图标区（主角）：瓷砖可点击直达、悬停放大；未展示完以渐隐罩提示（无 +N 数字） */}
-      <StackSiteTiles group={group} colSpan={colSpan} heightUnits={heightUnits} />
+      <StackSiteTiles group={group} store={store} colSpan={colSpan} heightUnits={heightUnits} />
     </StackCardFrame>
   );
 }

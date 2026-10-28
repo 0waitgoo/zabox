@@ -247,6 +247,7 @@ export default function GroupListCard({
           <div className="flex-1 min-h-0 overflow-hidden">
           <div
             data-collapsed-grid
+            data-cross-source
             className={`grid gap-x-2 content-start ${colSpan === 1 ? 'grid-cols-1' : 'grid-cols-1 min-[480px]:grid-cols-3'}`}
             onPointerDown={crossDrag.onContainerPointerDown}
             onDragStart={crossDrag.onContainerDragStart}

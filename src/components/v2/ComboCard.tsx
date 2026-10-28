@@ -101,7 +101,7 @@ export default function ComboCard({
       </div>
 
       {/* 瓷砖区：当前 tab 组的站点，规则与普通 C 卡一致 */}
-      <StackSiteTiles group={active} colSpan={colSpan} heightUnits={heightUnits} />
+      <StackSiteTiles group={active} store={store} colSpan={colSpan} heightUnits={heightUnits} />
     </StackCardFrame>
   );
 }

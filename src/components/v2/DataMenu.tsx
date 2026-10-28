@@ -299,7 +299,7 @@ export default function DataMenu({ store }: { store: LocalStore }) {
     }
   };
 
-  const pullFromGithub = async (opts?: { forceApply?: boolean }): Promise<void> => {
+  const pullFromGithub = async (opts?: { forceApply?: boolean; autoRelogin?: boolean }): Promise<void> => {
     const cfg = ghCfg();
     if (!cfg || ghBusyRef.current) return;
     ghBusyRef.current = true;
@@ -312,6 +312,7 @@ export default function DataMenu({ store }: { store: LocalStore }) {
         return;
       }
       if (res.kind === 'error') {
+        if (opts?.autoRelogin && isGhUnauthorized(res.message) && (await tryAutoReloginOnLoad())) return;
         setGhStatus({ kind: 'error', text: res.message });
         return;
       }
@@ -366,6 +367,43 @@ export default function DataMenu({ store }: { store: LocalStore }) {
     if (!oauthClientId) return;
     const state = beginOAuthState();
     window.location.href = buildOAuthAuthorizeUrl(oauthClientId, state);
+  };
+
+  /* ---- 登录过期自动重登（用户要求：刷新一下自动登录，不用先点退出）----
+   * 背景：本站只存 access_token，没有 refresh_token；令牌被 GitHub 拒（401）时旧版只红字报错，
+   * 用户得先点退出登录再点登录。改后分两路：
+   * 1）页面加载时的自动拉取撞上 401：直接走 OAuth 重登（GitHub 那边若仍登录着，会秒回跳回来，
+   *    等于刷新自动登录）；10 分钟内只自动重登一次，防新令牌也 401 时来回跳转；
+   * 2）使用中撞上 401：不强制跳转，状态区出现“重新登录”按钮，点一下直接重登，不用先退出。 */
+  const OAUTH_AUTO_RETRY_KEY = 'ainav-oauth-auto-retry-at';
+  const OAUTH_AUTO_RETRY_COOLDOWN_MS = 10 * 60 * 1000;
+  const isGhUnauthorized = (msg: string) => msg.includes('（401）');
+  const canAutoRelogin = (): boolean => {
+    try {
+      const v = sessionStorage.getItem(OAUTH_AUTO_RETRY_KEY);
+      if (!v) return true;
+      const at = Number(v);
+      return Number.isFinite(at) && Date.now() - at > OAUTH_AUTO_RETRY_COOLDOWN_MS;
+    } catch {
+      return true;
+    }
+  };
+  /** 刷新时自动重登：拿不到 client_id、扩展版、令牌版、冷却期内一律返回 false，调用方照常显示红字错误 */
+  const tryAutoReloginOnLoad = async (): Promise<boolean> => {
+    if (IS_EXTENSION_BUILD) return false;
+    if (ghMetaRef.current.authMode !== 'oauth') return false;
+    if (!canAutoRelogin()) return false;
+    const cid = await fetchOAuthClientId();
+    if (!cid) return false;
+    try {
+      sessionStorage.setItem(OAUTH_AUTO_RETRY_KEY, String(Date.now()));
+    } catch {
+      // 存不下也继续：跳转本身能完成重登
+    }
+    setGhStatus({ kind: 'syncing', text: 'GitHub 登录已过期，正在重新登录…' });
+    const state = beginOAuthState();
+    window.location.href = buildOAuthAuthorizeUrl(cid, state);
+    return true;
   };
 
   /**
@@ -474,7 +512,7 @@ export default function DataMenu({ store }: { store: LocalStore }) {
       return;
     }
     const m = ghMetaRef.current;
-    if (m.enabled && githubConfigComplete(m)) void pullFromGithub();
+    if (m.enabled && githubConfigComplete(m)) void pullFromGithub({ autoRelogin: true });
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
@@ -791,6 +829,15 @@ export default function DataMenu({ store }: { store: LocalStore }) {
                         ? `上次同步 · ${formatSavedTime(ghMeta.lastSyncedAt)}`
                         : '未连接'}
                   </p>
+                  {ghStatus?.kind === 'error' && isGhUnauthorized(ghStatus.text) && (
+                    <button
+                      onClick={startOAuthLogin}
+                      disabled={!oauthClientId}
+                      className="mt-1 w-full flex items-center justify-center gap-2 px-3 py-2 rounded-xl bg-violet-500/80 text-white text-xs font-medium hover:bg-violet-500 transition-colors disabled:bg-white/10 disabled:text-white/35 disabled:cursor-not-allowed"
+                    >
+                      <LogIn size={14} /> 重新登录（不用先退出）
+                    </button>
+                  )}
                 </>
               ) : IS_EXTENSION_BUILD ? (
                 <>

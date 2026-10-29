@@ -9,10 +9,6 @@ const ENT_CATEGORIES = ['视频', '二次元', '音乐', '阅读', '游戏', '�
 function NavPage() {
   // 娱乐筛选（2026-10-28 晚）：点“娱乐导航”只显示娱乐六分类，再点“全部网站”回到全部
   const [entOnly, setEntOnly] = useState(false);
-  const handleClick = (url: string) => {
-    window.open(url, '_blank');
-  };
-
   const visibleEntries = Object.entries(toolsByCategory).filter(
     ([category]) => !entOnly || ENT_CATEGORIES.includes(category),
   );
@@ -43,9 +39,12 @@ function NavPage() {
             <h3 className="font-semibold text-lg tracking-tight mb-4">{category}</h3>
             <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-2.5">
               {tools.map((tool, idx) => (
-                <div
+                <a
                   key={idx}
-                  onClick={() => handleClick(tool.url)}
+                  href={tool.url}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  data-nav-site
                   className="flex items-center gap-2.5 p-2.5 rounded-2xl bg-white/5 hover:bg-white/10 border border-white/5 transition-all group cursor-pointer relative"
                 >
                   <div className="site-icon-frame w-9 h-9 sm:w-10 sm:h-10 rounded-xl flex items-center justify-center overflow-hidden flex-shrink-0 bg-white">
@@ -68,7 +67,7 @@ function NavPage() {
                   {tool.needVpn && (
                     <span className="absolute top-1.5 right-1.5 text-[8px] font-bold text-white/40 bg-white/10 px-1.5 py-0.5 rounded">VPN</span>
                   )}
-                </div>
+                </a>
               ))}
             </div>
           </div>

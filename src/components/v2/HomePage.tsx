@@ -1,6 +1,6 @@
 import React, { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { AnimatePresence, motion } from 'motion/react';
-import { LayoutGrid, FolderPlus, X, Check, List, Folder, Unlink, Combine, Palette, LogOut, ChevronDown } from 'lucide-react';
+import { LayoutGrid, FolderPlus, X, Check, List, Folder, Unlink, Palette, LogOut, ChevronDown } from 'lucide-react';
 import { GROUP_NAME_MAX, clampGroupName, textCharCount, type GroupDisplay, type NavGroup } from '../../data/groups';
 import {
   cardFaceStyleOf,
@@ -169,12 +169,9 @@ export default function HomePage({ onNavigate, store }: { onNavigate: (page: str
   const sizeMenuRef = useRef<HTMLDivElement>(null);
   /** 「换个底色」选色面板的展开状态（第九十一轮）：记卡片 key，菜单关掉/换个目标自然对不上即收起 */
   const [tintPanelFor, setTintPanelFor] = useState<string | null>(null);
-  /** 空白处右键菜单（第二十七轮）：新建组合 / 添加组件；只在非卡片、非弹窗、非顶栏区域触发 */
+  /** 空白处右键菜单（第二十七轮）：新建编组 / 添加组件；只在非卡片、非弹窗、非顶栏区域触发 */
   const [blankMenu, setBlankMenu] = useState<{ x: number; y: number } | null>(null);
   const blankMenuRef = useRef<HTMLDivElement>(null);
-  /** 新建组合选择器：勾选恰好 2 个候选组后生成组合卡 */
-  const [showComboPicker, setShowComboPicker] = useState(false);
-  const [pickerSelected, setPickerSelected] = useState<string[]>([]);
   /** 拖拽合并提示（充能完成后压住的目标卡），由拖拽逻辑写入、渲染层在目标卡上画高亮；
    *  kind 区分编组组合与组件摞两套合并（第七十二轮），full = 目标是摞但已满 4 个（拒绝反馈） */
   const [mergeUi, setMergeUi] = useState<{
@@ -248,12 +245,6 @@ export default function HomePage({ onNavigate, store }: { onNavigate: (page: str
         return ga && gb ? [ga, gb] : null;
       })()
     : null;
-  /** 可参与新建组合的组：文件夹式且不在任何组合中（空白菜单「新建组合」的候选与置灰判定） */
-  const comboCandidates = useMemo(
-    () => groups.filter((g) => g.display === 'stack' && !memberIds.has(g.id)),
-    [groups, memberIds],
-  );
-
   /* ---------- 右键尺寸菜单（原生组件与 B 型编组共用） ---------- */
   /* 选色面板展开态随菜单关闭复位（第九十一轮）：任何路径关掉菜单后重开都是收起态 */
   useEffect(() => {
@@ -298,7 +289,7 @@ export default function HomePage({ onNavigate, store }: { onNavigate: (page: str
     };
   }, [blankMenu]);
 
-  /** 页面菜单（新建组合/添加组件）的统一定位打开：React 空白处理器与原生兜底路由共用 */
+  /** 页面菜单（新建编组/添加组件）的统一定位打开：React 空白处理器与原生兜底路由共用 */
   const openBlankMenuAtRef = useRef((clientX: number, clientY: number) => {
     void clientX;
     void clientY;
@@ -339,28 +330,6 @@ export default function HomePage({ onNavigate, store }: { onNavigate: (page: str
     document.addEventListener('contextmenu', onContextMenu);
     return () => document.removeEventListener('contextmenu', onContextMenu);
   }, []);
-
-  const togglePickerGroup = (id: string) => {
-    setPickerSelected((prev) => {
-      if (prev.includes(id)) return prev.filter((x) => x !== id);
-      if (prev.length >= 2) return prev; // 恰好 2 个：选满后需先取消已选才能换
-      return [...prev, id];
-    });
-  };
-
-  /** 选择器里生成组合卡：复用 mergeCombo，构造顺序让组合落在卡片顺序末尾；先选的组为左 tab */
-  const createComboFromPicker = () => {
-    if (pickerSelected.length !== 2) return;
-    const [a, b] = pickerSelected;
-    const order = [
-      ...baseOrder.filter((k) => k !== groupCardKey(a) && k !== groupCardKey(b)),
-      groupCardKey(a),
-      groupCardKey(b),
-    ];
-    store.mergeCombo(a, b, order);
-    setShowComboPicker(false);
-    setPickerSelected([]);
-  };
 
   const openSizeMenu = (e: React.MouseEvent, target: SizeMenuTarget) => {
     e.preventDefault();
@@ -1945,26 +1914,16 @@ export default function HomePage({ onNavigate, store }: { onNavigate: (page: str
             className="fixed z-[80] w-[200px] rounded-2xl bg-[#1e1e26] border border-white/15 shadow-2xl shadow-black/70 p-2"
             style={{ left: blankMenu.x, top: blankMenu.y }}
           >
-            {comboCandidates.length >= 2 ? (
-              <button
-                data-blank-new-combo
-                onClick={() => {
-                  setBlankMenu(null);
-                  setPickerSelected([]);
-                  setShowComboPicker(true);
-                }}
-                className="w-full flex items-center gap-2 px-2.5 py-2 rounded-lg text-left text-xs text-white/80 hover:bg-white/8 hover:text-white transition-colors"
-              >
-                <Combine size={14} className="text-white/45" /> 新建组合
-              </button>
-            ) : (
-              <div className="px-2.5 py-2 text-xs text-white/30 cursor-not-allowed" data-blank-new-combo-disabled>
-                <span className="flex items-center gap-2">
-                  <Combine size={14} /> 新建组合
-                </span>
-                <span className="block mt-1 text-[10px] text-white/30">需要至少 2 个文件夹式编组</span>
-              </div>
-            )}
+            <button
+              data-blank-new-group
+              onClick={() => {
+                setBlankMenu(null);
+                setShowNewGroup(true);
+              }}
+              className="w-full flex items-center gap-2 px-2.5 py-2 rounded-lg text-left text-xs text-white/80 hover:bg-white/8 hover:text-white transition-colors"
+            >
+              <FolderPlus size={14} className="text-white/45" /> 新建编组
+            </button>
             <button
               data-blank-add-widget
               onClick={() => {
@@ -1975,83 +1934,6 @@ export default function HomePage({ onNavigate, store }: { onNavigate: (page: str
             >
               <LayoutGrid size={14} className="text-white/45" /> 添加组件
             </button>
-          </motion.div>
-        )}
-      </AnimatePresence>
-
-      {/* 新建组合选择器：列出全部可合并的文件夹式编组，勾选恰好 2 个生成组合卡 */}
-      <AnimatePresence>
-        {showComboPicker && (
-          <motion.div
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-            className="fixed inset-0 z-[70] bg-black/60 backdrop-blur-sm flex items-center justify-center p-4"
-            onClick={() => setShowComboPicker(false)}
-          >
-            <motion.div
-              initial={{ opacity: 0, scale: 0.96, y: 10 }}
-              animate={{ opacity: 1, scale: 1, y: 0 }}
-              exit={{ opacity: 0, scale: 0.96, y: 10 }}
-              transition={{ duration: 0.18 }}
-              onClick={(e) => e.stopPropagation()}
-              data-combo-picker
-              className="rounded-[24px] bg-[#17171d] border border-white/15 w-full max-w-sm p-4 shadow-2xl shadow-black/70"
-            >
-              <div className="flex items-center justify-between mb-1">
-                <h3 className="font-semibold text-sm">新建组合卡</h3>
-                <button
-                  onClick={() => setShowComboPicker(false)}
-                  className="p-1.5 rounded-lg text-white/50 hover:text-white hover:bg-white/10"
-                  aria-label="关闭"
-                >
-                  <X size={15} />
-                </button>
-              </div>
-              <p className="text-[11px] text-white/40 mb-3">选择两个文件夹式编组，合并成一张左右双 tab 的组合卡。</p>
-              <div className="flex flex-col gap-1 max-h-[46vh] overflow-y-auto">
-                {comboCandidates.map((g) => {
-                  const selected = pickerSelected.includes(g.id);
-                  const orderIdx = pickerSelected.indexOf(g.id);
-                  const disabled = !selected && pickerSelected.length >= 2;
-                  return (
-                    <button
-                      key={g.id}
-                      data-picker-group={g.id}
-                      onClick={() => togglePickerGroup(g.id)}
-                      disabled={disabled}
-                      className={`flex items-center gap-2.5 px-2.5 py-2 rounded-xl text-left transition-colors ${
-                        selected
-                          ? 'bg-indigo-500/15 border border-indigo-400/50'
-                          : 'border border-transparent hover:bg-white/5'
-                      } ${disabled ? 'opacity-35 cursor-not-allowed' : ''}`}
-                    >
-                      <span
-                        className={`w-[18px] h-[18px] rounded-[5px] border flex items-center justify-center shrink-0 transition-colors ${
-                          selected ? 'bg-indigo-500 border-indigo-500 text-white' : 'border-white/30 text-transparent'
-                        }`}
-                      >
-                        <Check size={12} strokeWidth={3} />
-                      </span>
-                      <StackGroupIcon group={g} size={26} />
-                      <span className="flex-1 min-w-0 truncate text-sm">{g.name}</span>
-                      {selected && (
-                        <span className="text-[10px] text-indigo-300 shrink-0">{orderIdx === 0 ? '左 tab' : '右 tab'}</span>
-                      )}
-                      <span className="text-[11px] text-white/35 shrink-0">{g.sites.length} 个站点</span>
-                    </button>
-                  );
-                })}
-              </div>
-              <button
-                onClick={createComboFromPicker}
-                disabled={pickerSelected.length !== 2}
-                data-combo-create
-                className="mt-3.5 w-full py-2 rounded-xl bg-indigo-500/80 hover:bg-indigo-500 disabled:opacity-40 text-white text-sm font-medium transition-colors"
-              >
-                生成组合卡（已选 {pickerSelected.length}/2）
-              </button>
-            </motion.div>
           </motion.div>
         )}
       </AnimatePresence>
@@ -2074,6 +1956,7 @@ export default function HomePage({ onNavigate, store }: { onNavigate: (page: str
               exit={{ opacity: 0, scale: 0.96, y: 10 }}
               transition={{ duration: 0.18 }}
               onClick={(e) => e.stopPropagation()}
+              data-new-group-modal
               className="rounded-[24px] bg-[#17171d] border border-white/10 w-full max-w-sm p-4 shadow-2xl shadow-black/60"
             >
               <div className="flex items-center justify-between mb-3">

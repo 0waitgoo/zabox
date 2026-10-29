@@ -2,7 +2,7 @@ import React from 'react';
 import { motion } from 'motion/react';
 import { groupIcon, siteIconSrc, sortSites, type NavGroup, type SiteEntry } from '../../data/groups';
 import type { LocalStore } from '../../store/localStore';
-import IconImage from './IconImage';
+import { cachedIconSrc, nextFallbackIconSrc, storeIconSrc } from './Card';
 import { useSiteDragSort } from './useSiteDragSort';
 
 /**
@@ -128,13 +128,25 @@ export function StackGroupIcon({ group, size = 30 }: { group: NavGroup; size?: n
       style={{ width: size, height: size }}
     >
       {group.sites.length > 0 ? (
-        <IconImage
-          src={initial}
-          name={iconName}
-          url={first?.url}
+        <img
+          src={cachedIconSrc(first?.url, initial, iconName) ?? initial}
           alt={group.name}
+          loading="lazy"
           className="object-contain"
           style={{ width: size * 0.63, height: size * 0.63 }}
+          onLoad={(e) => {
+            const target = e.target as HTMLImageElement;
+            if (target.src.includes('/favicon.ico') || target.src.startsWith('data:')) {
+              storeIconSrc(first?.url, initial, iconName, target.src);
+            }
+          }}
+          onError={(e) => {
+            const target = e.target as HTMLImageElement;
+            // 组头图标加载失败 → 二段回落（同 SiteTile：本地图标 404 → 该站 favicon → 字母）；字标本身再失败才隐藏
+            const next = nextFallbackIconSrc(target.src, first?.url, iconName);
+            if (next !== undefined) target.src = next;
+            else target.style.display = 'none';
+          }}
         />
       ) : (
         <span className="text-slate-400 text-[13px] font-bold">{group.name.charAt(0)}</span>
@@ -159,10 +171,12 @@ const FACE_TILE_VARS = {
   '--face-tile-gap': '10px',
 } as React.CSSProperties;
 
-/** 单个站点瓷砖（白底圆角块 + 站点图标），尺寸走全形态统一变量；点击直达并阻止冒泡；
+/** 单个站点瓷砖（白底圆角块 + 站点图标 + 下方名字，名字字号与弹窗瓷砖一致 11px；
+ * 尺寸走全形态统一变量；点击直达并阻止冒泡；
  * 跨组拖拽源：带 data-site-drag-id，拖完的 click 由宿主 guardClick 吞掉 */
 function SiteTile({ site, guardClick }: { site: SiteEntry; guardClick?: () => boolean }) {
   const initial = siteIconSrc(site);
+  const src = cachedIconSrc(site.url, initial, site.name) ?? initial;
   const openSite = (e: React.MouseEvent) => {
     e.stopPropagation();
     if (guardClick?.()) return;
@@ -175,17 +189,34 @@ function SiteTile({ site, guardClick }: { site: SiteEntry; guardClick?: () => bo
       data-face-site={site.name}
       data-site-drag-id={site.id}
       onClick={openSite}
-      className="group/face shrink-0 rounded-[13px] hover:z-20"
-      style={{ width: 'var(--face-tile-size)', height: 'var(--face-tile-size)' }}
+      className="group/face shrink-0 rounded-[13px] hover:z-20 flex flex-col items-center"
+      style={{ width: 'var(--face-tile-size)' }}
     >
-      <span className="site-icon-frame block w-full h-full rounded-[13px] bg-white overflow-hidden transition-transform duration-150 motion-safe:group-hover/face:-translate-y-0.5 motion-safe:group-focus-visible/face:-translate-y-0.5">
-        <IconImage
-          src={initial}
-          name={site.name}
-          url={site.url}
+      <span
+        className="site-icon-frame block w-full rounded-[13px] bg-white overflow-hidden transition-transform duration-150 group-hover/face:scale-110"
+        style={{ height: 'var(--face-tile-size)' }}
+      >
+        <img
+          src={src}
           alt={site.name}
+          loading="lazy"
           className={`w-full h-full object-contain p-[16%] ${site.dead ? 'grayscale opacity-60' : ''}`}
+          onLoad={(e) => {
+            const target = e.target as HTMLImageElement;
+            if (target.src.includes('/favicon.ico') || target.src.startsWith('data:')) {
+              storeIconSrc(site.url, initial, site.name, target.src);
+            }
+          }}
+          onError={(e) => {
+            const target = e.target as HTMLImageElement;
+            // 二段回落（2026-10-28 晚）：本地图标 404 → 该站自己的 /favicon.ico → 字母
+            const next = nextFallbackIconSrc(target.src, site.url, site.name);
+            if (next !== undefined) target.src = next;
+          }}
         />
+      </span>
+      <span className={`mt-1 w-full text-center truncate text-[11px] font-medium ${site.dead ? 'text-white/45' : 'text-white/85'}`}>
+        {site.name}
       </span>
     </button>
   );
@@ -296,6 +327,13 @@ export function StackSiteTiles({
               <SiteTile site={site} guardClick={crossDrag.consumeSuppressClick} />
             </React.Fragment>
           ))}
+        </div>
+      )}
+      {/* 按住提示（仅 1x 卡面：单行垂直居中、上下有空隙，绝对定位不占布局、不拦截点击；
+          2x 瓷砖从顶部流式排满到底，底部无空隙可放，不显示） */}
+      {group.sites.length > 0 && heightUnits === 1 && (
+        <div className="absolute bottom-0 left-0 right-0 text-center text-[10px] leading-4 text-white/35 pointer-events-none">
+          按住站点可拖到其他组
         </div>
       )}
     </div>

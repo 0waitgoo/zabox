@@ -1,8 +1,6 @@
 import React, { useRef, useState } from 'react';
 import { Pin, Plus, Check, X, RefreshCw, Upload } from 'lucide-react';
-import { SITE_TAG_MAX, SITE_TAGS_MAX_COUNT, cleanSiteTag, cleanSiteTags, letterIconDataUri, siteIconSrc, siteTags, sortSites, type NavGroup, type SiteEntry } from '../../data/groups';
-import IconImage from './IconImage';
-import { invalidateIcon } from '../../utils/iconLoader';
+import { SITE_TAG_MAX, SITE_TAGS_MAX_COUNT, cleanSiteTag, cleanSiteTags, letterIconDataUri, siteIconSrc, siteLogoFallback, siteTags, sortSites, type NavGroup, type SiteEntry } from '../../data/groups';
 import { logoForSite, type LocalStore, type SiteDraft } from '../../store/localStore';
 import { SiteLogo } from './Card';
 import SiteContextMenu, { siteMenuPosition, type SiteMenuState } from './SiteContextMenu';
@@ -153,7 +151,6 @@ export function SiteForm({
   const [iconText, setIconText] = useState(initial?.iconText ?? '');
   const [iconImage, setIconImage] = useState(initial?.iconImage ?? '');
   const [autoLogo, setAutoLogo] = useState('');
-  const [iconRetry, setIconRetry] = useState(0);
   const iconTextComposing = useRef(false);
   const iconFileRef = useRef<HTMLInputElement>(null);
 
@@ -171,7 +168,9 @@ export function SiteForm({
     if (!finalUrl || !finalUrl.includes('.')) return setError('请填有效网址，如 example.com');
     if (iconMode === 'text' && ![...iconText.trim()].length) return setError('请填写图标文字（1–2 个字）');
     if (iconMode === 'upload' && !iconImage) return setError('请先选择一张图片作图标');
-    // 名称/网址变了又没手动重检索时，保存时按新值自动重取一次（与改版前每次保存重算图标的老行为一致）
+    // auto 模式保存时始终按当前名称/网址重取一次：预览的最后兜底就是这条地址，
+    // 保存带上它，预览与落盘才一致（否则存量旧 logo 会把预览的好图标顶掉，出现“预览有标、保存无效”）；
+    // 名称/网址变了又没手动重检索时同样重取（与改版前每次保存重算图标的老行为一致）
     const identityChanged = !!initial && (name.trim() !== initial.name || finalUrl !== initial.url);
     // 标签：已选列表 + 输入框里还没回车的自定义草稿（有空位才并入），统一清洗封顶 2 个
     const pendingCustom = cleanSiteTag(customTag);
@@ -188,7 +187,7 @@ export function SiteForm({
       iconMode,
       iconText: iconText.trim(),
       iconImage,
-      autoLogo: autoLogo || (identityChanged ? logoForSite(name.trim(), finalUrl) : ''),
+      autoLogo: autoLogo || (iconMode === 'auto' || identityChanged ? logoForSite(name.trim(), finalUrl) : ''),
     });
   };
 
@@ -224,14 +223,15 @@ export function SiteForm({
       {/* 图标编辑（第四十九轮）：大预览 + 三种来源切换（自动检索 / 文字 / 上传图片），保存才落盘 */}
       <div className="flex items-center gap-2 flex-wrap">
         <span className="site-icon-frame w-10 h-10 rounded-xl bg-white flex items-center justify-center overflow-hidden shrink-0">
-          <IconImage
-            key={iconRetry}
+          <img
             src={previewSrc}
-            name={name.trim() || '站点'}
-            url={normalizeUrl(url)}
             alt=""
             data-icon-preview
             className="w-7 h-7 object-contain"
+            onError={(e) => {
+              const t = e.target as HTMLImageElement;
+              if (!t.src.startsWith('data:')) t.src = siteLogoFallback(name || '站点');
+            }}
           />
         </span>
         <span className="flex items-center rounded-lg bg-white/5 border border-white/10 overflow-hidden shrink-0">
@@ -259,14 +259,7 @@ export function SiteForm({
           <button
             type="button"
             data-icon-refetch
-            onClick={() => {
-              const iconName = name.trim() || '站点';
-              const iconUrl = normalizeUrl(url) || 'https://example.com';
-              const logo = logoForSite(iconName, iconUrl);
-              invalidateIcon(logo, iconName, normalizeUrl(url));
-              setAutoLogo(logo);
-              setIconRetry((value) => value + 1);
-            }}
+            onClick={() => setAutoLogo(logoForSite(name.trim() || '站点', normalizeUrl(url) || 'https://example.com'))}
             className="flex items-center gap-1 text-[11px] px-2.5 py-1.5 rounded-lg bg-white/8 hover:bg-white/12 text-white/70 transition-colors shrink-0"
           >
             <RefreshCw size={11} /> 重新检索

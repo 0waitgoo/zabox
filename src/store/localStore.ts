@@ -1046,6 +1046,27 @@ export function migrateLegacyLogoPath(logo: string): string {
   return logo;
 }
 
+/** 存量 Google favicon 服务地址 → 本站 favicon（同上：Google 对拿不到的域名回通用地球占位图，
+ *  存量站不改会一直顶着地球；本站 favicon 拿不到时渲染层回落字标） */
+export function migrateGoogleFaviconUrl(logo: string, siteUrl: string): string {
+  if (!logo.startsWith('https://www.google.com/s2/favicons?')) return logo;
+  try {
+    return `${new URL(siteUrl).origin}/favicon.ico`;
+  } catch {
+    // 站址不合法时退回参数里的域名
+  }
+  const m = /[?&]domain=([^&]+)/.exec(logo);
+  if (m) {
+    try {
+      const host = decodeURIComponent(m[1]);
+      if (host) return `https://${host}/favicon.ico`;
+    } catch {
+      // 编码非法时原样保留
+    }
+  }
+  return logo;
+}
+
 /**
  * 编组字段归一化（第一百零六轮从 validateStoreData 抽出，主数据 groups 与「我的」
  * 存档快照里的 groups 共用同一条校验/迁移路径）：结构非法（组/站点缺必填）整体返回 null；
@@ -1080,6 +1101,8 @@ function normalizeGroupsField(raw: unknown): NavGroup[] | null {
       if (typeof site.logo !== 'string' || !site.logo) site.logo = logoForSite(site.name, site.url);
       // 图标路径迁移（第一百轮）：老存档的中文名/误引用路径重写为现行路径
       site.logo = migrateLegacyLogoPath(site.logo);
+      // Google 服务地址迁移：存量 Google favicon 地址一律改本站 favicon，地球占位图不再出现
+      site.logo = migrateGoogleFaviconUrl(site.logo, site.url);
       if (typeof site.frequency !== 'number') site.frequency = 0;
       // 图标配置（第四十九轮）：只保留合法组合，脏数据（模式不对/图片不是 data URL/体积失控）整组丢弃回 auto
       if (site.iconMode !== 'text' && site.iconMode !== 'upload') {
@@ -1209,13 +1232,14 @@ function loadInitial(): StoreData {
   return seedData();
 }
 
-/** 用户新增站点的图标：优先内置映射，其次站点 favicon，再由 SiteLogo 兜底 */
+/** 用户新增站点的图标：优先内置映射，其次本站 favicon，再由 SiteLogo 兜底。
+ *  不再走 Google favicon 服务：它对拿不到的域名回通用地球占位图（语雀实测 16×16 地球），
+ *  按第 84 轮规矩不得用占位图顶替；本站 favicon 拿不到时渲染层回落字标。 */
 export function logoForSite(name: string, url: string): string {
   const mapped = findMappedLogo(name);
   if (mapped) return mapped;
   try {
-    const host = new URL(url).hostname;
-    if (host) return `https://www.google.com/s2/favicons?domain=${host}&sz=128`;
+    return `${new URL(url).origin}/favicon.ico`;
   } catch {
     // URL 不合法时走兜底图
   }
@@ -1362,7 +1386,7 @@ export function useLocalStore() {
           site.description = draft.description;
           site.aliases = draft.aliases;
           site.pinned = draft.pinned;
-          // 图标（第四十九轮）：表单带回的 autoLogo 优先（「重新检索」或名称/网址变更时表单已重取）；
+          // 图标（第四十九轮）：表单带回的 autoLogo 优先（auto 模式保存时表单已按当前名称/网址重取）；
           // 没带回则维持既有 logo，不再每次保存都无条件重算（图标已可手动管理）
           site.logo = draft.autoLogo || site.logo || logoForSite(draft.name, draft.url);
           applyDraftIcon(site, draft);

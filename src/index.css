@@ -135,7 +135,9 @@ body {
   -webkit-backdrop-filter: blur(15px) saturate(145%) !important;
   backdrop-filter: blur(15px) saturate(145%) !important;
 }
-[data-theme="liquid"][data-liquid-refraction="true"]:has(#zabox-liquid-glass) :is(.group-card-panel, .widget-panel, [data-stack-body], .card-glass-surface) {
+/* 实时 Canvas 背景与 SVG 背景折射叠加时，部分 GPU 在滚动合成中会闪烁。
+   动态背景使用上面的玻璃模糊；静态背景仍保留 SVG 折射。 */
+[data-theme="liquid"][data-liquid-refraction="true"]:has(#zabox-liquid-glass):not(:has([data-liquid-animated-background])) :is(.group-card-panel, .widget-panel, [data-stack-body], .card-glass-surface) {
   backdrop-filter: url(#zabox-liquid-glass) blur(5px) saturate(135%) !important;
 }
 

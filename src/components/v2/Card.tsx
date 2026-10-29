@@ -107,13 +107,12 @@ export function nextFallbackIconSrc(currentSrc: string, url: string | undefined,
   return siteLogoFallback(name);
 }
 
-/** 站点 logo 图片（带加载失败兜底），与 NavPage 保持一致的白底圆角样式 */
+/** 站点 logo 图片（带加载失败兜底）：图标直接铺满圆角框，无白底（2026-10-30 用户定） */
 export function SiteLogo({
   logo,
   name,
   url,
   size = 36,
-  imgSize = 26,
   className = '',
   grayscale = false,
 }: {
@@ -122,13 +121,14 @@ export function SiteLogo({
   /** 站点地址（可选）：图标加载失败时先试该站自己的 /favicon.ico，再回落字母 */
   url?: string;
   size?: number;
+  /** 旧参数：保留签名兼容（调用方仍传），图标现一律铺满 size 框，不再缩小 */
   imgSize?: number;
   className?: string;
   grayscale?: boolean;
 }) {
   return (
     <div
-      className={`site-icon-frame rounded-xl bg-white flex items-center justify-center overflow-hidden shrink-0 ${className}`}
+      className={`site-icon-frame rounded-xl flex items-center justify-center overflow-hidden shrink-0 ${className}`}
       style={{ width: size, height: size }}
     >
       <img
@@ -136,8 +136,7 @@ export function SiteLogo({
         alt={name}
         draggable={false}
         loading="lazy"
-        className={`object-contain ${grayscale ? 'grayscale opacity-60' : ''}`}
-        style={{ width: imgSize, height: imgSize }}
+        className={`w-full h-full object-contain ${grayscale ? 'grayscale opacity-60' : ''}`}
         onLoad={(e) => {
           // 回落链走出的地址一旦加载成功即记缓存（第三方 favicon 或字母图）；
           // 本地初始图标本身不记，下次挂载仍走初始地址

@@ -171,7 +171,7 @@ const FACE_TILE_VARS = {
   '--face-tile-gap': '10px',
 } as React.CSSProperties;
 
-/** 单个站点瓷砖（白底圆角块 + 站点图标 + 下方名字，名字字号与弹窗瓷砖一致 11px；
+/** 单个站点瓷砖（圆角块 + 铺满的站点图标 + 下方名字，名字字号与弹窗瓷砖一致 11px；
  * 尺寸走全形态统一变量；点击直达并阻止冒泡；
  * 跨组拖拽源：带 data-site-drag-id，拖完的 click 由宿主 guardClick 吞掉 */
 function SiteTile({ site, guardClick }: { site: SiteEntry; guardClick?: () => boolean }) {
@@ -193,14 +193,14 @@ function SiteTile({ site, guardClick }: { site: SiteEntry; guardClick?: () => bo
       style={{ width: 'var(--face-tile-size)' }}
     >
       <span
-        className="site-icon-frame block w-full rounded-[13px] bg-white overflow-hidden transition-transform duration-150 group-hover/face:scale-110"
+        className="site-icon-frame block w-full rounded-[13px] overflow-hidden transition-transform duration-150 group-hover/face:scale-110"
         style={{ height: 'var(--face-tile-size)' }}
       >
         <img
           src={src}
           alt={site.name}
           loading="lazy"
-          className={`w-full h-full object-contain p-[16%] ${site.dead ? 'grayscale opacity-60' : ''}`}
+          className={`w-full h-full object-contain ${site.dead ? 'grayscale opacity-60' : ''}`}
           onLoad={(e) => {
             const target = e.target as HTMLImageElement;
             if (target.src.includes('/favicon.ico') || target.src.startsWith('data:')) {

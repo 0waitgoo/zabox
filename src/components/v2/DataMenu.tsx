@@ -37,6 +37,7 @@ import {
 import { packDataEnvelope, restoreWidgetStorage, unpackDataEnvelope } from '../../store/widgetStorage';
 import { reloadColorsData } from '../../store/colorsData';
 import { parseWetabData } from '../../data/wetab';
+import type { NavGroup } from '../../data/groups';
 
 /**
  * 「数据」入口：放在搜索区旁，不显眼。
@@ -48,6 +49,7 @@ export default function DataMenu({ store }: { store: LocalStore }) {
   const [open, setOpen] = useState(false);
   const [message, setMessage] = useState<{ ok: boolean; text: string } | null>(null);
   const [confirmReset, setConfirmReset] = useState(false);
+  const [pendingWetab, setPendingWetab] = useState<{ groups: NavGroup[]; skipped: number } | null>(null);
   const containerRef = useRef<HTMLDivElement>(null);
   const fileRef = useRef<HTMLInputElement>(null);
   const wetabFileRef = useRef<HTMLInputElement>(null);
@@ -588,7 +590,11 @@ export default function DataMenu({ store }: { store: LocalStore }) {
     }
   };
 
-  /** WeTab 导入（2026-10-29）：.data 文件是 JSON 信封，转换后并入现有数据、不覆盖 */
+  /**
+   * WeTab 导入（2026-10-29 建、2026-10-30 改替换语义）：.data 文件是 JSON 信封，
+   * 先解析出组与站、弹二次确认（替换会清空现有编组、组合与排版），确认后才落盘。
+   * 待办/计划/小组件不受影响。
+   */
   const importWetabFile = async (file: File) => {
     try {
       const parsed: unknown = JSON.parse(await file.text());
@@ -597,16 +603,46 @@ export default function DataMenu({ store }: { store: LocalStore }) {
         setMessage({ ok: false, text: '导入失败：不是 WeTab 导出文件' });
         return;
       }
-      const r = store.appendGroups(converted.groups);
-      const skipped = converted.skipped + r.skipped;
-      setMessage({
-        ok: true,
-        text: `已从 WeTab 导入 ${r.groups} 组 ${r.sites} 站${skipped ? `，跳过 ${skipped} 个（重复/无效/小组件）` : ''}`,
-      });
+      setPendingWetab(converted);
+      setMessage(null);
     } catch {
       setMessage({ ok: false, text: '导入失败：不是有效的 WeTab .data 文件' });
     }
   };
+
+  const applyWetabImport = () => {
+    if (!pendingWetab) return;
+    const r = store.replaceGroups(pendingWetab.groups);
+    const skipped = pendingWetab.skipped + r.skipped;
+    setPendingWetab(null);
+    setMessage({
+      ok: true,
+      text: `已替换为 WeTab 数据：${r.groups} 组 ${r.sites} 站${skipped ? `，跳过 ${skipped} 个（重复/无效/小组件）` : ''}`,
+    });
+  };
+
+  /* 确认框里报去重后的数（与最终落盘一致，不含导入内重复链接） */
+  const pendingWetabCounts = (() => {
+    if (!pendingWetab) return null;
+    const norm = (u: string) => u.replace(/^https?:\/\//i, '').replace(/\/+$/, '').toLowerCase();
+    const seen = new Set<string>();
+    let groups = 0;
+    let sites = 0;
+    for (const g of pendingWetab.groups) {
+      let kept = 0;
+      for (const s of g.sites) {
+        const key = norm(s.url);
+        if (!s.url || seen.has(key)) continue;
+        seen.add(key);
+        kept++;
+      }
+      if (kept) {
+        groups++;
+        sites += kept;
+      }
+    }
+    return { groups, sites };
+  })();
 
   const itemCls =
     'w-full flex items-center gap-2.5 px-3 py-2 rounded-xl text-left text-xs text-white/75 hover:bg-white/8 hover:text-white transition-colors';
@@ -669,6 +705,30 @@ export default function DataMenu({ store }: { store: LocalStore }) {
             <button onClick={() => wetabFileRef.current?.click()} className={itemCls} data-wetab-import>
               <FolderOpen size={14} className="text-white/45" /> 从 WeTab 导入 (.data)
             </button>
+            {pendingWetab && (
+              <div className="px-3 py-2" data-wetab-confirm-box>
+                <p className="text-[11px] text-amber-300 mb-2">
+                  将替换现有全部编组为 WeTab 的 {pendingWetabCounts?.groups ?? 0} 组
+                  {pendingWetabCounts?.sites ?? 0} 站，现有编组、组合与排版会清空，待办/计划/小组件不动，确定？
+                </p>
+                <div className="flex gap-2">
+                  <button
+                    onClick={applyWetabImport}
+                    className="text-[11px] px-2.5 py-1.5 rounded-lg bg-indigo-500/80 text-white font-medium"
+                    data-wetab-confirm
+                  >
+                    确认导入
+                  </button>
+                  <button
+                    onClick={() => setPendingWetab(null)}
+                    className="text-[11px] px-2.5 py-1.5 rounded-lg bg-white/8 text-white/70"
+                    data-wetab-cancel
+                  >
+                    算了
+                  </button>
+                </div>
+              </div>
+            )}
             <input
               ref={wetabFileRef}
               type="file"

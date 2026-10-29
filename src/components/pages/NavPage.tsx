@@ -39,7 +39,7 @@ function NavPage() {
           animate={{ opacity: 1 }}
           transition={{ duration: 0.3, delay: categoryIdx * 0.05 }}
         >
-          <div className="glass-panel rounded-[32px] p-6">
+          <div className="group-card-panel rounded-[32px] p-6">
             <h3 className="font-semibold text-lg tracking-tight mb-4">{category}</h3>
             <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-2.5">
               {tools.map((tool, idx) => (

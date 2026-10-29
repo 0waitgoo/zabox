@@ -891,18 +891,17 @@ export const DEFAULT_PRESET_WIDGET_LAYOUTS: Record<WidgetId, WidgetLayout> = {
 export const DEFAULT_PRESET_GROUP_LAYOUTS: Record<string, WidgetLayout> = {
   code: { colSpan: 1, heightUnits: 2 },
   'combo:c-mvm8celnynhjv': { colSpan: 1, heightUnits: 1 },
-  'wstack:ws-mvm8czz1m8o8n': { colSpan: 1, heightUnits: 2 },
 };
 
 /** 默认主页的卡片顺序（用户 live 布局） */
 export const DEFAULT_PRESET_CARD_ORDER: string[] = [
   'group:ai-chat',
   'widget:task',
-  'wstack:ws-mvm8czz1m8o8n',
   'combo:c-mvm8celnynhjv',
   'group:writing',
   'group:audio',
   'group:office',
+  'widget:news',
   'widget:trending',
   'widget:tools',
   'group:code',
@@ -922,7 +921,6 @@ export const DEFAULT_PRESET_CARD_COLS: Record<string, number> = {
   'widget:trending': 0,
   'widget:tools': 0,
   'combo:c-mvm8celnynhjv': 0,
-  'wstack:ws-mvm8czz1m8o8n': 2,
 };
 
 /** 默认主页的组合（用户 live 布局：图像 + 视频，当前 tab 图像） */
@@ -930,10 +928,8 @@ export const DEFAULT_PRESET_COMBOS: ComboItem[] = [
   { id: 'c-mvm8celnynhjv', groupIds: ['image', 'video'], activeGroupId: 'image' },
 ];
 
-/** 默认主页的组件摞（用户 live 布局：资讯，当前资讯） */
-export const DEFAULT_PRESET_WIDGET_STACKS: WidgetStackItem[] = [
-  { id: 'ws-mvm8czz1m8o8n', widgetIds: ['news'], activeWidgetId: 'news' },
-];
+/** 默认主页的资讯为独立卡片；组件摞至少需要两个成员。 */
+export const DEFAULT_PRESET_WIDGET_STACKS: WidgetStackItem[] = [];
 
 function seedData(): StoreData {
   return {
@@ -1153,6 +1149,16 @@ export function validateStoreData(raw: unknown): StoreData | null {
   // 卡片顺序：老数据无此字段时为空（回落默认顺序）；只采纳字符串元素
   const rawOrder = (data as { cardOrder?: unknown }).cardOrder;
   const cardOrder = Array.isArray(rawOrder) ? (rawOrder.filter((k) => typeof k === 'string') as string[]) : [];
+  // 旧默认预设误把资讯存成单成员摞，渲染时摞被过滤，资讯因此被追加到末尾。
+  // 仅修复默认预设的旧标记；自定义布局和已有的资讯顺序不改动。
+  const legacyNewsStack = 'wstack:ws-mvm8czz1m8o8n';
+  if (data.activePreset === 'default' && cardOrder.includes(legacyNewsStack) && !cardOrder.includes('widget:news')) {
+    cardOrder.splice(cardOrder.indexOf(legacyNewsStack), 1);
+    const office = cardOrder.indexOf('group:office');
+    const trending = cardOrder.indexOf('widget:trending');
+    const insertAt = office >= 0 ? office + 1 : trending >= 0 ? trending : cardOrder.length;
+    cardOrder.splice(insertAt, 0, 'widget:news');
+  }
   const background = normalizeBackground((data as { background?: unknown }).background);
   const cardCols = normalizeCardCols((data as { cardCols?: unknown }).cardCols);
   return {

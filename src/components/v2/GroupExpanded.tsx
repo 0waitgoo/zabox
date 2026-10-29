@@ -1,6 +1,8 @@
 import React, { useRef, useState } from 'react';
 import { Pin, Plus, Check, X, RefreshCw, Upload } from 'lucide-react';
-import { SITE_TAG_MAX, SITE_TAGS_MAX_COUNT, cleanSiteTag, cleanSiteTags, letterIconDataUri, siteIconSrc, siteLogoFallback, siteTags, sortSites, type NavGroup, type SiteEntry } from '../../data/groups';
+import { SITE_TAG_MAX, SITE_TAGS_MAX_COUNT, cleanSiteTag, cleanSiteTags, letterIconDataUri, siteIconSrc, siteTags, sortSites, type NavGroup, type SiteEntry } from '../../data/groups';
+import IconImage from './IconImage';
+import { invalidateIcon } from '../../utils/iconLoader';
 import { logoForSite, type LocalStore, type SiteDraft } from '../../store/localStore';
 import { SiteLogo } from './Card';
 import SiteContextMenu, { siteMenuPosition, type SiteMenuState } from './SiteContextMenu';
@@ -151,6 +153,7 @@ export function SiteForm({
   const [iconText, setIconText] = useState(initial?.iconText ?? '');
   const [iconImage, setIconImage] = useState(initial?.iconImage ?? '');
   const [autoLogo, setAutoLogo] = useState('');
+  const [iconRetry, setIconRetry] = useState(0);
   const iconTextComposing = useRef(false);
   const iconFileRef = useRef<HTMLInputElement>(null);
 
@@ -221,15 +224,14 @@ export function SiteForm({
       {/* 图标编辑（第四十九轮）：大预览 + 三种来源切换（自动检索 / 文字 / 上传图片），保存才落盘 */}
       <div className="flex items-center gap-2 flex-wrap">
         <span className="site-icon-frame w-10 h-10 rounded-xl bg-white flex items-center justify-center overflow-hidden shrink-0">
-          <img
+          <IconImage
+            key={iconRetry}
             src={previewSrc}
+            name={name.trim() || '站点'}
+            url={normalizeUrl(url)}
             alt=""
             data-icon-preview
             className="w-7 h-7 object-contain"
-            onError={(e) => {
-              const t = e.target as HTMLImageElement;
-              if (!t.src.startsWith('data:')) t.src = siteLogoFallback(name || '站点');
-            }}
           />
         </span>
         <span className="flex items-center rounded-lg bg-white/5 border border-white/10 overflow-hidden shrink-0">
@@ -257,7 +259,14 @@ export function SiteForm({
           <button
             type="button"
             data-icon-refetch
-            onClick={() => setAutoLogo(logoForSite(name.trim() || '站点', normalizeUrl(url) || 'https://example.com'))}
+            onClick={() => {
+              const iconName = name.trim() || '站点';
+              const iconUrl = normalizeUrl(url) || 'https://example.com';
+              const logo = logoForSite(iconName, iconUrl);
+              invalidateIcon(logo, iconName, normalizeUrl(url));
+              setAutoLogo(logo);
+              setIconRetry((value) => value + 1);
+            }}
             className="flex items-center gap-1 text-[11px] px-2.5 py-1.5 rounded-lg bg-white/8 hover:bg-white/12 text-white/70 transition-colors shrink-0"
           >
             <RefreshCw size={11} /> 重新检索

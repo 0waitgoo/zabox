@@ -1,5 +1,6 @@
 // V2 编组数据：由 NavPage 现有导航数据（toolsByCategory）迁移而来
 // 在原有 name/description/url/logo 基础上扩展：aliases（别名）、pinned（置顶）、frequency（使用频率权重）、dead（失效标记，只标记不删除）
+import { localSiteIcons } from './localSiteIcons';
 
 export interface SiteEntry {
   /** 本地存储层分配的稳定 ID（种子/导入时补齐），增删改按 ID 定位 */
@@ -228,6 +229,20 @@ export function siteIconSrc(site: SiteEntry): string {
   if (site.iconMode === 'upload' && site.iconImage) return site.iconImage;
   if (site.iconMode === 'text' && site.iconText?.trim()) return letterIconDataUri(site.iconText);
   return site.logo;
+}
+
+/** 内置站点按域名匹配，避免中文站名/改名后错过本地图标；其余直接取站点图标。 */
+export function autoSiteLogo(name: string, url: string): string {
+  try {
+    const host = new URL(url).hostname;
+    const known = navGroups.flatMap((group) => group.sites).find((site) =>
+      new URL(site.url).hostname === host && site.logo.startsWith('/icon_APP/'));
+    if (known) return known.logo;
+    const favicon = `${new URL(url).origin}/favicon.ico`;
+    return localSiteIcons[favicon] ?? findMappedLogo(name) ?? favicon;
+  } catch {
+    return findMappedLogo(name) ?? siteLogoFallback(name);
+  }
 }
 
 export const navGroups: NavGroup[] = [

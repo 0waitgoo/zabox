@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { motion } from 'motion/react';
-import { siteLogoFallback } from '../../data/groups';
+import IconImage from '../v2/IconImage';
 import { toolsByCategory } from '../../data/navPool';
 
 /** 娱乐六分类（与 navPool 娱乐分组同名）：筛选时只留这六组 */
@@ -49,15 +49,12 @@ function NavPage() {
                   className="flex items-center gap-2.5 p-2.5 rounded-2xl bg-white/5 hover:bg-white/10 border border-white/5 transition-all group cursor-pointer relative"
                 >
                   <div className="site-icon-frame w-9 h-9 sm:w-10 sm:h-10 rounded-xl flex items-center justify-center overflow-hidden flex-shrink-0 bg-white">
-                    <img 
+                    <IconImage
                       src={tool.logo} 
+                      name={tool.name}
+                      url={tool.url}
                       alt={tool.name}
                       className="w-7 h-7 sm:w-8 sm:h-8 object-contain"
-                      onError={(e) => {
-                        const target = e.target as HTMLImageElement;
-                        // 无真实图标 → 站名首字字标（第八十四轮），不再用 DiceBear 随机图
-                        if (!target.src.startsWith('data:')) target.src = siteLogoFallback(tool.name);
-                      }}
                     />
                   </div>
                   <div className="flex-1 min-w-0 pr-1">

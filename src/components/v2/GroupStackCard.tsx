@@ -2,7 +2,7 @@ import React from 'react';
 import { motion } from 'motion/react';
 import { groupIcon, siteIconSrc, sortSites, type NavGroup, type SiteEntry } from '../../data/groups';
 import type { LocalStore } from '../../store/localStore';
-import { cachedIconSrc, nextFallbackIconSrc, storeIconSrc } from './Card';
+import IconImage from './IconImage';
 import { useSiteDragSort } from './useSiteDragSort';
 
 /**
@@ -128,25 +128,13 @@ export function StackGroupIcon({ group, size = 30 }: { group: NavGroup; size?: n
       style={{ width: size, height: size }}
     >
       {group.sites.length > 0 ? (
-        <img
-          src={cachedIconSrc(first?.url, initial, iconName) ?? initial}
+        <IconImage
+          src={initial}
+          name={iconName}
+          url={first?.url}
           alt={group.name}
-          loading="lazy"
           className="object-contain"
           style={{ width: size * 0.63, height: size * 0.63 }}
-          onLoad={(e) => {
-            const target = e.target as HTMLImageElement;
-            if (target.src.includes('/favicon.ico') || target.src.startsWith('data:')) {
-              storeIconSrc(first?.url, initial, iconName, target.src);
-            }
-          }}
-          onError={(e) => {
-            const target = e.target as HTMLImageElement;
-            // 组头图标加载失败 → 二段回落（同 SiteTile：本地图标 404 → 该站 favicon → 字母）；字标本身再失败才隐藏
-            const next = nextFallbackIconSrc(target.src, first?.url, iconName);
-            if (next !== undefined) target.src = next;
-            else target.style.display = 'none';
-          }}
         />
       ) : (
         <span className="text-slate-400 text-[13px] font-bold">{group.name.charAt(0)}</span>
@@ -175,7 +163,6 @@ const FACE_TILE_VARS = {
  * 跨组拖拽源：带 data-site-drag-id，拖完的 click 由宿主 guardClick 吞掉 */
 function SiteTile({ site, guardClick }: { site: SiteEntry; guardClick?: () => boolean }) {
   const initial = siteIconSrc(site);
-  const src = cachedIconSrc(site.url, initial, site.name) ?? initial;
   const openSite = (e: React.MouseEvent) => {
     e.stopPropagation();
     if (guardClick?.()) return;
@@ -192,23 +179,12 @@ function SiteTile({ site, guardClick }: { site: SiteEntry; guardClick?: () => bo
       style={{ width: 'var(--face-tile-size)', height: 'var(--face-tile-size)' }}
     >
       <span className="site-icon-frame block w-full h-full rounded-[13px] bg-white overflow-hidden transition-transform duration-150 group-hover/face:scale-110">
-        <img
-          src={src}
+        <IconImage
+          src={initial}
+          name={site.name}
+          url={site.url}
           alt={site.name}
-          loading="lazy"
           className={`w-full h-full object-contain p-[16%] ${site.dead ? 'grayscale opacity-60' : ''}`}
-          onLoad={(e) => {
-            const target = e.target as HTMLImageElement;
-            if (target.src.includes('/favicon.ico') || target.src.startsWith('data:')) {
-              storeIconSrc(site.url, initial, site.name, target.src);
-            }
-          }}
-          onError={(e) => {
-            const target = e.target as HTMLImageElement;
-            // 二段回落（2026-10-28 晚）：本地图标 404 → 该站自己的 /favicon.ico → 字母
-            const next = nextFallbackIconSrc(target.src, site.url, site.name);
-            if (next !== undefined) target.src = next;
-          }}
         />
       </span>
     </button>

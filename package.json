@@ -15,7 +15,7 @@
     "start": "concurrently \"npm run server\" \"npm run dev\"",
     "build:plan": "vite build --config vite.config.plan.ts",
     "dev:plan": "vite --config vite.config.plan.ts",
-    "test": "node --import tsx --test tests/api.test.ts tests/desktop-window.test.ts tests/desktop-login.test.ts tests/desktop-pin.test.ts tests/desktop-appearance.test.ts tests/desktop-close.test.ts tests/desktop-shortcut.test.ts",
+    "test": "node --import tsx --test tests/icon-loader.test.ts tests/api.test.ts tests/desktop-window.test.ts tests/desktop-login.test.ts tests/desktop-pin.test.ts tests/desktop-appearance.test.ts tests/desktop-close.test.ts tests/desktop-shortcut.test.ts",
     "test:ui": "node --import tsx tests/desktop-ui.browser.ts"
   },
   "dependencies": {

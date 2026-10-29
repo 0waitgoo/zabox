@@ -1,9 +1,8 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import {
   cleanSiteTags,
-  findMappedLogo,
+  autoSiteLogo,
   navGroups,
-  siteLogoFallback,
   type GroupDisplay,
   type NavGroup,
   type SiteEntry,
@@ -1211,15 +1210,7 @@ function loadInitial(): StoreData {
 
 /** 用户新增站点的图标：优先内置映射，其次站点 favicon，再由 SiteLogo 兜底 */
 export function logoForSite(name: string, url: string): string {
-  const mapped = findMappedLogo(name);
-  if (mapped) return mapped;
-  try {
-    const host = new URL(url).hostname;
-    if (host) return `https://www.google.com/s2/favicons?domain=${host}&sz=128`;
-  } catch {
-    // URL 不合法时走兜底图
-  }
-  return siteLogoFallback(name);
+  return autoSiteLogo(name, url);
 }
 
 export interface SiteDraft {

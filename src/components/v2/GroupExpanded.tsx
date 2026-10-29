@@ -151,6 +151,7 @@ export function SiteForm({
   const [iconText, setIconText] = useState(initial?.iconText ?? '');
   const [iconImage, setIconImage] = useState(initial?.iconImage ?? '');
   const [autoLogo, setAutoLogo] = useState('');
+  const iconTextComposing = useRef(false);
   const iconFileRef = useRef<HTMLInputElement>(null);
 
   // 大预览实时反映当前模式：upload 用图、text 用字母图、auto 用（重取过的或既有的）自动图标
@@ -265,7 +266,19 @@ export function SiteForm({
         {iconMode === 'text' && (
           <input
             value={iconText}
-            onChange={(e) => setIconText([...e.target.value].slice(0, 2).join(''))}
+            // 输入法组词期间不截断（2026-10-29 用户反馈：每击必截会打断组词，
+            // 3 个字母以上的拼音根本输不进去）；组词结束后再限 2 字
+            onCompositionStart={() => {
+              iconTextComposing.current = true;
+            }}
+            onCompositionEnd={(e) => {
+              iconTextComposing.current = false;
+              setIconText([...e.currentTarget.value].slice(0, 2).join(''));
+            }}
+            onChange={(e) => {
+              const v = e.target.value;
+              setIconText(iconTextComposing.current ? v : [...v].slice(0, 2).join(''));
+            }}
             placeholder="1–2 个字，如 AI"
             data-icon-text
             className="w-28 shrink-0 bg-white/5 border border-white/15 rounded-xl px-2.5 py-1.5 text-xs outline-none focus:border-white/40 placeholder:text-white/30"

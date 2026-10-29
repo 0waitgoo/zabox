@@ -1,8 +1,9 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import {
   cleanSiteTags,
-  autoSiteLogo,
+  findMappedLogo,
   navGroups,
+  siteLogoFallback,
   type GroupDisplay,
   type NavGroup,
   type SiteEntry,
@@ -172,7 +173,7 @@ function normalizeAppearance(raw: unknown): PresetAppearance | null {
     typeof v === 'number' && Number.isFinite(v) ? clamp01(v) : fallback;
   return {
     background: { presetId, oceanColor },
-    theme: a.theme === 'light' || a.theme === 'liquid' ? a.theme : 'dark',
+    theme: a.theme === 'light' ? 'light' : 'dark',
     groupCardAlpha: num(a.groupCardAlpha, DEFAULT_DISPLAY_PREFS.groupCardAlpha),
     widgetAlpha: num(a.widgetAlpha, DEFAULT_DISPLAY_PREFS.widgetAlpha),
     bgBlur: num(a.bgBlur, DEFAULT_DISPLAY_PREFS.bgBlur),
@@ -891,17 +892,18 @@ export const DEFAULT_PRESET_WIDGET_LAYOUTS: Record<WidgetId, WidgetLayout> = {
 export const DEFAULT_PRESET_GROUP_LAYOUTS: Record<string, WidgetLayout> = {
   code: { colSpan: 1, heightUnits: 2 },
   'combo:c-mvm8celnynhjv': { colSpan: 1, heightUnits: 1 },
+  'wstack:ws-mvm8czz1m8o8n': { colSpan: 1, heightUnits: 2 },
 };
 
 /** 默认主页的卡片顺序（用户 live 布局） */
 export const DEFAULT_PRESET_CARD_ORDER: string[] = [
   'group:ai-chat',
   'widget:task',
+  'wstack:ws-mvm8czz1m8o8n',
   'combo:c-mvm8celnynhjv',
   'group:writing',
   'group:audio',
   'group:office',
-  'widget:news',
   'widget:trending',
   'widget:tools',
   'group:code',
@@ -921,6 +923,7 @@ export const DEFAULT_PRESET_CARD_COLS: Record<string, number> = {
   'widget:trending': 0,
   'widget:tools': 0,
   'combo:c-mvm8celnynhjv': 0,
+  'wstack:ws-mvm8czz1m8o8n': 2,
 };
 
 /** 默认主页的组合（用户 live 布局：图像 + 视频，当前 tab 图像） */
@@ -928,8 +931,10 @@ export const DEFAULT_PRESET_COMBOS: ComboItem[] = [
   { id: 'c-mvm8celnynhjv', groupIds: ['image', 'video'], activeGroupId: 'image' },
 ];
 
-/** 默认主页的资讯为独立卡片；组件摞至少需要两个成员。 */
-export const DEFAULT_PRESET_WIDGET_STACKS: WidgetStackItem[] = [];
+/** 默认主页的组件摞（用户 live 布局：资讯，当前资讯） */
+export const DEFAULT_PRESET_WIDGET_STACKS: WidgetStackItem[] = [
+  { id: 'ws-mvm8czz1m8o8n', widgetIds: ['news'], activeWidgetId: 'news' },
+];
 
 function seedData(): StoreData {
   return {
@@ -1149,16 +1154,6 @@ export function validateStoreData(raw: unknown): StoreData | null {
   // 卡片顺序：老数据无此字段时为空（回落默认顺序）；只采纳字符串元素
   const rawOrder = (data as { cardOrder?: unknown }).cardOrder;
   const cardOrder = Array.isArray(rawOrder) ? (rawOrder.filter((k) => typeof k === 'string') as string[]) : [];
-  // 旧默认预设误把资讯存成单成员摞，渲染时摞被过滤，资讯因此被追加到末尾。
-  // 仅修复默认预设的旧标记；自定义布局和已有的资讯顺序不改动。
-  const legacyNewsStack = 'wstack:ws-mvm8czz1m8o8n';
-  if (data.activePreset === 'default' && cardOrder.includes(legacyNewsStack) && !cardOrder.includes('widget:news')) {
-    cardOrder.splice(cardOrder.indexOf(legacyNewsStack), 1);
-    const office = cardOrder.indexOf('group:office');
-    const trending = cardOrder.indexOf('widget:trending');
-    const insertAt = office >= 0 ? office + 1 : trending >= 0 ? trending : cardOrder.length;
-    cardOrder.splice(insertAt, 0, 'widget:news');
-  }
   const background = normalizeBackground((data as { background?: unknown }).background);
   const cardCols = normalizeCardCols((data as { cardCols?: unknown }).cardCols);
   return {
@@ -1216,7 +1211,15 @@ function loadInitial(): StoreData {
 
 /** 用户新增站点的图标：优先内置映射，其次站点 favicon，再由 SiteLogo 兜底 */
 export function logoForSite(name: string, url: string): string {
-  return autoSiteLogo(name, url);
+  const mapped = findMappedLogo(name);
+  if (mapped) return mapped;
+  try {
+    const host = new URL(url).hostname;
+    if (host) return `https://www.google.com/s2/favicons?domain=${host}&sz=128`;
+  } catch {
+    // URL 不合法时走兜底图
+  }
+  return siteLogoFallback(name);
 }
 
 export interface SiteDraft {
@@ -1453,6 +1456,50 @@ export function useLocalStore() {
     });
     return id;
   }, [update]);
+
+  /**
+   * WeTab 导入并入（2026-10-29）：把转换好的编组追加到现有数据末尾，不覆盖已有内容。
+   * 已有链接（按去协议/去尾斜杠/小写归一）跳过不重复；同名组加「·WeTab」后缀区分；
+   * 空组不落盘。计数在 update() 外先算好，避免 setState 回调时序导致读到旧数。
+   */
+  const appendGroups = useCallback(
+    (incoming: NavGroup[]): { groups: number; sites: number; skipped: number } => {
+      const norm = (u: string) => u.replace(/^https?:\/\//i, '').replace(/\/+$/, '').toLowerCase();
+      const seen = new Set<string>();
+      for (const g of data.groups) for (const s of g.sites) seen.add(norm(s.url));
+      const prepared = prepareGroups(incoming);
+      const groups: NavGroup[] = [];
+      let sites = 0;
+      let skipped = 0;
+      for (const g of prepared) {
+        const kept: SiteEntry[] = [];
+        for (const s of g.sites) {
+          const key = norm(s.url);
+          if (!s.url || seen.has(key)) {
+            skipped++;
+            continue;
+          }
+          seen.add(key);
+          kept.push({ ...s, id: s.id || genId('s'), logo: s.logo || logoForSite(s.name, s.url) });
+        }
+        if (!kept.length) continue;
+        let name = g.name;
+        if (data.groups.some((x) => x.name === name) || groups.some((x) => x.name === name)) {
+          name = `${name}·WeTab`;
+        }
+        groups.push({ ...g, id: genId('g'), name, sites: kept });
+        sites += kept.length;
+      }
+      if (groups.length) {
+        update((d) => {
+          d.groups.push(...groups);
+          return d;
+        });
+      }
+      return { groups: groups.length, sites, skipped };
+    },
+    [data, update],
+  );
 
   const setGroupDisplay = useCallback(
     (groupId: string, display: GroupDisplay) => {
@@ -2473,6 +2520,7 @@ export function useLocalStore() {
     moveSite,
     reorderSites,
     addGroup,
+    appendGroups,
     renameGroup,
     setGroupSubtitle,
     setGroupTabColor,

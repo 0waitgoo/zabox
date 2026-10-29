@@ -1458,15 +1458,14 @@ export function useLocalStore() {
   }, [update]);
 
   /**
-   * WeTab 导入并入（2026-10-29）：把转换好的编组追加到现有数据末尾，不覆盖已有内容。
-   * 已有链接（按去协议/去尾斜杠/小写归一）跳过不重复；同名组加「·WeTab」后缀区分；
-   * 空组不落盘。计数在 update() 外先算好，避免 setState 回调时序导致读到旧数。
+   * WeTab 导入替换（2026-10-30 用户定：导进来只保留 WeTab 的东西）：
+   * 现有编组整批换成导入的编组（旧编组、组合与排版一并清空；待办/计划/小组件不动）。
+   * 导入内部重复链接去重；空组不落盘。计数在 update() 外先算好。
    */
-  const appendGroups = useCallback(
+  const replaceGroups = useCallback(
     (incoming: NavGroup[]): { groups: number; sites: number; skipped: number } => {
       const norm = (u: string) => u.replace(/^https?:\/\//i, '').replace(/\/+$/, '').toLowerCase();
       const seen = new Set<string>();
-      for (const g of data.groups) for (const s of g.sites) seen.add(norm(s.url));
       const prepared = prepareGroups(incoming);
       const groups: NavGroup[] = [];
       let sites = 0;
@@ -1483,22 +1482,20 @@ export function useLocalStore() {
           kept.push({ ...s, id: s.id || genId('s'), logo: s.logo || logoForSite(s.name, s.url) });
         }
         if (!kept.length) continue;
-        let name = g.name;
-        if (data.groups.some((x) => x.name === name) || groups.some((x) => x.name === name)) {
-          name = `${name}·WeTab`;
-        }
-        groups.push({ ...g, id: genId('g'), name, sites: kept });
+        groups.push({ ...g, id: genId('g'), sites: kept });
         sites += kept.length;
       }
-      if (groups.length) {
-        update((d) => {
-          d.groups.push(...groups);
-          return d;
-        });
-      }
+      update((d) => {
+        d.groups = groups;
+        d.cardOrder = [];
+        d.cardCols = {};
+        d.groupLayouts = {};
+        d.combos = [];
+        return d;
+      });
       return { groups: groups.length, sites, skipped };
     },
-    [data, update],
+    [update],
   );
 
   const setGroupDisplay = useCallback(
@@ -2520,7 +2517,7 @@ export function useLocalStore() {
     moveSite,
     reorderSites,
     addGroup,
-    appendGroups,
+    replaceGroups,
     renameGroup,
     setGroupSubtitle,
     setGroupTabColor,

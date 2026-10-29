@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useRef, useState } from 'react';
+import React, { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import type { SiteEntry } from '../../data/groups';
 
 /**
@@ -308,13 +308,17 @@ export function useSiteDragSort({
   }, []);
 
   // 快照挂载后先定位到抓起处，避免首帧闪到角落；挂载瞬间尚未设 transform，
-  // 此时量到的 rect 就是 fixed 的实际原点（有 transform 祖先时为该祖先原点）
-  useEffect(() => {
+  // 此时量到的 rect 就是 fixed 的实际原点（有 transform 祖先时为该祖先原点）。
+  // 注意必须用 useLayoutEffect：被动 effect 在绘制之后才跑，首帧会先把快照画在左上角
+  // （展开态拖动「有时候从左上角开始拖」就是这个原因）；layout effect 在绘制前定位，
+  // 再加「定位好之前先隐藏」双保险，即使某帧抢跑也不会在左上角露出来。
+  useLayoutEffect(() => {
     const d = activeRef.current;
     if (clone && d && cloneRef.current) {
       const r = cloneRef.current.getBoundingClientRect();
       originRef.current = { x: r.left, y: r.top };
       cloneRef.current.style.transform = `translate(${d.lastX - d.offsetX - r.left}px, ${d.lastY - d.offsetY - r.top}px)`;
+      cloneRef.current.style.visibility = 'visible';
     }
   }, [clone]);
 
@@ -362,7 +366,7 @@ export function useSiteDragSort({
       ref={cloneRef}
       data-drag-clone
       className="fixed left-0 top-0 z-[85] pointer-events-none will-change-transform"
-      style={{ width: clone.w, height: clone.h }}
+      style={{ width: clone.w, height: clone.h, visibility: 'hidden' }}
     >
       <div
         className="w-full h-full rounded-2xl overflow-hidden bg-[#26262e] shadow-2xl shadow-black/70 ring-1 ring-white/25 opacity-95 scale-[1.03] [&>*]:w-full [&>*]:h-full"

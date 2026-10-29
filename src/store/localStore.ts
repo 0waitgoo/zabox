@@ -1481,6 +1481,47 @@ export function useLocalStore() {
     return id;
   }, [update]);
 
+  /**
+   * WeTab 导入替换（2026-10-30 用户定：导进来只保留 WeTab 的东西）：
+   * 现有编组整批换成导入的编组（旧编组、组合与排版一并清空；待办/计划/小组件不动）。
+   * 导入内部重复链接去重；空组不落盘。计数在 update() 外先算好。
+   */
+  const replaceGroups = useCallback(
+    (incoming: NavGroup[]): { groups: number; sites: number; skipped: number } => {
+      const norm = (u: string) => u.replace(/^https?:\/\//i, '').replace(/\/+$/, '').toLowerCase();
+      const seen = new Set<string>();
+      const prepared = prepareGroups(incoming);
+      const groups: NavGroup[] = [];
+      let sites = 0;
+      let skipped = 0;
+      for (const g of prepared) {
+        const kept: SiteEntry[] = [];
+        for (const s of g.sites) {
+          const key = norm(s.url);
+          if (!s.url || seen.has(key)) {
+            skipped++;
+            continue;
+          }
+          seen.add(key);
+          kept.push({ ...s, id: s.id || genId('s'), logo: s.logo || logoForSite(s.name, s.url) });
+        }
+        if (!kept.length) continue;
+        groups.push({ ...g, id: genId('g'), sites: kept });
+        sites += kept.length;
+      }
+      update((d) => {
+        d.groups = groups;
+        d.cardOrder = [];
+        d.cardCols = {};
+        d.groupLayouts = {};
+        d.combos = [];
+        return d;
+      });
+      return { groups: groups.length, sites, skipped };
+    },
+    [update],
+  );
+
   const setGroupDisplay = useCallback(
     (groupId: string, display: GroupDisplay) => {
       update((d) => {
@@ -2500,6 +2541,7 @@ export function useLocalStore() {
     moveSite,
     reorderSites,
     addGroup,
+    replaceGroups,
     renameGroup,
     setGroupSubtitle,
     setGroupTabColor,

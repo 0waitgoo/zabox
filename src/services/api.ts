@@ -1,15 +1,5 @@
 import { API_BASE } from './apiBase';
 
-export interface HealthInfo {
-  status: string;
-  newsCount: number;
-  trendsCount: number;
-  lastSync: string;
-  lastManualSync: string | null;
-  nextScheduledSync: string;
-  autoUpdateInterval: number;
-}
-
 export interface NewsItem {
   id: number;
   title: string;
@@ -38,25 +28,6 @@ export interface TrendsResult {
   updatedAt: string | null;
   /** true = 当前展示的是最近一次成功缓存（源站暂时不可达） */
   stale: boolean;
-}
-
-/** 软件榜条目（旧接口类型保留兼容；第九十五轮起榜单组件直接读 api/ranking-data.js 的真实数据） */
-export interface SoftwareRankingItem {
-  id: number;
-  name: string;
-  rank: number;
-  category: string;
-  description: string;
-  rating?: number;
-  ratingScale?: number;
-  reviewCount?: string;
-  usageMetric?: string;
-  usageValue?: string;
-  dataPeriod?: string;
-  downloads?: string;
-  url?: string;
-  logo?: string;
-  weeklyViews?: string;
 }
 
 function isNewsArticle(item: unknown): item is NewsItem {
@@ -95,42 +66,6 @@ export async function fetchTrends(): Promise<TrendsResult> {
     // 第九十五轮：不再用任何写死的话题兜底——拉不到就返回空，前端显示空态
     console.log('Failed to fetch trends', error);
     return { items: [], updatedAt: null, stale: false };
-  }
-}
-
-export async function fetchSoftwareRanking(): Promise<SoftwareRankingItem[]> {
-  try {
-    const data = await requestJson(`${API_BASE}/api?type=software-ranking`);
-    if (data.success && Array.isArray(data.data)) {
-      return data.data;
-    }
-    return [];
-  } catch (error) {
-    console.log('Failed to fetch software ranking', error);
-    return [];
-  }
-}
-
-export async function syncNews(): Promise<{ success: boolean; newsCount?: number; trendsCount?: number }> {
-  try {
-    const data = await requestJson(`${API_BASE}/api?type=sync`);
-    return data;
-  } catch (error) {
-    console.error('Failed to sync news:', error);
-    return { success: false };
-  }
-}
-
-export async function fetchHealth(): Promise<HealthInfo | null> {
-  try {
-    const data = await requestJson(`${API_BASE}/api?type=health`);
-    if (data.status === 'ok') {
-      return data;
-    }
-    return null;
-  } catch (error) {
-    console.error('Failed to fetch health:', error);
-    return null;
   }
 }
 

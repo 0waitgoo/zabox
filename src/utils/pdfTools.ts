@@ -3,11 +3,9 @@
  * pdf-lib（MIT）拼装/拆合，全部在浏览器本地运行，文件不离开用户设备。
  * worker 用 Vite 标准 ?url 方式引入，生产构建后随产物一起发出。
  */
-import { getDocument, GlobalWorkerOptions, type PDFDocumentProxy } from 'pdfjs-dist';
+import type { PDFDocumentProxy } from 'pdfjs-dist';
 import workerUrl from 'pdfjs-dist/build/pdf.worker.min.mjs?url';
-import { PDFDocument } from 'pdf-lib';
-
-GlobalWorkerOptions.workerSrc = workerUrl;
+import type { PDFDocument } from 'pdf-lib';
 
 export type { PDFDocumentProxy };
 
@@ -32,8 +30,10 @@ export function humanPdfError(err: unknown): string {
 
 /** 用 pdf.js 打开 PDF（渲染/抽文字用）。失败时抛原始错误，调用方用 humanPdfError 翻译 */
 export async function loadPdfJs(file: File | Blob): Promise<PDFDocumentProxy> {
-  const data = new Uint8Array(await file.arrayBuffer());
-  return getDocument({ data }).promise;
+  const [pdfjs, buffer] = await Promise.all([import('pdfjs-dist'), file.arrayBuffer()]);
+  pdfjs.GlobalWorkerOptions.workerSrc = workerUrl;
+  const data = new Uint8Array(buffer);
+  return pdfjs.getDocument({ data }).promise;
 }
 
 /** 释放 pdf.js 文档占用的 worker 资源（v5 起 destroy 挂在 loadingTask 上） */
@@ -43,8 +43,8 @@ export function destroyPdfJs(doc: PDFDocumentProxy): void {
 
 /** 用 pdf-lib 打开 PDF（合并/拆分用）；加密文件会抛错 */
 export async function loadPdfLib(file: File | Blob): Promise<PDFDocument> {
-  const bytes = new Uint8Array(await file.arrayBuffer());
-  return PDFDocument.load(bytes);
+  const [{ PDFDocument }, buffer] = await Promise.all([import('pdf-lib'), file.arrayBuffer()]);
+  return PDFDocument.load(new Uint8Array(buffer));
 }
 
 export function isPdfFile(f: File): boolean {

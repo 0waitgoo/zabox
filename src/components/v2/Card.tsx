@@ -1,6 +1,6 @@
 import React from 'react';
 import { motion } from 'motion/react';
-import IconImage from './IconImage';
+import { siteLogoFallback } from '../../data/groups';
 import type { WidgetTint } from '../../store/localStore';
 import WidgetTintLayer from './WidgetTint';
 
@@ -66,6 +66,47 @@ export function CardIconBadge({ children, className = 'bg-indigo-500 text-white'
   );
 }
 
+/**
+ * 站点图标解析缓存（模块级，页面会话内有效）：
+ * 展开/收起会卸载一套 <img>、挂载另一套，没有缓存时每次挂载都要重跑
+ * 本地图标 404 → 第三方 /favicon.ico → 字母 的回落链，第三方 favicon 慢就整体慢。
+ * 键为站点 URL；值记首次解析的初始 src 与站名——初始 src 或站名变了（用户换图标/改名）
+ * 缓存自动失效，重新跑链并刷新，避免换图标后仍显示旧图、改名后仍显示旧字标。
+ */
+type ResolvedIconSrc = { initial: string; name: string; src: string };
+const iconSrcCache = new Map<string, ResolvedIconSrc>();
+
+/** 取缓存的解析结果（初始 src 与站名都未变时才命中；无 url 时不缓存） */
+export function cachedIconSrc(url: string | undefined, initial: string, name: string): string | undefined {
+  if (!url) return undefined;
+  const hit = iconSrcCache.get(url);
+  return hit && hit.initial === initial && hit.name === name ? hit.src : undefined;
+}
+
+/** 记一笔解析结果：最终可用地址（第三方 favicon 或字母兜底） */
+export function storeIconSrc(url: string | undefined, initial: string, name: string, src: string): void {
+  if (!url) return;
+  iconSrcCache.set(url, { initial, name, src });
+}
+
+/**
+ * 回落链单步：当前 src 失败后下一步应试的地址；返回 undefined 表示链已走完
+ * （已是字母图 data:，调用方按原行为处理：SiteLogo/SiteTile 停住、组头图标隐藏）。
+ * 链：本地图标 404 → 该站自己的 /favicon.ico → 字母。
+ */
+export function nextFallbackIconSrc(currentSrc: string, url: string | undefined, name: string): string | undefined {
+  if (currentSrc.startsWith('data:')) return undefined;
+  if (currentSrc.includes('/favicon.ico')) return siteLogoFallback(name);
+  if (url) {
+    try {
+      return `${new URL(url).origin}/favicon.ico`;
+    } catch {
+      // URL 不合法时直接回落字母
+    }
+  }
+  return siteLogoFallback(name);
+}
+
 /** 站点 logo 图片（带加载失败兜底），与 NavPage 保持一致的白底圆角样式 */
 export function SiteLogo({
   logo,
@@ -90,13 +131,28 @@ export function SiteLogo({
       className={`site-icon-frame rounded-xl bg-white flex items-center justify-center overflow-hidden shrink-0 ${className}`}
       style={{ width: size, height: size }}
     >
-      <IconImage
-        src={logo}
-        name={name}
-        url={url}
+      <img
+        src={cachedIconSrc(url, logo, name) ?? logo}
         alt={name}
+        draggable={false}
+        loading="lazy"
         className={`object-contain ${grayscale ? 'grayscale opacity-60' : ''}`}
         style={{ width: imgSize, height: imgSize }}
+        onLoad={(e) => {
+          // 回落链走出的地址一旦加载成功即记缓存（第三方 favicon 或字母图）；
+          // 本地初始图标本身不记，下次挂载仍走初始地址
+          const target = e.target as HTMLImageElement;
+          if (target.src.includes('/favicon.ico') || target.src.startsWith('data:')) {
+            storeIconSrc(url, logo, name, target.src);
+          }
+        }}
+        onError={(e) => {
+          const target = e.target as HTMLImageElement;
+          // 二段回落（2026-10-28 晚）：本地图标 404 → 该站自己的 /favicon.ico → 字母；
+          // 解决已应用预设的旧数据（存的是 /icon_APP/ 路径）不随预设定义更新的问题
+          const next = nextFallbackIconSrc(target.src, url, name);
+          if (next !== undefined) target.src = next;
+        }}
       />
     </div>
   );

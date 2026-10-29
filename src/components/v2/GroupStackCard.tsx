@@ -322,13 +322,6 @@ export function StackSiteTiles({
           ))}
         </div>
       )}
-      {/* 按住提示（仅 1x 卡面：单行垂直居中、上下有空隙，绝对定位不占布局、不拦截点击；
-          2x 瓷砖从顶部流式排满到底，底部无空隙可放，不显示） */}
-      {group.sites.length > 0 && heightUnits === 1 && (
-        <div className="absolute bottom-0 left-0 right-0 text-center text-[10px] leading-4 text-white/35 pointer-events-none">
-          按住站点可拖到其他组
-        </div>
-      )}
     </div>
     {crossDrag.dragLayer}
     </>

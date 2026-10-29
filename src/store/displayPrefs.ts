@@ -122,8 +122,6 @@ export function loadDisplayPrefs(): DisplayPrefs {
 export function applyDisplayPrefs(prefs: DisplayPrefs): void {
   const root = document.documentElement;
   root.dataset.theme = prefs.theme;
-  const ua = navigator.userAgent;
-  root.dataset.liquidRefraction = prefs.theme === 'liquid' && /Chrome|Chromium|Edg\//.test(ua) && !/Firefox|FxiOS|CriOS|EdgiOS/.test(ua) && CSS.supports('backdrop-filter', 'url(#zabox-liquid-glass)') ? 'true' : 'false';
   root.style.setProperty('--group-card-alpha', String(prefs.groupCardAlpha));
 }
 

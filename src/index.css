@@ -142,6 +142,10 @@ body {
   -webkit-backdrop-filter: none !important;
   backdrop-filter: none !important;
 }
+[data-theme="liquid"][data-liquid-refraction="true"]:has(#zabox-liquid-glass) :is(.group-card-panel, .widget-panel, [data-stack-body], .card-glass-surface) button:is(:hover, :focus-visible),
+[data-theme="liquid"][data-liquid-refraction="true"]:has(#zabox-liquid-glass) button.card-glass-surface:is(:hover, :focus-visible) {
+  backdrop-filter: url(#zabox-liquid-glass) blur(5px) saturate(135%) !important;
+}
 
 /* 白天钉回暗夜值（第五十八轮）：--group-card-rgb 在白天翻白，故搜索/数据面直接写死暗夜 rgb，
    只让 alpha 随滑杆——与暗夜下计算值逐字一致；文字/图标本就用白色系类，与深底相配 */

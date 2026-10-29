@@ -36,6 +36,7 @@ import {
 } from '../../store/fileSave';
 import { packDataEnvelope, restoreWidgetStorage, unpackDataEnvelope } from '../../store/widgetStorage';
 import { reloadColorsData } from '../../store/colorsData';
+import { parseWetabData } from '../../data/wetab';
 
 /**
  * 「数据」入口：放在搜索区旁，不显眼。
@@ -49,6 +50,7 @@ export default function DataMenu({ store }: { store: LocalStore }) {
   const [confirmReset, setConfirmReset] = useState(false);
   const containerRef = useRef<HTMLDivElement>(null);
   const fileRef = useRef<HTMLInputElement>(null);
+  const wetabFileRef = useRef<HTMLInputElement>(null);
   /* ---- 本地文件保存 ---- */
   const [supported] = useState(fsAccessSupported);
   const [handle, setHandle] = useState<FsFileHandle | null>(null);
@@ -586,6 +588,26 @@ export default function DataMenu({ store }: { store: LocalStore }) {
     }
   };
 
+  /** WeTab 导入（2026-10-29）：.data 文件是 JSON 信封，转换后并入现有数据、不覆盖 */
+  const importWetabFile = async (file: File) => {
+    try {
+      const parsed: unknown = JSON.parse(await file.text());
+      const converted = parseWetabData(parsed);
+      if (!converted) {
+        setMessage({ ok: false, text: '导入失败：不是 WeTab 导出文件' });
+        return;
+      }
+      const r = store.appendGroups(converted.groups);
+      const skipped = converted.skipped + r.skipped;
+      setMessage({
+        ok: true,
+        text: `已从 WeTab 导入 ${r.groups} 组 ${r.sites} 站${skipped ? `，跳过 ${skipped} 个（重复/无效/小组件）` : ''}`,
+      });
+    } catch {
+      setMessage({ ok: false, text: '导入失败：不是有效的 WeTab .data 文件' });
+    }
+  };
+
   const itemCls =
     'w-full flex items-center gap-2.5 px-3 py-2 rounded-xl text-left text-xs text-white/75 hover:bg-white/8 hover:text-white transition-colors';
   const itemDisabledCls =
@@ -641,6 +663,20 @@ export default function DataMenu({ store }: { store: LocalStore }) {
               onChange={(e) => {
                 const file = e.target.files?.[0];
                 if (file) void importFile(file);
+                e.target.value = '';
+              }}
+            />
+            <button onClick={() => wetabFileRef.current?.click()} className={itemCls} data-wetab-import>
+              <FolderOpen size={14} className="text-white/45" /> 从 WeTab 导入 (.data)
+            </button>
+            <input
+              ref={wetabFileRef}
+              type="file"
+              accept=".data,application/json"
+              className="hidden"
+              onChange={(e) => {
+                const file = e.target.files?.[0];
+                if (file) void importWetabFile(file);
                 e.target.value = '';
               }}
             />

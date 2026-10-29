@@ -7,8 +7,9 @@
  * - 叶子站点：{ name, target(链接), bgType, bgText/bgImage, ... } → 导入；
  * - 文件夹 folder-icon：{ children } → 递归摊平进父组（杂盒组不能嵌套）；
  * - 小组件 widgetName → 跳过（两边小组件体系不同）。
- * 自定义图片图标不带原图（体积不可控），走杂盒自动图标管线；彩色字母图标带 bgText。
- * 本文件只做纯转换，不碰 store；去重与落盘在 localStore.appendGroups 里做。
+ * 彩色字母图标带 bgText；图片图标以外链原样带入（iconMode='upload' + iconImage=原链接，
+ * 渲染走现有管线，链接失效时回落 favicon/字母；不下载转存，避免体积膨胀）。
+ * 本文件只做纯转换，不碰 store；去重与落盘在 localStore.replaceGroups 里做。
  */
 import type { NavGroup, SiteEntry } from './groups';
 
@@ -59,6 +60,14 @@ function collectSites(items: unknown, out: SiteEntry[], skipped: { n: number }):
     if (rec.bgType === 'color' && typeof rec.bgText === 'string' && rec.bgText.trim()) {
       site.iconMode = 'text';
       site.iconText = [...rec.bgText.trim()].slice(0, 2).join('');
+    } else if (
+      rec.bgType === 'image' &&
+      typeof rec.bgImage === 'string' &&
+      /^https?:\/\//i.test(rec.bgImage.trim())
+    ) {
+      // 图片图标：外链原样带入，渲染走现有管线（失效回落 favicon/字母）
+      site.iconMode = 'upload';
+      site.iconImage = rec.bgImage.trim();
     }
     out.push(site);
   }

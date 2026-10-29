@@ -353,6 +353,88 @@ export default async function handler(req, res) {
         lastUpdate
       });
     }
+
+    // 主页 AI 整理中转（2026-10-30）：浏览器直连服务商失败（跨域/网络）时的兜底。
+    // 仅转发：不存口令、不记请求体；调用方用的是用户自己的服务商与口令。
+    if (action === 'ai-chat') {
+      const { baseUrl, model, key, messages } = req.body || {};
+      if (
+        typeof baseUrl !== 'string' || !/^https?:\/\//i.test(baseUrl) ||
+        typeof model !== 'string' || !model.trim() ||
+        typeof key !== 'string' || !key.trim() ||
+        !Array.isArray(messages) || messages.length === 0
+      ) {
+        return res.status(400).json({ success: false, error: '参数不完整' });
+      }
+      try {
+        const r = await fetch(`${baseUrl.replace(/\/+$/, '')}/chat/completions`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${key}` },
+          body: JSON.stringify({ model: model.trim(), temperature: 0.2, max_tokens: 3000, messages }),
+        });
+        const text = await r.text();
+        if (!r.ok) {
+          return res.status(200).json({
+            success: false,
+            error: `服务商返回 ${r.status}${text ? `：${text.slice(0, 120)}` : ''}`,
+          });
+        }
+        let json;
+        try {
+          json = JSON.parse(text);
+        } catch {
+          return res.status(200).json({ success: false, error: '服务商返回的不是合法 JSON' });
+        }
+        const content = json?.choices?.[0]?.message?.content;
+        if (typeof content !== 'string' || !content.trim()) {
+          return res.status(200).json({ success: false, error: '服务商没有返回可用内容' });
+        }
+        return res.status(200).json({ success: true, content });
+      } catch {
+        return res.status(200).json({ success: false, error: '中转请求失败，请检查地址与网络' });
+      }
+    }
+
+    // 设置里「获取模型」的中转（2026-10-30 补充）：GET {baseUrl}/models，仅转发，不存口令、不记请求体。
+    if (action === 'ai-models') {
+      const { baseUrl, key } = req.body || {};
+      if (
+        typeof baseUrl !== 'string' || !/^https?:\/\//i.test(baseUrl) ||
+        typeof key !== 'string' || !key.trim()
+      ) {
+        return res.status(400).json({ success: false, error: '参数不完整' });
+      }
+      try {
+        const r = await fetch(`${baseUrl.replace(/\/+$/, '')}/models`, {
+          headers: { Authorization: `Bearer ${key}` },
+        });
+        const text = await r.text();
+        if (!r.ok) {
+          const reason =
+            r.status === 401
+              ? '口令不对（服务商返回 401），请检查口令'
+              : r.status === 404
+                ? '该地址没有 /models 接口（可能不是 OpenAI 兼容接口），请手动填模型名'
+                : `服务商返回 ${r.status}${text ? `：${text.slice(0, 120)}` : ''}`;
+          return res.status(200).json({ success: false, error: reason });
+        }
+        let json;
+        try {
+          json = JSON.parse(text);
+        } catch {
+          return res.status(200).json({ success: false, error: '服务商返回的不是合法 JSON' });
+        }
+        const models = Array.isArray(json?.data)
+          ? [...new Set(json.data.map((d) => d?.id).filter((id) => typeof id === 'string' && id))]
+          : [];
+        if (models.length === 0) {
+          return res.status(200).json({ success: false, error: '服务商返回了空模型列表' });
+        }
+        return res.status(200).json({ success: true, models });
+      } catch {
+        return res.status(200).json({ success: false, error: '中转请求失败，请检查地址与网络' });
+      }
+    }
     
     return res.status(400).json({
       success: false,

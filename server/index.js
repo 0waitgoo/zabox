@@ -309,6 +309,93 @@ app.get('/api', async (req, res) => {
   });
 });
 
+// 主页 AI 整理中转（2026-10-30，与 api/index.js 的 ai-chat 动作等价）：仅转发，不存口令、不记请求体。
+app.post('/api', async (req, res, next) => {
+  const { action, baseUrl, model, key, messages } = req.body || {};
+  if (action !== 'ai-chat') {
+    return next();
+  }
+  if (
+    typeof baseUrl !== 'string' || !/^https?:\/\//i.test(baseUrl) ||
+    typeof model !== 'string' || !model.trim() ||
+    typeof key !== 'string' || !key.trim() ||
+    !Array.isArray(messages) || messages.length === 0
+  ) {
+    return res.status(400).json({ success: false, error: '参数不完整' });
+  }
+  try {
+    const r = await fetch(`${baseUrl.replace(/\/+$/, '')}/chat/completions`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${key}` },
+      body: JSON.stringify({ model: model.trim(), temperature: 0.2, max_tokens: 3000, messages }),
+    });
+    const text = await r.text();
+    if (!r.ok) {
+      return res.status(200).json({
+        success: false,
+        error: `服务商返回 ${r.status}${text ? `：${text.slice(0, 120)}` : ''}`,
+      });
+    }
+    let json;
+    try {
+      json = JSON.parse(text);
+    } catch {
+      return res.status(200).json({ success: false, error: '服务商返回的不是合法 JSON' });
+    }
+    const content = json?.choices?.[0]?.message?.content;
+    if (typeof content !== 'string' || !content.trim()) {
+      return res.status(200).json({ success: false, error: '服务商没有返回可用内容' });
+    }
+    return res.status(200).json({ success: true, content });
+  } catch {
+    return res.status(200).json({ success: false, error: '中转请求失败，请检查地址与网络' });
+  }
+});
+
+// 设置里「获取模型」的中转（2026-10-30 补充，与 api/index.js 的 ai-models 动作等价）：仅转发，不存口令、不记请求体。
+app.post('/api', async (req, res) => {
+  const { action, baseUrl, key } = req.body || {};
+  if (action !== 'ai-models') {
+    return res.status(400).json({ success: false, error: 'Unknown action' });
+  }
+  if (
+    typeof baseUrl !== 'string' || !/^https?:\/\//i.test(baseUrl) ||
+    typeof key !== 'string' || !key.trim()
+  ) {
+    return res.status(400).json({ success: false, error: '参数不完整' });
+  }
+  try {
+    const r = await fetch(`${baseUrl.replace(/\/+$/, '')}/models`, {
+      headers: { Authorization: `Bearer ${key}` },
+    });
+    const text = await r.text();
+    if (!r.ok) {
+      const reason =
+        r.status === 401
+          ? '口令不对（服务商返回 401），请检查口令'
+          : r.status === 404
+            ? '该地址没有 /models 接口（可能不是 OpenAI 兼容接口），请手动填模型名'
+            : `服务商返回 ${r.status}${text ? `：${text.slice(0, 120)}` : ''}`;
+      return res.status(200).json({ success: false, error: reason });
+    }
+    let json;
+    try {
+      json = JSON.parse(text);
+    } catch {
+      return res.status(200).json({ success: false, error: '服务商返回的不是合法 JSON' });
+    }
+    const models = Array.isArray(json?.data)
+      ? [...new Set(json.data.map((d) => d?.id).filter((id) => typeof id === 'string' && id))]
+      : [];
+    if (models.length === 0) {
+      return res.status(200).json({ success: false, error: '服务商返回了空模型列表' });
+    }
+    return res.status(200).json({ success: true, models });
+  } catch {
+    return res.status(200).json({ success: false, error: '中转请求失败，请检查地址与网络' });
+  }
+});
+
 const INTERVAL = 6 * 60 * 60 * 1000;
 
 syncNews().then(() => {
@@ -319,6 +406,8 @@ syncNews().then(() => {
     console.log(`  - GET  /api?type=trends  - Get trends`);
     console.log(`  - GET  /api?type=health  - Health check`);
     console.log(`  - GET  /api?type=sync    - Force sync news`);
+    console.log(`  - POST /api (action=ai-chat) - AI 整理中转`);
+    console.log(`  - POST /api (action=ai-models) - 获取模型列表中转`);
     console.log(`Auto-update: Every ${INTERVAL / 1000 / 60} minutes`);
   });
   

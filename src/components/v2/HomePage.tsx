@@ -26,6 +26,7 @@ import {
 } from '../../store/localStore';
 import { placeInLanes, simulateDenseFlow, type LaneItemSpec } from './laneLayout';
 import StickySearch from './StickySearch';
+import SiteAiAssistant from './SiteAiAssistant';
 import DataMenu from './DataMenu';
 import PwaInstallButton from './PwaInstallButton';
 import PresetMenu from './PresetMenu';
@@ -1506,6 +1507,9 @@ export default function HomePage({ onNavigate, store }: { onNavigate: (page: str
           </div>
         </div>
       </div>
+
+      {/* AI 整理条（2026-10-30）：一句话分类 / 搜集网站，入口在吸顶栏下方、网格上方，不参与卡片布局 */}
+      <SiteAiAssistant store={store} />
 
       {/* 栏位网格（第三十四轮）：4 栏（平板 2 栏 / 手机 1 栏单列，第六十六轮），每张卡的占格由 placements 显式给出
           （gridColumn/gridRow 钉死），不走自动流——栏与栏互不挤占，空栏留空。

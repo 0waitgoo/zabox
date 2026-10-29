@@ -81,20 +81,22 @@ export default function DarkVeil({
   warpAmount = 0,
   resolutionScale = 1
 }) {
-  const ref = useRef(null);
+  const ref = useRef<HTMLCanvasElement>(null);
   
   useEffect(() => {
     const canvas = ref.current;
+    if (!canvas) return;
     const parent = canvas.parentElement;
 
-    const renderer = new Renderer({
-      // 第九十七轮：DPR 上限 2 → 1.5。本组件是全屏逐像素 CPPN 着色器，是整页
-      // 每帧开销的最大头（无头分解实测约占帧成本 75%），且其内容是低频平滑
-      // 极光渐变，1.5 以上的采样密度不携带可见信息；hueShift/speed/warp 等
-      // 效果参数一字未动。DPR 2 设备上画布像素数降为原来的 (1.5/2)² ≈ 56%。
-      dpr: Math.min(window.devicePixelRatio, 1.5),
-      canvas
-    });
+    // 无 WebGL 或偏好减少动态效果时，保留 App 的静态渐变背景。
+    const motionQuery = window.matchMedia('(prefers-reduced-motion: reduce)');
+    let renderer: Renderer;
+    try {
+      renderer = new Renderer({ dpr: Math.min(window.devicePixelRatio, 1.5), canvas });
+    } catch {
+      return;
+    }
+
 
     const gl = renderer.gl;
     const geometry = new Triangle(gl);
@@ -172,7 +174,7 @@ export default function DarkVeil({
         renderer.render({ scene: mesh });
         (canvas as unknown as { __veilFrames?: number }).__veilFrames = ++veilFrames;
       }
-      frame = requestAnimationFrame(loop);
+      if (!motionQuery.matches) frame = requestAnimationFrame(loop);
     };
 
     const onVisibility = () => {
@@ -186,6 +188,12 @@ export default function DarkVeil({
       }
     };
     document.addEventListener('visibilitychange', onVisibility);
+    const onMotionChange = () => {
+      cancelAnimationFrame(frame);
+      lastNow = performance.now();
+      if (running) frame = requestAnimationFrame(loop);
+    };
+    motionQuery.addEventListener('change', onMotionChange);
     if (document.hidden) running = false;
     else loop();
 
@@ -195,6 +203,9 @@ export default function DarkVeil({
       document.removeEventListener('visibilitychange', onVisibility);
       document.removeEventListener('scroll', onScroll, { capture: true });
       window.removeEventListener('resize', resize);
+      motionQuery.removeEventListener('change', onMotionChange);
+      geometry.remove();
+      gl.deleteProgram(program.program);
     };
 
   }, [hueShift, noiseIntensity, scanlineIntensity, speed, scanlineFrequency, warpAmount, resolutionScale]);

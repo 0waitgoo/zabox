@@ -2,37 +2,28 @@ import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { Clock, ArrowUpRight, History, RefreshCw } from 'lucide-react';
 import { fetchNews, type NewsItem } from '../../services/api';
 
-const shuffleArray = <T,>(array: T[], seed: number): T[] => {
-  const shuffled = [...array];
-  for (let i = shuffled.length - 1; i > 0; i--) {
-    const j = Math.floor((seed * (i + 1)) % (i + 1));
-    [shuffled[i], shuffled[j]] = [shuffled[j], shuffled[i]];
-  }
-  return shuffled;
-};
-
 function NewsPage() {
   const [news, setNews] = useState<NewsItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshKey, setRefreshKey] = useState(0);
   const [expandedNewsId, setExpandedNewsId] = useState<number | null>(null);
 
-  const loadNews = useCallback(async () => {
-    setLoading(true);
-    try {
-      const data = await fetchNews(30);
-      const shuffled = shuffleArray(data, refreshKey);
-      setNews(shuffled);
-    } catch (error) {
-      console.error('Failed to load news:', error);
-    } finally {
-      setLoading(false);
-    }
-  }, [refreshKey]);
-
   useEffect(() => {
-    loadNews();
-  }, [loadNews]);
+    let cancelled = false;
+    const loadNews = async () => {
+      setLoading(true);
+      try {
+        const data = await fetchNews(30);
+        if (!cancelled) setNews([...data].sort((a, b) => Date.parse(b.publishedAt) - Date.parse(a.publishedAt)));
+      } catch (error) {
+        console.error('Failed to load news:', error);
+      } finally {
+        if (!cancelled) setLoading(false);
+      }
+    };
+    void loadNews();
+    return () => { cancelled = true; };
+  }, [refreshKey]);
 
   const handleRefresh = useCallback(() => {
     setRefreshKey(prev => prev + 1);
@@ -128,6 +119,12 @@ function NewsPage() {
 
   return (
     <div className="space-y-8">
+      {news.length === 0 && (
+        <div className="glass-panel rounded-3xl p-8 text-center text-white/60">
+          <p>资讯暂时不可用，请稍后重试。</p>
+          <button type="button" onClick={handleRefresh} className="mt-3 text-indigo-300">重新加载</button>
+        </div>
+      )}
       <div className="flex items-center justify-between">
         <h2 className="text-xl font-bold tracking-tight">AI新闻</h2>
         <button 

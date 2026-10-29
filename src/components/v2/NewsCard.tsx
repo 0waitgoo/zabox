@@ -17,9 +17,11 @@ export default function NewsCard({
 }) {
   const [news, setNews] = useState<NewsItem[]>([]);
   const [loading, setLoading] = useState(true);
+  const [retry, setRetry] = useState(0);
 
   useEffect(() => {
     let cancelled = false;
+    setLoading(true);
     fetchNews(6)
       .then((data) => {
         if (!cancelled) setNews(data);
@@ -30,7 +32,7 @@ export default function NewsCard({
     return () => {
       cancelled = true;
     };
-  }, []);
+  }, [retry]);
 
   const headline = news[0];
   const hotList = news.slice(1, 5);
@@ -98,7 +100,13 @@ export default function NewsCard({
           </div>
         </div>
       ) : (
-        <div className="flex-1 flex items-center justify-center text-sm text-white/40">暂无资讯</div>
+        <div className="flex-1 flex flex-col gap-2 items-center justify-center text-sm text-white/40">
+          <span>资讯暂时不可用</span>
+          <button type="button" className="text-indigo-300 hover:text-indigo-200" onClick={(e) => {
+            e.stopPropagation();
+            setRetry((value) => value + 1);
+          }}>点此重试</button>
+        </div>
       )}
     </Card>
   );

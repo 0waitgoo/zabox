@@ -3,8 +3,6 @@ import { TopLogo, TopNav } from './components/Sidebar';
 import HomePage from './components/v2/HomePage';
 import PresetMenu from './components/v2/PresetMenu';
 import TopBarShade from './components/v2/TopBarShade';
-import DappledLight from './components/backgrounds/DappledLight';
-import DarkVeil from './components/DarkVeil';
 import { backgroundPresetOf, useLocalStore } from './store/localStore';
 import { loadBgImage } from './store/bgImageDb';
 import { applyDisplayPrefs, bgBlurPx, useDisplayPrefs } from './store/displayPrefs';
@@ -13,6 +11,8 @@ const NewsPage = React.lazy(() => import('./components/pages/NewsPage'));
 const NavPage = React.lazy(() => import('./components/pages/NavPage'));
 const WidgetStorePage = React.lazy(() => import('./components/pages/WidgetStorePage'));
 const PlanPage = React.lazy(() => import('./components/pages/PlanPage'));
+const DarkVeil = React.lazy(() => import('./components/DarkVeil'));
+const DappledLight = React.lazy(() => import('./components/backgrounds/DappledLight'));
 
 export default function App() {
   const [currentPage, setCurrentPage] = useState('home');
@@ -129,14 +129,16 @@ export default function App() {
         {/* DarkVeil Background（仅默认预设：三档外观都在，背景层不随主题变的口径下与暗夜一致） */}
         {background.kind === 'preset' && background.presetId === 'violet' && (
           <div className="absolute inset-0 z-1">
-            <DarkVeil hueShift={0} noiseIntensity={0} scanlineIntensity={0} speed={1} scanlineFrequency={0} warpAmount={2} resolutionScale={0.6} />
+            <Suspense fallback={null}>
+              <DarkVeil hueShift={0} noiseIntensity={0} scanlineIntensity={0} speed={1} scanlineFrequency={0} warpAmount={2} resolutionScale={0.6} />
+            </Suspense>
           </div>
         )}
         {/* 第九十二轮自研动态背景「斑驳光影」：与 DarkVeil 同位（压黑遮罩之上、近黑底色不影响文字可读）；
             只在对应预设被选中时挂载，组件内部管 DPR 封顶与隐藏暂停 */}
         {background.kind === 'preset' && preset.dynamic === 'dappled' && (
           <div className="absolute inset-0 z-1">
-            <DappledLight className="absolute inset-0" />
+            <Suspense fallback={null}><DappledLight className="absolute inset-0" /></Suspense>
           </div>
         )}
       </div>

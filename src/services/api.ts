@@ -59,24 +59,34 @@ export interface SoftwareRankingItem {
   weeklyViews?: string;
 }
 
+function isNewsArticle(item: unknown): item is NewsItem {
+  if (!item || typeof item !== 'object') return false;
+  const article = item as Partial<NewsItem>;
+  if (!article.title || typeof article.title !== 'string' || !Number.isFinite(Date.parse(article.publishedAt ?? ''))) return false;
+  try {
+    const url = new URL(article.url ?? '');
+    // 新闻必须可追溯到文章；仅链接媒体首页的演示数据不作为真实资讯展示。
+    return ['http:', 'https:'].includes(url.protocol) && (url.pathname !== '/' || !!url.search);
+  } catch {
+    return false;
+  }
+}
+
 export async function fetchNews(limit = 20, offset = 0): Promise<NewsItem[]> {
   try {
-    const response = await fetch(`${API_BASE}/api?type=news&limit=${limit}&offset=${offset}`);
-    const data = await response.json();
-    if (data.success) {
-      return data.data;
+    const data = await requestJson(`${API_BASE}/api?type=news&limit=${limit}&offset=${offset}`);
+    if (data.success && Array.isArray(data.data)) {
+      return data.data.filter(isNewsArticle);
     }
-    return getFallbackNews();
-  } catch (error) {
-    console.log('Using fallback news data');
-    return getFallbackNews().slice(offset, offset + limit);
+    return [];
+  } catch {
+    return [];
   }
 }
 
 export async function fetchTrends(): Promise<TrendsResult> {
   try {
-    const response = await fetch(`${API_BASE}/api?type=trends`);
-    const data = await response.json();
+    const data = await requestJson(`${API_BASE}/api?type=trends`);
     if (data.success && Array.isArray(data.data)) {
       return { items: data.data, updatedAt: data.updatedAt ?? null, stale: !!data.stale };
     }
@@ -90,9 +100,8 @@ export async function fetchTrends(): Promise<TrendsResult> {
 
 export async function fetchSoftwareRanking(): Promise<SoftwareRankingItem[]> {
   try {
-    const response = await fetch(`${API_BASE}/api?type=software-ranking`);
-    const data = await response.json();
-    if (data.success) {
+    const data = await requestJson(`${API_BASE}/api?type=software-ranking`);
+    if (data.success && Array.isArray(data.data)) {
       return data.data;
     }
     return [];
@@ -104,10 +113,7 @@ export async function fetchSoftwareRanking(): Promise<SoftwareRankingItem[]> {
 
 export async function syncNews(): Promise<{ success: boolean; newsCount?: number; trendsCount?: number }> {
   try {
-    const response = await fetch(`${API_BASE}/api?type=sync`, {
-      method: 'GET'
-    });
-    const data = await response.json();
+    const data = await requestJson(`${API_BASE}/api?type=sync`);
     return data;
   } catch (error) {
     console.error('Failed to sync news:', error);
@@ -117,8 +123,7 @@ export async function syncNews(): Promise<{ success: boolean; newsCount?: number
 
 export async function fetchHealth(): Promise<HealthInfo | null> {
   try {
-    const response = await fetch(`${API_BASE}/api?type=health`);
-    const data = await response.json();
+    const data = await requestJson(`${API_BASE}/api?type=health`);
     if (data.status === 'ok') {
       return data;
     }
@@ -129,12 +134,24 @@ export async function fetchHealth(): Promise<HealthInfo | null> {
   }
 }
 
-function getFallbackNews(): NewsItem[] {
-  return [
-    { id: 1, title: 'OpenAI发布GPT-4.5：推理能力大幅提升', description: '最新版本在数学、编程和创意写作方面展现突破性进展', source: '36Kr', category: '语言模型', url: 'https://36kr.com/', publishedAt: new Date().toISOString() },
-    { id: 2, title: 'Claude 4正式推出：专注模式大幅增强', description: 'Anthropic发布新一代Claude模型', source: '量子位', category: '语言模型', url: 'https://www.qbitai.com/', publishedAt: new Date(Date.now() - 3600000).toISOString() },
-    { id: 3, title: 'Sora新版本发布：视频生成质量超越真实', description: 'OpenAI视频生成工具实现重大突破', source: '机器之心', category: '视频AI', url: 'https://www.jiqizhixin.com/', publishedAt: new Date(Date.now() - 7200000).toISOString() },
-  ];
+// 共用正在进行的请求，避免 StrictMode 和同屏组件重复取数；完成后即可重试。
+const pending = new Map<string, Promise<any>>();
+
+export function requestJson(url: string, timeoutMs = 10_000): Promise<any> {
+  const existing = pending.get(url);
+  if (existing) return existing;
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), timeoutMs);
+  const request = (async () => {
+    const response = await fetch(url, { signal: controller.signal });
+    if (!response.ok) throw new Error(`HTTP ${response.status}`);
+    return await response.json();
+  })().finally(() => {
+    clearTimeout(timer);
+    pending.delete(url);
+  });
+  pending.set(url, request);
+  return request;
 }
 
 // 第九十五轮：原 getFallbackTrends / getFallbackSoftwareRanking 两份写死数据

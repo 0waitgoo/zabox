@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useRef, useState } from 'react';
+import React, { useEffect, useId, useMemo, useRef, useState } from 'react';
 import { Search, LayoutGrid, CornerDownLeft } from 'lucide-react';
 import { AnimatePresence, motion } from 'motion/react';
 import { siteIconSrc, type NavGroup } from '../../data/groups';
@@ -19,11 +19,20 @@ export default function StickySearch({
 }) {
   const [query, setQuery] = useState('');
   const [open, setOpen] = useState(false);
+  const [activeIndex, setActiveIndex] = useState(-1);
+  const listId = useId();
   const inputRef = useRef<HTMLInputElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
 
   const results = useMemo(() => searchAll(query, groups), [query, groups]);
   const hasResults = results.sites.length > 0 || results.groups.length > 0;
+  const resultCount = results.groups.length + results.sites.length;
+
+  useEffect(() => {
+    if (activeIndex >= 0) {
+      document.getElementById(`${listId}-${activeIndex}`)?.scrollIntoView({ block: 'nearest' });
+    }
+  }, [activeIndex, listId]);
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
@@ -31,7 +40,7 @@ export default function StickySearch({
         e.preventDefault();
         inputRef.current?.focus();
       }
-      if (e.key === 'Escape') {
+      if (e.key === 'Escape' && !e.isComposing) {
         setOpen(false);
         inputRef.current?.blur();
       }
@@ -42,19 +51,27 @@ export default function StickySearch({
       }
     };
     document.addEventListener('keydown', onKey);
-    document.addEventListener('mousedown', onPointerDown);
+    document.addEventListener('pointerdown', onPointerDown);
     return () => {
       document.removeEventListener('keydown', onKey);
-      document.removeEventListener('mousedown', onPointerDown);
+      document.removeEventListener('pointerdown', onPointerDown);
     };
   }, []);
 
   const openSite = (url: string) => {
-    window.open(url, '_blank');
+    window.open(url, '_blank', 'noopener,noreferrer');
     setOpen(false);
   };
 
   const handleEnter = () => {
+    if (open && activeIndex >= 0 && activeIndex < resultCount) {
+      const group = results.groups[activeIndex];
+      if (group) {
+        onOpenGroup(group);
+        setOpen(false);
+      } else openSite(results.sites[activeIndex - results.groups.length].site.url);
+      return;
+    }
     const first = results.sites[0];
     if (first) openSite(first.site.url);
     else if (results.groups[0]) {
@@ -74,21 +91,39 @@ export default function StickySearch({
           <Search size={18} className="text-white/40 shrink-0" />
           <input
             ref={inputRef}
+            role="combobox"
+            aria-label="搜索网站和编组"
+            aria-expanded={open && !!query.trim()}
+            aria-controls={open && query.trim() ? listId : undefined}
+            aria-autocomplete="list"
+            aria-activedescendant={open && activeIndex >= 0 ? `${listId}-${activeIndex}` : undefined}
             value={query}
             onChange={(e) => {
               setQuery(e.target.value);
+              setActiveIndex(-1);
               setOpen(true);
             }}
             onFocus={() => setOpen(true)}
             onKeyDown={(e) => {
-              if (e.key === 'Enter') handleEnter();
+              if (e.nativeEvent.isComposing || e.keyCode === 229) return;
+              if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
+                e.preventDefault();
+                setOpen(true);
+                if (resultCount) setActiveIndex((index) =>
+                  e.key === 'ArrowDown' ? (index + 1) % resultCount : (index <= 0 ? resultCount - 1 : index - 1));
+              }
+              if (e.key === 'Enter') {
+                e.preventDefault();
+                handleEnter();
+              }
+              if (e.key === 'Tab') setOpen(false);
             }}
             placeholder="搜索网站、编组…试试拼音首字母或别名，如 db / gpt"
             className="flex-1 bg-transparent outline-none text-sm sm:text-base placeholder:text-white/35 min-w-0"
           />
           {query ? (
             <button
-              onClick={() => setQuery('')}
+              onClick={() => { setQuery(''); setActiveIndex(-1); inputRef.current?.focus(); }}
               className="text-white/40 hover:text-white text-xs shrink-0 px-1"
             >
               清除
@@ -103,6 +138,9 @@ export default function StickySearch({
         <AnimatePresence>
           {open && query.trim() && (
             <motion.div
+              id={listId}
+              role="listbox"
+              aria-label="搜索结果"
               initial={{ opacity: 0, y: 6 }}
               animate={{ opacity: 1, y: 0 }}
               exit={{ opacity: 0, y: 6 }}
@@ -116,8 +154,13 @@ export default function StickySearch({
               {results.groups.length > 0 && (
                 <div className="mb-1">
                   <p className="px-3 pt-2 pb-1 text-[10px] font-medium tracking-wider text-white/50 uppercase">编组</p>
-                  {results.groups.map((group) => (
+                  {results.groups.map((group, index) => (
                     <button
+                      id={`${listId}-${index}`}
+                      role="option"
+                      aria-selected={activeIndex === index}
+                      tabIndex={-1}
+                      style={activeIndex === index ? { backgroundColor: 'rgba(255,255,255,0.08)' } : undefined}
                       key={group.id}
                       onClick={() => {
                         onOpenGroup(group);
@@ -140,8 +183,13 @@ export default function StickySearch({
               {results.sites.length > 0 && (
                 <div>
                   <p className="px-3 pt-2 pb-1 text-[10px] font-medium tracking-wider text-white/50 uppercase">站点 · 回车直达第一个</p>
-                  {results.sites.map(({ site, group, matchedAlias }) => (
+                  {results.sites.map(({ site, group, matchedAlias }, index) => (
                     <button
+                      id={`${listId}-${results.groups.length + index}`}
+                      role="option"
+                      aria-selected={activeIndex === results.groups.length + index}
+                      tabIndex={-1}
+                      style={activeIndex === results.groups.length + index ? { backgroundColor: 'rgba(255,255,255,0.08)' } : undefined}
                       key={`${group.id}-${site.name}`}
                       onClick={() => openSite(site.url)}
                       className="w-full flex items-center gap-3 px-3 py-2 rounded-2xl hover:bg-white/8 text-left transition-colors group/item"

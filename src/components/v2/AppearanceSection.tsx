@@ -1,5 +1,5 @@
 import React, { useRef, useState } from 'react';
-import { ImagePlus, Trash2, Check, Moon, Sun, Pipette } from 'lucide-react';
+import { ImagePlus, Trash2, Check, Moon, Sun, Pipette, Droplets } from 'lucide-react';
 import { BACKGROUND_PRESETS, type LocalStore } from '../../store/localStore';
 import { deleteBgImage, saveBgImage } from '../../store/bgImageDb';
 import { OCEAN_DEFAULT_COLOR, setDisplayPrefs, useDisplayPrefs } from '../../store/displayPrefs';
@@ -136,11 +136,12 @@ export default function AppearanceSection({ store }: { store: LocalStore }) {
       <div className="my-2 border-t border-white/[0.07]" />
 
       <p className="px-1 pb-1 text-[10px] tracking-wider text-white/40 uppercase">外观模式</p>
-      <div className="grid grid-cols-2 gap-1.5">
+      <div className="grid grid-cols-3 gap-1.5">
         {(
           [
             { id: 'dark', label: '暗夜', Icon: Moon },
             { id: 'light', label: '白天', Icon: Sun },
+            { id: 'liquid', label: '液态玻璃', Icon: Droplets },
           ] as const
         ).map(({ id, label, Icon }) => {
           const active = displayPrefs.theme === id;
@@ -148,6 +149,7 @@ export default function AppearanceSection({ store }: { store: LocalStore }) {
             <button
               key={id}
               data-theme-option={id}
+              aria-pressed={active}
               onClick={() => setDisplayPrefs({ theme: id })}
               className={`flex items-center justify-center gap-1.5 py-2 rounded-xl border text-xs whitespace-nowrap transition-all ${
                 active

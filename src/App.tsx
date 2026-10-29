@@ -3,6 +3,7 @@ import { TopLogo, TopNav } from './components/Sidebar';
 import HomePage from './components/v2/HomePage';
 import PresetMenu from './components/v2/PresetMenu';
 import TopBarShade from './components/v2/TopBarShade';
+import LiquidGlassFilter from './components/v2/LiquidGlassFilter';
 import { backgroundPresetOf, useLocalStore } from './store/localStore';
 import { loadBgImage } from './store/bgImageDb';
 import { applyDisplayPrefs, bgBlurPx, useDisplayPrefs } from './store/displayPrefs';
@@ -86,6 +87,7 @@ export default function App() {
 
   return (
     <div className="relative min-h-screen w-full text-white bg-black">
+      {displayPrefs.theme === 'liquid' && <LiquidGlassFilter />}
       {/* 全页固定背景层：底层永远是当前预设（纯 CSS），本地图片就绪后淡入覆盖其上，
           再压深色遮罩保证卡片文字可读；默认预设额外保留 DarkVeil 纹理层，维持原观感。
           纯装饰层：pointer-events-none 全穿透（第六十五轮），本层不许再挡任何

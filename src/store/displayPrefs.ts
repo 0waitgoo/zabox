@@ -21,7 +21,7 @@ import { useEffect, useState } from 'react';
  * （换算见 BG_BLUR_MAX_PX / bgBlurPx：0%→0px、30%→6px、100%→20px），老用户升级后
  * 第一眼观感不变。只作用于本地图片背景，预设背景不受影响；同层的压黑遮罩 bg-black/50 不动。
  */
-export type DisplayTheme = 'dark' | 'light';
+export type DisplayTheme = 'dark' | 'light' | 'liquid';
 
 export interface DisplayPrefs {
   theme: DisplayTheme;
@@ -87,7 +87,7 @@ function normalizePrefs(raw: unknown): DisplayPrefs {
         : DEFAULT_DISPLAY_PREFS.groupCardAlpha;
     return {
       // 第一百零二轮迁移：液态玻璃档已删除，存档 theme='glass' 显式落回暗夜；其余偏好不动
-      theme: p.theme === 'light' ? 'light' : 'dark',
+      theme: p.theme === 'light' || p.theme === 'liquid' ? p.theme : 'dark',
       groupCardAlpha,
       // 第六十轮迁移：存档里已有合法 widgetAlpha 就用它；没有（老用户）则按旧耦合公式推导
       widgetAlpha:
@@ -122,6 +122,9 @@ export function loadDisplayPrefs(): DisplayPrefs {
 export function applyDisplayPrefs(prefs: DisplayPrefs): void {
   const root = document.documentElement;
   root.dataset.theme = prefs.theme;
+  // SVG backdrop filters are unreliable in Safari and Firefox; use the CSS fallback there.
+  const ua = navigator.userAgent;
+  root.dataset.liquidRefraction = prefs.theme === 'liquid' && /Chrome|Chromium|Edg\//.test(ua) && !/Firefox|FxiOS|CriOS|EdgiOS/.test(ua) && CSS.supports('backdrop-filter', 'url(#zabox-liquid-glass)') ? 'true' : 'false';
   root.style.setProperty('--group-card-alpha', String(prefs.groupCardAlpha));
 }
 

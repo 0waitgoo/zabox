@@ -86,8 +86,7 @@ export default function App() {
   const isOceanSolid = background.kind === 'preset' && background.presetId === 'ocean';
 
   return (
-    <div className="relative min-h-screen w-full text-white bg-black"
-      data-liquid-animated-background={background.kind === 'preset' && (background.presetId === 'violet' || preset.dynamic === 'dappled') ? '' : undefined}>
+    <div className="relative min-h-screen w-full text-white bg-black">
       {displayPrefs.theme === 'liquid' && <LiquidGlassFilter />}
       {/* 全页固定背景层：底层永远是当前预设（纯 CSS），本地图片就绪后淡入覆盖其上，
           再压深色遮罩保证卡片文字可读；默认预设额外保留 DarkVeil 纹理层，维持原观感。

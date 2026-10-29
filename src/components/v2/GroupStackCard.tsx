@@ -178,7 +178,7 @@ function SiteTile({ site, guardClick }: { site: SiteEntry; guardClick?: () => bo
       className="group/face shrink-0 rounded-[13px] hover:z-20"
       style={{ width: 'var(--face-tile-size)', height: 'var(--face-tile-size)' }}
     >
-      <span className="site-icon-frame block w-full h-full rounded-[13px] bg-white overflow-hidden transition-transform duration-150 group-hover/face:scale-110">
+      <span className="site-icon-frame block w-full h-full rounded-[13px] bg-white overflow-hidden transition-transform duration-150 motion-safe:group-hover/face:-translate-y-0.5 motion-safe:group-focus-visible/face:-translate-y-0.5">
         <IconImage
           src={initial}
           name={site.name}

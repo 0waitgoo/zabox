@@ -156,19 +156,19 @@ export function StackGroupIcon({ group, size = 30 }: { group: NavGroup; size?: n
 }
 
 /**
- * 卡面瓷砖尺寸（第五十三轮，全形态统一）：
- * 基准 = 改版前「宽 1 栏 × 高 2x」形态下瓷砖的实测边长 60.4px、gap 10px（1680 视口实测）。
+ * 卡面瓷砖尺寸（第五十三轮，全形态统一；2026-10-30 放宽：gap 10px → 16px）：
+ * 基准卡（1680 视口「宽 1 栏 × 高 2x」）content-box = 342px，tile = (342 − 4×16) / 5 = 55.6px、
+ * 上限 60.4px（更宽的卡 tile 长到上限即止，不再放大）。
  * --face-tile-size 用 cqw 复刻基准公式：cqw 的基准是容器（StackCardFrame 卡身）的 content-box 宽，
- * 基准卡 content-box = 342px = 5×60.4 + 4×10，故 tile = (100cqw − 4×gap) / 5、上限 60.4px：
- * 卡宽达到基准宽度时恒为 60.4px，更窄的卡（小屏）按同一公式等比缩小——任何视口下
+ * 故 tile = (100cqw − 4×gap) / 5、上限 60.4px：更窄的卡（小屏）按同一公式等比缩小——任何视口下
  * 四种形态（1/2 栏 × 1x/2x）的卡面图标都等于该视口下「1 栏 2x」的尺寸，不再随形态变化。
- * gap 同为全形态统一常量 10px（横向与纵向同值）：实测自「1 栏卡面 5 个基准图标恰好排满一整行」——
- * 4 个图标间隙恒为 10px、整行 341.95px 恰好填满 content-box（342），两侧各 17px 只是卡身自带的
- * 16px 内边距 + 1px 边框、无额外分配；5 个/行只是这套常量在 1 栏宽下的自然结果，不是排布规则。
+ * gap 同为全形态统一常量 16px（横向与纵向同值）：1 栏卡面 5 个图标恰好排满一整行——
+ * 4 个图标间隙恒为 16px，两侧各 17px 只是卡身自带的 16px 内边距 + 1px 边框、无额外分配；
+ * 5 个/行只是这套常量在 1 栏宽下的自然结果，不是排布规则；更宽的卡每行个数由卡宽自然决定。
  */
 const FACE_TILE_VARS = {
-  '--face-tile-size': 'min(60.4px, calc((100cqw - 40px) / 5))',
-  '--face-tile-gap': '10px',
+  '--face-tile-size': 'min(60.4px, calc((100cqw - 64px) / 5))',
+  '--face-tile-gap': '16px',
 } as React.CSSProperties;
 
 /** 单个站点瓷砖（圆角块 + 铺满的站点图标 + 下方名字，名字字号与弹窗瓷砖一致 11px；
@@ -224,7 +224,7 @@ function SiteTile({ site, guardClick }: { site: SiteEntry; guardClick?: () => bo
 
 /**
  * 1x 卡面单行可容纳的瓷砖数（第五十六轮）：实测图标区宽度后按第五十三轮的同一套
- * 尺寸/间距常量反推——瓷砖边长 t = min(60.4, (W − 40) / 5)、gap 10px（W = 图标区宽，
+ * 尺寸/间距常量反推——瓷砖边长 t = min(60.4, (W − 64) / 5)、gap 16px（W = 图标区宽，
  * 与卡身 content-box 同宽，即 cqw 公式里的基准宽），一行可容纳数 = floor((W + gap) / (t + gap))。
  * +0.5px 容差抵消「5 个恰好排满」边界上的浮点误差。测不到宽度时不截断（返回 Infinity）。
  */
@@ -240,8 +240,8 @@ function useRowFitCount(zoneRef: React.RefObject<HTMLDivElement | null>, enabled
     const update = () => {
       const w = el.clientWidth;
       if (!w) return;
-      const tile = Math.min(60.4, (w - 40) / 5);
-      const n = Math.max(1, Math.floor((w + 10 + 0.5) / (tile + 10)));
+      const tile = Math.min(60.4, (w - 64) / 5);
+      const n = Math.max(1, Math.floor((w + 16 + 0.5) / (tile + 16)));
       setCount(n);
     };
     update();
@@ -254,7 +254,7 @@ function useRowFitCount(zoneRef: React.RefObject<HTMLDivElement | null>, enabled
 
 /**
  * C 卡底部瓷砖区（普通 C 卡与组合卡共用，第五十三轮尺寸口径 + 第五十六轮布局修正）：
- * 全部形态共用同一套常量——图标尺寸（FACE_TILE_VARS 的 1栏2X 基准）+ 统一 gap 10px，
+ * 全部形态共用同一套常量——图标尺寸（FACE_TILE_VARS 的 1栏2X 基准）+ 统一 gap 16px，
  * 排布按高度分两型（用户第五十六轮拍板）：
  * - 高 1x：卡面只显示**一行**——按卡宽可容纳数截断（见 useRowFitCount），超出的站点
  *   不在卡面出现（弹窗里照常可见）；这一行在图标区内垂直居中、水平**从左起排**

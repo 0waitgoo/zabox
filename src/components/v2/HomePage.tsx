@@ -738,17 +738,17 @@ export default function HomePage({ onNavigate, store }: { onNavigate: (page: str
     const map = new Map<string, number>();
     const cardW = viewportWidth - 24; // 内容列 px-3（<640 恒为 12×2）
     const bodyW = cardW - 34; // C 卡卡身：边框 2 + px-4 32
-    const tile = Math.min(60.4, Math.max(20, (bodyW - 40) / 5));
-    const perRow = Math.max(1, Math.floor((bodyW + 10.5) / (tile + 10)));
+    const tile = Math.min(60.4, Math.max(20, (bodyW - 64) / 5)); // 与 GroupStackCard 瓷砖常量同步（2026-10-30 gap 16px）
+    const perRow = Math.max(1, Math.floor((bodyW + 16.5) / (tile + 16)));
     const stackH = (n: number, hu: number): number => {
       if (hu === 1) return Math.round(116 + tile);
       if (n === 0) return 128;
-      return Math.round(94 + Math.ceil(n / perRow) * (tile + 10));
+      return Math.round(94 + Math.ceil(n / perRow) * (tile + 16));
     };
     const comboH = (n: number, hu: number): number => {
       if (hu === 1) return Math.round(108 + tile);
       if (n === 0) return 150;
-      return Math.round(86 + Math.ceil(n / perRow) * (tile + 10));
+      return Math.round(86 + Math.ceil(n / perRow) * (tile + 16));
     };
     /** 单个组件的手机估算高（按组件类型与高度档；组件摞按当前成员复用同一口径） */
     const widgetPhoneH = (id: WidgetId, lay: WidgetLayout): number => {

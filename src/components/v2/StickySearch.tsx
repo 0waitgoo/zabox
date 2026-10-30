@@ -9,13 +9,22 @@ import { SiteLogo } from './Card';
  * 搜索（吸顶由 HomePage 的 sticky 容器负责，本组件只管搜索本身）。
  * 数据来自本地存储的当前编组：支持站点名 / 编组名 / 别名 / 拼音首字母，
  * 站点结果点击直达，编组结果点击原地展开该编组卡。
+ * 一栏两模式（2026-10-30）：与 AI 整理共用顶栏一栏，平时只显示其一。
+ * `active` 为 false 时本栏 display:none 藏起、但组件不卸载——搜索词保留在
+ * 自己的 state 里，不会串到 AI 输入框；切回来时下拉关闭、输入框重新聚焦。
  */
 export default function StickySearch({
   groups,
   onOpenGroup,
+  active = true,
+  onRequestActivate,
 }: {
   groups: NavGroup[];
   onOpenGroup: (group: NavGroup) => void;
+  /** 是否当前模式；false 时藏起（不卸载，输入内容保留） */
+  active?: boolean;
+  /** AI 模式下按 ⌘K/Ctrl+K 时回调：由统一栏切回搜索模式 */
+  onRequestActivate?: () => void;
 }) {
   const [query, setQuery] = useState('');
   const [open, setOpen] = useState(false);
@@ -23,6 +32,20 @@ export default function StickySearch({
   const listId = useId();
   const inputRef = useRef<HTMLInputElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
+  const activeRef = useRef(active);
+  activeRef.current = active;
+  const onRequestActivateRef = useRef(onRequestActivate);
+  onRequestActivateRef.current = onRequestActivate;
+  const prevActiveRef = useRef(active);
+
+  /* 切到 AI 模式：关下拉；切回搜索模式：聚焦输入框（首渲染不聚焦） */
+  useEffect(() => {
+    const was = prevActiveRef.current;
+    prevActiveRef.current = active;
+    if (was === active) return;
+    if (!active) setOpen(false);
+    else inputRef.current?.focus();
+  }, [active]);
 
   const results = useMemo(() => searchAll(query, groups), [query, groups]);
   const hasResults = results.sites.length > 0 || results.groups.length > 0;
@@ -38,9 +61,10 @@ export default function StickySearch({
     const onKey = (e: KeyboardEvent) => {
       if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 'k') {
         e.preventDefault();
-        inputRef.current?.focus();
+        if (activeRef.current) inputRef.current?.focus();
+        else onRequestActivateRef.current?.();
       }
-      if (e.key === 'Escape' && !e.isComposing) {
+      if (e.key === 'Escape' && !e.isComposing && activeRef.current) {
         setOpen(false);
         inputRef.current?.blur();
       }
@@ -81,7 +105,12 @@ export default function StickySearch({
   };
 
   return (
-    <div ref={containerRef} className="relative flex-1 min-w-0">
+    <div
+      ref={containerRef}
+      data-search-bar
+      aria-hidden={!active}
+      className={`relative flex-1 min-w-0 ${active ? '' : 'hidden'}`}
+    >
       <div className="relative">
         {/* 底色与 C 卡卡面同源：.card-glass-surface 走 --group-card-rgb/alpha + 同款磨砂。
             主题口径（第五十八轮收敛）：白天**不**翻白——index.css 有专门规则把本面钉回暗夜深色值，

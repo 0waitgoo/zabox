@@ -1,13 +1,16 @@
 /**
- * 主页 AI 整理条（2026-10-30）：入口在吸顶栏下方、网格上方，不参与卡片布局。
+ * 主页 AI 整理条（2026-10-30）：原在吸顶栏下方、网格上方；2026-10-30 起与
+ * 顶栏搜索共用一栏两模式（见 UnifiedSearchAiBar），平时只显示其一。
  * 两个子功能共用一句话输入：
  * - 一键分类：按用户意图把现有网站分到对应组（只产出方案，逐项勾选/改目标组后点应用才落盘）；
  * - 一键搜集网站：按用户意图搜集网站候选（逐项勾选、选目标组后点加入才落盘）。
  * 绝不静默改分组与站点；应用走 store 现有方法（moveSite/addSite/addGroup），
  * 应用后主页布局自动保存为「我的」预设，内置预设模板本身不动。
+ * `active` 为 false 时只藏起整理条（display:none，不卸载）：输入内容保留在
+ * 自己的 state 里，不会串到搜索框；确认面板是 fixed 浮层，不受藏起影响。
  */
 
-import { useRef, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { AnimatePresence, motion } from 'motion/react';
 import { Settings, Sparkles, X } from 'lucide-react';
 import type { LocalStore } from '../../store/localStore';
@@ -48,8 +51,27 @@ const btnPrimary =
 const btnGhost =
   'px-3.5 py-2 rounded-xl bg-white/8 hover:bg-white/12 text-white/80 text-sm transition-colors disabled:opacity-40 shrink-0';
 
-export default function SiteAiAssistant({ store }: { store: LocalStore }) {
+export default function SiteAiAssistant({
+  store,
+  active = true,
+  compactBar = false,
+}: {
+  store: LocalStore;
+  /** 是否当前模式；false 时只藏起整理条（不卸载，输入内容保留） */
+  active?: boolean;
+  /** 在统一顶栏里用紧凑单行条：去掉 mt-4 与左侧标题块，省出切换开关的宽度 */
+  compactBar?: boolean;
+}) {
   const [input, setInput] = useState('');
+  const barInputRef = useRef<HTMLInputElement>(null);
+  const prevActiveRef = useRef(active);
+
+  /* 切回 AI 模式时聚焦整理输入框（首渲染不聚焦，避免进页面就弹键盘） */
+  useEffect(() => {
+    const was = prevActiveRef.current;
+    prevActiveRef.current = active;
+    if (!was && active) barInputRef.current?.focus();
+  }, [active]);
   const [open, setOpen] = useState(false);
   const [mode, setMode] = useState<Mode>('categorize');
   const [view, setView] = useState<'work' | 'settings'>('work');
@@ -288,13 +310,21 @@ export default function SiteAiAssistant({ store }: { store: LocalStore }) {
     <>
       <div
         data-site-ai-bar
-        className="mt-4 rounded-[22px] border border-indigo-400/30 bg-indigo-500/10 px-3 py-3 sm:px-4 flex flex-col sm:flex-row items-stretch sm:items-center gap-2.5"
+        aria-hidden={!active}
+        className={
+          compactBar
+            ? `flex-1 min-w-0 rounded-[22px] border border-indigo-400/30 bg-indigo-500/10 px-3 py-2 flex flex-wrap items-center gap-2 ${active ? '' : 'hidden'}`
+            : `mt-4 rounded-[22px] border border-indigo-400/30 bg-indigo-500/10 px-3 py-3 sm:px-4 flex flex-col sm:flex-row items-stretch sm:items-center gap-2.5 ${active ? '' : 'hidden'}`
+        }
       >
-        <div className="flex items-center gap-2 shrink-0">
-          <Sparkles size={18} className="text-indigo-300" />
-          <span className="text-sm font-semibold text-white/90">AI 整理</span>
-        </div>
+        {!compactBar && (
+          <div className="flex items-center gap-2 shrink-0">
+            <Sparkles size={18} className="text-indigo-300" />
+            <span className="text-sm font-semibold text-white/90">AI 整理</span>
+          </div>
+        )}
         <input
+          ref={barInputRef}
           data-site-ai-input
           value={input}
           onChange={(e) => setInput(e.target.value)}
@@ -302,13 +332,21 @@ export default function SiteAiAssistant({ store }: { store: LocalStore }) {
             if (e.key === 'Enter') openPanel('categorize');
           }}
           placeholder="一句话，让 AI 帮你整理网站… 比如：把 AI 绘画的网站归到一组 / 找几个免费商用图库"
-          className={`${inputCls} flex-1`}
+          className={`${inputCls} ${compactBar ? 'flex-[1_1_140px] min-w-0' : 'flex-1'}`}
         />
         <div className="flex gap-2 shrink-0">
-          <button data-site-ai-categorize onClick={() => openPanel('categorize')} className={btnPrimary}>
+          <button
+            data-site-ai-categorize
+            onClick={() => openPanel('categorize')}
+            className={compactBar ? 'px-2.5 py-1.5 rounded-xl bg-indigo-500/80 hover:bg-indigo-500 text-white text-xs font-medium transition-colors shrink-0' : btnPrimary}
+          >
             一键分类
           </button>
-          <button data-site-ai-collect onClick={() => openPanel('collect')} className={btnGhost}>
+          <button
+            data-site-ai-collect
+            onClick={() => openPanel('collect')}
+            className={compactBar ? 'px-2.5 py-1.5 rounded-xl bg-white/8 hover:bg-white/12 text-white/80 text-xs transition-colors shrink-0' : btnGhost}
+          >
             搜集网站
           </button>
           <button

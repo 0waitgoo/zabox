@@ -25,8 +25,7 @@ import {
   type WidgetStackItem,
 } from '../../store/localStore';
 import { placeInLanes, simulateDenseFlow, type LaneItemSpec } from './laneLayout';
-import StickySearch from './StickySearch';
-import SiteAiAssistant from './SiteAiAssistant';
+import UnifiedSearchAiBar from './UnifiedSearchAiBar';
 import DataMenu from './DataMenu';
 import PwaInstallButton from './PwaInstallButton';
 import PresetMenu from './PresetMenu';
@@ -45,7 +44,7 @@ import useLongPressMenu from './useLongPressMenu';
 
 /**
  * V2 新主页（第三轮修订 + 第五轮拖拽排序 + 第八轮顶栏一行对齐）
- * - 无顶部标题栏：页面直接从吸顶栏开始——同一行内左半（2 栏）放页面导航图标组、右半（2 栏）放搜索框 + 低调的「数据」入口（导出/导入），整条栏吸顶
+ * - 无顶部标题栏：页面直接从吸顶栏开始——同一行内左半（2 栏）放页面导航图标组、右半（2 栏）放一栏两模式的搜索/AI 整理栏 + 低调的「数据」入口（导出/导入），整条栏吸顶
  * - 4 栏基准网格（桌面 4 栏 / 平板 2 栏 / 手机 1 栏单列，第六十六轮）
  * - B 型编组（display=list）：主页原地向下拉开 + 卡内滚动；C 型编组（display=stack）：点击弹窗看 ICON 瓷砖
  * - A 型原生组件与编组（B/C 型）可右键改尺寸（1/2 栏 × 1x/2x，宽度最多 2 栏），布局存本地；C 型缺省 1 栏 × 1x
@@ -1500,16 +1499,17 @@ export default function HomePage({ onNavigate, store }: { onNavigate: (page: str
             <TopLogo onClick={() => onNavigate('home')} />
             <TopNav onPageChange={onNavigate} currentPage="home" presetsNode={<PresetMenu store={store} />} />
           </div>
-          <div className="col-span-1 lg:col-span-2 flex items-center gap-2 min-w-0">
-            <StickySearch groups={groups} onOpenGroup={openGroupFromSearch} />
+          {/* 一栏两模式（2026-10-30）：搜索与 AI 整理共用一栏，分段开关切换，平时只显示一栏。
+              <lg 时本格自动落到第二行占满宽（左组只占 1 栏、剩 1 栏装不下 col-span-2），
+              避免开关 + 搜索框在窄屏被挤到 0 宽；lg 起恢复左右两半一行 */}
+          <div className="col-span-2 lg:col-span-2 flex items-center gap-2 min-w-0">
+            {/* 一栏两模式（2026-10-30）：搜索与 AI 整理共用一栏，分段开关切换，平时只显示一栏 */}
+            <UnifiedSearchAiBar groups={groups} onOpenGroup={openGroupFromSearch} store={store} />
             <PwaInstallButton />
             <DataMenu store={store} />
           </div>
         </div>
       </div>
-
-      {/* AI 整理条（2026-10-30）：一句话分类 / 搜集网站，入口在吸顶栏下方、网格上方，不参与卡片布局 */}
-      <SiteAiAssistant store={store} />
 
       {/* 栏位网格（第三十四轮）：4 栏（平板 2 栏 / 手机 1 栏单列，第六十六轮），每张卡的占格由 placements 显式给出
           （gridColumn/gridRow 钉死），不走自动流——栏与栏互不挤占，空栏留空。

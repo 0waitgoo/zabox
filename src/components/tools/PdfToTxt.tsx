@@ -1,18 +1,19 @@
 import React, { useRef, useState } from 'react';
 import { Download, ScanText } from 'lucide-react';
+import { useLang } from '../../i18n/useLang';
 import {
   destroyPdfJs,
   downloadBlob,
   formatBytes,
-  humanPdfError,
   isPdfFile,
   loadPdfJs,
   stripExt,
   yieldFrame,
 } from '../../utils/pdfTools';
-import { DropZone, ErrorBox, FileChip, PrimaryButton, ProgressBar } from './shared';
+import { DropZone, ErrorBox, FileChip, PrimaryButton, ProgressBar, formatPdfError } from './shared';
 
 export default function PdfToTxt({ compact = false }: { compact?: boolean }) {
+  const { t } = useLang();
   const [file, setFile] = useState<File | null>(null);
   const [pageCount, setPageCount] = useState(0);
   const [busy, setBusy] = useState(false);
@@ -63,7 +64,7 @@ export default function PdfToTxt({ compact = false }: { compact?: boolean }) {
       }
       destroyPdfJs(doc);
     } catch (e) {
-      if (id === runId.current) setError(humanPdfError(e));
+      if (id === runId.current) setError(formatPdfError(t, e));
     } finally {
       if (id === runId.current) {
         setBusy(false);
@@ -76,7 +77,7 @@ export default function PdfToTxt({ compact = false }: { compact?: boolean }) {
     const f = files[0];
     if (!f) return;
     if (!isPdfFile(f)) {
-      setError('这不是 PDF 文件，请选择 .pdf 文件。');
+      setError(t('tools.notPdf'));
       return;
     }
     setFile(f);
@@ -88,11 +89,11 @@ export default function PdfToTxt({ compact = false }: { compact?: boolean }) {
   return (
     <div>
       {!file ? (
-        <DropZone compact={compact} testId="drop-txt" accept="application/pdf,.pdf" onFiles={onFiles} title="把 PDF 拖到这里，或点击选择" hint="抽取 PDF 自带的文字层，导出为 .txt" />
+        <DropZone compact={compact} testId="drop-txt" accept="application/pdf,.pdf" onFiles={onFiles} title={t('tools.dropPdfTitle')} hint={t('tools.dropPdfTxtHint')} />
       ) : (
         <FileChip
           name={file.name}
-          meta={`${pageCount ? `共 ${pageCount} 页 · ` : ''}${formatBytes(file.size)}`}
+          meta={`${pageCount ? t('tools.pageCountShort', { n: pageCount }) : ''}${formatBytes(file.size)}`}
           onRemove={() => {
             runId.current++;
             setFile(null);
@@ -104,13 +105,13 @@ export default function PdfToTxt({ compact = false }: { compact?: boolean }) {
         />
       )}
 
-      {busy && progress && <ProgressBar done={progress.done} total={progress.total} label="正在抽取文字" />}
+      {busy && progress && <ProgressBar done={progress.done} total={progress.total} label={t('tools.extractingText')} />}
       {error && <ErrorBox msg={error} />}
 
       {noTextLayer && (
         <div data-testid="txt-scanned" className="mt-4 flex items-start gap-2.5 rounded-xl border border-amber-400/30 bg-amber-500/10 px-4 py-3 text-sm text-amber-200">
           <ScanText size={16} className="mt-0.5 shrink-0" />
-          <span>未检测到文字层，这个 PDF 很可能是扫描件或纯图片组成的，暂时无法直接提取文字（需要 OCR 识别，不在本期范围内）。</span>
+          <span>{t('tools.scannedNotice')}</span>
         </div>
       )}
 
@@ -122,15 +123,15 @@ export default function PdfToTxt({ compact = false }: { compact?: boolean }) {
               onClick={() => file && downloadBlob(new Blob([text], { type: 'text/plain;charset=utf-8' }), `${stripExt(file.name)}.txt`)}
             >
               <Download size={15} />
-              下载 TXT
+              {t('tools.downloadTxt')}
             </PrimaryButton>
             <span data-testid="txt-meta" className="text-xs text-white/55">
-              共提取约 {charCount} 字 · 每页之间有「--- 第 N 页 ---」标记
+              {t('tools.extractedMeta', { n: charCount })}
             </span>
           </div>
           <pre data-testid="txt-preview" className={`mt-3 ${compact ? 'max-h-40' : 'max-h-64'} overflow-auto whitespace-pre-wrap rounded-xl border border-white/10 bg-black/30 p-4 text-xs leading-relaxed text-white/70`}>
             {text.slice(0, 1500)}
-            {text.length > 1500 ? '\n……（预览截断，完整内容请下载文件）' : ''}
+            {text.length > 1500 ? `\n${t('tools.previewTruncated')}` : ''}
           </pre>
         </div>
       )}

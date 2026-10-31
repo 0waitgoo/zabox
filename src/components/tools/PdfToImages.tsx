@@ -1,18 +1,18 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { Download, Archive } from 'lucide-react';
 import JSZip from 'jszip';
+import { useLang } from '../../i18n/useLang';
 import {
   canvasToBlob,
   destroyPdfJs,
   downloadBlob,
   formatBytes,
-  humanPdfError,
   isPdfFile,
   loadPdfJs,
   stripExt,
   yieldFrame,
 } from '../../utils/pdfTools';
-import { DropZone, ErrorBox, FileChip, PrimaryButton, ProgressBar, Segmented } from './shared';
+import { DropZone, ErrorBox, FileChip, PrimaryButton, ProgressBar, Segmented, formatPdfError } from './shared';
 
 interface PageImage {
   page: number;
@@ -23,6 +23,7 @@ interface PageImage {
 }
 
 export default function PdfToImages({ compact = false }: { compact?: boolean }) {
+  const { t } = useLang();
   const [file, setFile] = useState<File | null>(null);
   const [pageCount, setPageCount] = useState(0);
   const [format, setFormat] = useState<'png' | 'jpg'>('png');
@@ -77,7 +78,7 @@ export default function PdfToImages({ compact = false }: { compact?: boolean }) 
       }
       destroyPdfJs(doc);
     } catch (e) {
-      if (id === runId.current) setError(humanPdfError(e));
+      if (id === runId.current) setError(formatPdfError(t, e));
     } finally {
       if (id === runId.current) {
         setBusy(false);
@@ -90,7 +91,7 @@ export default function PdfToImages({ compact = false }: { compact?: boolean }) 
     const f = files[0];
     if (!f) return;
     if (!isPdfFile(f)) {
-      setError('这不是 PDF 文件，请选择 .pdf 文件。');
+      setError(t('tools.notPdf'));
       return;
     }
     setFile(f);
@@ -124,7 +125,7 @@ export default function PdfToImages({ compact = false }: { compact?: boolean }) 
       const blob = await zip.generateAsync({ type: 'blob' });
       downloadBlob(blob, `${base}-图片.zip`);
     } catch (e) {
-      setError(humanPdfError(e));
+      setError(formatPdfError(t, e));
     } finally {
       setZipping(false);
     }
@@ -133,11 +134,11 @@ export default function PdfToImages({ compact = false }: { compact?: boolean }) 
   return (
     <div>
       {!file ? (
-        <DropZone compact={compact} testId="drop-images" accept="application/pdf,.pdf" onFiles={onFiles} title="把 PDF 拖到这里，或点击选择" hint="逐页渲染成图片，可单张下载或打包 ZIP" />
+        <DropZone compact={compact} testId="drop-images" accept="application/pdf,.pdf" onFiles={onFiles} title={t('tools.dropPdfTitle')} hint={t('tools.imagesDropHint')} />
       ) : (
         <FileChip
           name={file.name}
-          meta={`${pageCount ? `共 ${pageCount} 页 · ` : ''}${formatBytes(file.size)}`}
+          meta={`${pageCount ? t('tools.pageCountShort', { n: pageCount }) : ''}${formatBytes(file.size)}`}
           onRemove={() => {
             runId.current++;
             clearResults();
@@ -150,7 +151,7 @@ export default function PdfToImages({ compact = false }: { compact?: boolean }) 
 
       <div className="mt-4 flex flex-wrap items-center gap-x-6 gap-y-3">
         <Segmented
-          label="格式"
+          label={t('tools.formatLabel')}
           value={format}
           onChange={(v) => setFormat(v)}
           options={[
@@ -159,7 +160,7 @@ export default function PdfToImages({ compact = false }: { compact?: boolean }) 
           ]}
         />
         <Segmented
-          label="清晰度"
+          label={t('tools.clarityLabel')}
           value={scale}
           onChange={(v) => setScale(v)}
           options={[
@@ -171,22 +172,22 @@ export default function PdfToImages({ compact = false }: { compact?: boolean }) 
         {results.length > 0 && !busy && (
           <PrimaryButton testId="images-zip" onClick={downloadZip} disabled={zipping}>
             <Archive size={15} />
-            {zipping ? '打包中…' : `全部打包 ZIP（${results.length} 张）`}
+            {zipping ? t('tools.zipping') : t('tools.zipAll', { n: results.length })}
           </PrimaryButton>
         )}
       </div>
 
-      {busy && progress && <ProgressBar done={progress.done} total={progress.total} label="正在渲染" />}
+      {busy && progress && <ProgressBar done={progress.done} total={progress.total} label={t('tools.rendering')} />}
       {error && <ErrorBox msg={error} />}
 
       {results.length > 0 && (
         <div data-testid="images-results" className={`mt-5 grid grid-cols-2 gap-3 ${compact ? 'sm:grid-cols-3' : 'sm:grid-cols-3 lg:grid-cols-4'}`}>
           {results.map((r) => (
             <div key={r.page} className="overflow-hidden rounded-xl border border-white/10 bg-white/[0.03]">
-              <img src={r.url} alt={`第 ${r.page} 页`} className={`${compact ? 'h-28' : 'h-40'} w-full object-contain bg-black/30`} />
+              <img src={r.url} alt={t('tools.pageLabel', { n: r.page })} className={`${compact ? 'h-28' : 'h-40'} w-full object-contain bg-black/30`} />
               <div className="flex items-center justify-between px-3 py-2">
                 <span className="text-xs text-white/55">
-                  第 {r.page} 页 · {r.w}×{r.h}
+                  {t('tools.imgPageMeta', { n: r.page, w: r.w, h: r.h })}
                 </span>
                 <button
                   onClick={() => downloadOne(r)}
@@ -194,7 +195,7 @@ export default function PdfToImages({ compact = false }: { compact?: boolean }) 
                   className="inline-flex items-center gap-1 text-xs text-indigo-300 hover:text-indigo-200"
                 >
                   <Download size={13} />
-                  下载
+                  {t('tools.download')}
                 </button>
               </div>
             </div>

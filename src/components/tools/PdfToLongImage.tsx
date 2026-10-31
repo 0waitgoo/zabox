@@ -1,17 +1,17 @@
 import React, { useRef, useState } from 'react';
 import { Download } from 'lucide-react';
+import { useLang } from '../../i18n/useLang';
 import {
   canvasToBlob,
   destroyPdfJs,
   downloadBlob,
   formatBytes,
-  humanPdfError,
   isPdfFile,
   loadPdfJs,
   stripExt,
   yieldFrame,
 } from '../../utils/pdfTools';
-import { DropZone, ErrorBox, FileChip, PrimaryButton, ProgressBar, Segmented } from './shared';
+import { DropZone, ErrorBox, FileChip, PrimaryButton, ProgressBar, Segmented, formatPdfError } from './shared';
 
 /**
  * 长图安全上限（浏览器 canvas 的硬限制附近留余量）：
@@ -25,6 +25,7 @@ const MAX_PIXELS = 120_000_000;
 const TARGET_SCALE = 2;
 
 export default function PdfToLongImage({ compact = false }: { compact?: boolean }) {
+  const { t } = useLang();
   const [file, setFile] = useState<File | null>(null);
   const [pageCount, setPageCount] = useState(0);
   const [format, setFormat] = useState<'png' | 'jpg'>('png');
@@ -107,7 +108,7 @@ export default function PdfToLongImage({ compact = false }: { compact?: boolean 
       setResult({ blob, url: URL.createObjectURL(blob), w: width, h: height, scale });
       destroyPdfJs(doc);
     } catch (e) {
-      if (id === runId.current) setError(humanPdfError(e));
+      if (id === runId.current) setError(formatPdfError(t, e));
     } finally {
       if (id === runId.current) {
         setBusy(false);
@@ -120,7 +121,7 @@ export default function PdfToLongImage({ compact = false }: { compact?: boolean 
     const f = files[0];
     if (!f) return;
     if (!isPdfFile(f)) {
-      setError('这不是 PDF 文件，请选择 .pdf 文件。');
+      setError(t('tools.notPdf'));
       return;
     }
     setFile(f);
@@ -132,11 +133,11 @@ export default function PdfToLongImage({ compact = false }: { compact?: boolean 
   return (
     <div>
       {!file ? (
-        <DropZone compact={compact} testId="drop-long" accept="application/pdf,.pdf" onFiles={onFiles} title="把 PDF 拖到这里，或点击选择" hint="把全部页面纵向拼成一张长图" />
+        <DropZone compact={compact} testId="drop-long" accept="application/pdf,.pdf" onFiles={onFiles} title={t('tools.dropPdfTitle')} hint={t('tools.longDropHint')} />
       ) : (
         <FileChip
           name={file.name}
-          meta={`${pageCount ? `共 ${pageCount} 页 · ` : ''}${formatBytes(file.size)}`}
+          meta={`${pageCount ? t('tools.pageCountShort', { n: pageCount }) : ''}${formatBytes(file.size)}`}
           onRemove={() => {
             runId.current++;
             setFile(null);
@@ -149,7 +150,7 @@ export default function PdfToLongImage({ compact = false }: { compact?: boolean 
 
       <div className="mt-4 flex flex-wrap items-center gap-x-6 gap-y-3">
         <Segmented
-          label="格式"
+          label={t('tools.formatLabel')}
           value={format}
           onChange={(v) => {
             setFormat(v);
@@ -166,26 +167,26 @@ export default function PdfToLongImage({ compact = false }: { compact?: boolean 
             onClick={() => file && downloadBlob(result.blob, `${stripExt(file.name)}-长图.${format === 'png' ? 'png' : 'jpg'}`)}
           >
             <Download size={15} />
-            下载长图（{formatBytes(result.blob.size)}）
+            {t('tools.downloadLong', { size: formatBytes(result.blob.size) })}
           </PrimaryButton>
         )}
       </div>
 
-      {busy && progress && <ProgressBar done={progress.done} total={progress.total} label="正在拼接" />}
+      {busy && progress && <ProgressBar done={progress.done} total={progress.total} label={t('tools.stitching')} />}
       {error && <ErrorBox msg={error} />}
 
       {result && (
         <div className="mt-5">
           <p data-testid="long-meta" className="text-xs text-white/55">
-            成品尺寸 {result.w} × {result.h} 像素 · 实际渲染倍率 ×{result.scale.toFixed(2)}
+            {t('tools.longMeta', { w: result.w, h: result.h, scale: result.scale.toFixed(2) })}
             {reduced && (
               <span className="text-amber-300/90">
-                （页数较多，长图已达浏览器画布上限，倍率从 ×{TARGET_SCALE} 自动降到 ×{result.scale.toFixed(2)} 以保证能完整生成）
+                {t('tools.longReduced', { target: TARGET_SCALE, scale: result.scale.toFixed(2) })}
               </span>
             )}
           </p>
           <div className="mt-3 overflow-hidden rounded-xl border border-white/10 bg-black/30 p-3">
-            <img data-testid="long-result" src={result.url} alt="长图预览" className={`mx-auto ${compact ? 'max-h-[240px]' : 'max-h-[480px]'} w-auto object-contain`} />
+            <img data-testid="long-result" src={result.url} alt={t('tools.longPreviewAlt')} className={`mx-auto ${compact ? 'max-h-[240px]' : 'max-h-[480px]'} w-auto object-contain`} />
           </div>
         </div>
       )}

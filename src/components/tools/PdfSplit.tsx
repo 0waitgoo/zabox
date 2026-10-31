@@ -2,21 +2,23 @@ import React, { useState } from 'react';
 import { FileDown, Archive } from 'lucide-react';
 import JSZip from 'jszip';
 import { PDFDocument } from 'pdf-lib';
+import { useLang } from '../../i18n/useLang';
 import {
   downloadBlob,
   formatBytes,
-  humanPdfError,
   isPdfFile,
   loadPdfLib,
+  PageRangeError,
   parsePageRanges,
   stripExt,
   yieldFrame,
 } from '../../utils/pdfTools';
-import { DropZone, ErrorBox, FileChip, PrimaryButton, ProgressBar } from './shared';
+import { DropZone, ErrorBox, FileChip, PrimaryButton, ProgressBar, formatPdfError } from './shared';
 
 type Mode = 'range' | 'each';
 
 export default function PdfSplit({ compact = false }: { compact?: boolean }) {
+  const { t, lang } = useLang();
   const [file, setFile] = useState<File | null>(null);
   const [pageCount, setPageCount] = useState(0);
   const [mode, setMode] = useState<Mode>('range');
@@ -32,7 +34,7 @@ export default function PdfSplit({ compact = false }: { compact?: boolean }) {
     setError('');
     setDoneMsg('');
     if (!isPdfFile(f)) {
-      setError('这不是 PDF 文件，请选择 .pdf 文件。');
+      setError(t('tools.notPdf'));
       return;
     }
     try {
@@ -42,7 +44,7 @@ export default function PdfSplit({ compact = false }: { compact?: boolean }) {
     } catch (e) {
       setFile(null);
       setPageCount(0);
-      setError(humanPdfError(e));
+      setError(formatPdfError(t, e));
     }
   };
 
@@ -52,7 +54,8 @@ export default function PdfSplit({ compact = false }: { compact?: boolean }) {
     try {
       pages = parsePageRanges(range, pageCount);
     } catch (e) {
-      setError(e instanceof Error ? e.message : String(e));
+      if (e instanceof PageRangeError) setError(t(e.key, e.vars));
+      else setError(e instanceof Error ? e.message : String(e));
       return;
     }
     setBusy(true);
@@ -67,9 +70,9 @@ export default function PdfSplit({ compact = false }: { compact?: boolean }) {
       setProgress({ done: pages.length, total: pages.length });
       const bytes = await out.save();
       downloadBlob(new Blob([bytes.buffer as ArrayBuffer], { type: 'application/pdf' }), `${stripExt(file.name)}-提取.pdf`);
-      setDoneMsg(`已提取 ${pages.length} 页（页码：${pages.join('、')}），文件已开始下载。`);
+      setDoneMsg(t('tools.splitRangeDone', { n: pages.length, pages: pages.join(lang === 'en' ? ', ' : '、') }));
     } catch (e) {
-      setError(humanPdfError(e));
+      setError(formatPdfError(t, e));
     } finally {
       setBusy(false);
       setProgress(null);
@@ -98,9 +101,9 @@ export default function PdfSplit({ compact = false }: { compact?: boolean }) {
       }
       const blob = await zip.generateAsync({ type: 'blob' });
       downloadBlob(blob, `${base}-逐页拆分.zip`);
-      setDoneMsg(`已拆成 ${pageCount} 个单页 PDF 并打包为 ZIP，文件已开始下载。`);
+      setDoneMsg(t('tools.splitEachDone', { n: pageCount }));
     } catch (e) {
-      setError(humanPdfError(e));
+      setError(formatPdfError(t, e));
     } finally {
       setBusy(false);
       setProgress(null);
@@ -110,11 +113,11 @@ export default function PdfSplit({ compact = false }: { compact?: boolean }) {
   return (
     <div>
       {!file ? (
-        <DropZone compact={compact} testId="drop-split" accept="application/pdf,.pdf" onFiles={(files) => void onFiles(files)} title="把 PDF 拖到这里，或点击选择" hint="提取其中几页，或者把每一页拆成单独的 PDF" />
+        <DropZone compact={compact} testId="drop-split" accept="application/pdf,.pdf" onFiles={(files) => void onFiles(files)} title={t('tools.dropPdfTitle')} hint={t('tools.dropSplitHint')} />
       ) : (
         <FileChip
           name={file.name}
-          meta={`共 ${pageCount} 页 · ${formatBytes(file.size)}`}
+          meta={t('tools.pagesMeta', { n: pageCount, size: formatBytes(file.size) })}
           onRemove={() => {
             setFile(null);
             setPageCount(0);
@@ -130,8 +133,8 @@ export default function PdfSplit({ compact = false }: { compact?: boolean }) {
           <div className="flex rounded-lg border border-white/10 bg-white/[0.04] p-0.5 w-fit">
             {(
               [
-                { value: 'range', label: '提取页码范围' },
-                { value: 'each', label: '每页拆成单页 PDF' },
+                { value: 'range', label: t('tools.splitRangeMode') },
+                { value: 'each', label: t('tools.splitEachMode') },
               ] as { value: Mode; label: string }[]
             ).map((o) => (
               <button
@@ -151,24 +154,24 @@ export default function PdfSplit({ compact = false }: { compact?: boolean }) {
                 data-testid="split-range-input"
                 value={range}
                 onChange={(e) => setRange(e.target.value)}
-                placeholder={`如 1-3,5（共 ${pageCount} 页）`}
+                placeholder={t('tools.splitRangePlaceholder', { n: pageCount })}
                 className="w-64 rounded-xl border border-white/10 bg-white/[0.04] px-3.5 py-2 text-sm text-white placeholder:text-white/30 outline-none focus:border-indigo-400/50"
               />
               <PrimaryButton testId="split-range-run" onClick={runRange} disabled={busy}>
                 <FileDown size={15} />
-                {busy ? '提取中…' : '提取并下载 PDF'}
+                {busy ? t('tools.extracting') : t('tools.splitRangeRun')}
               </PrimaryButton>
             </div>
           ) : (
             <div className="mt-4">
               <PrimaryButton testId="split-each-run" onClick={runEach} disabled={busy}>
                 <Archive size={15} />
-                {busy ? '拆分中…' : `逐页拆分并打包 ZIP（${pageCount} 个）`}
+                {busy ? t('tools.splitting') : t('tools.splitEachRun', { n: pageCount })}
               </PrimaryButton>
             </div>
           )}
 
-          {busy && progress && <ProgressBar done={progress.done} total={progress.total} label="正在处理" />}
+          {busy && progress && <ProgressBar done={progress.done} total={progress.total} label={t('tools.processingLabel')} />}
           {doneMsg && (
             <p data-testid="split-done" className="mt-4 text-sm text-emerald-300/90">
               {doneMsg}

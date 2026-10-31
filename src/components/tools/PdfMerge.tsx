@@ -1,8 +1,9 @@
 import React, { useRef, useState } from 'react';
 import { ChevronDown, ChevronUp, FileDown, X } from 'lucide-react';
 import { PDFDocument } from 'pdf-lib';
-import { downloadBlob, formatBytes, humanPdfError, isPdfFile, loadPdfLib, stripExt, yieldFrame } from '../../utils/pdfTools';
-import { DropZone, ErrorBox, PrimaryButton, ProgressBar } from './shared';
+import { useLang } from '../../i18n/useLang';
+import { downloadBlob, formatBytes, isPdfFile, loadPdfLib, stripExt, yieldFrame } from '../../utils/pdfTools';
+import { DropZone, ErrorBox, PrimaryButton, ProgressBar, formatPdfError } from './shared';
 
 interface MergeItem {
   id: number;
@@ -12,6 +13,7 @@ interface MergeItem {
 }
 
 export default function PdfMerge({ compact = false }: { compact?: boolean }) {
+  const { t } = useLang();
   const [items, setItems] = useState<MergeItem[]>([]);
   const [busy, setBusy] = useState(false);
   const [progress, setProgress] = useState<{ done: number; total: number } | null>(null);
@@ -23,7 +25,7 @@ export default function PdfMerge({ compact = false }: { compact?: boolean }) {
     const fresh: MergeItem[] = [];
     for (const f of files) {
       if (!isPdfFile(f)) {
-        setError(`「${f.name}」不是 PDF，已跳过。`);
+        setError(t('tools.mergeSkipNotPdf', { name: f.name }));
         continue;
       }
       fresh.push({ id: ++idRef.current, file: f, pages: null });
@@ -35,7 +37,7 @@ export default function PdfMerge({ compact = false }: { compact?: boolean }) {
         const doc = await loadPdfLib(item.file);
         setItems((prev) => prev.map((i) => (i.id === item.id ? { ...i, pages: doc.getPageCount() } : i)));
       } catch (e) {
-        setItems((prev) => prev.map((i) => (i.id === item.id ? { ...i, pages: 0, failed: humanPdfError(e) } : i)));
+        setItems((prev) => prev.map((i) => (i.id === item.id ? { ...i, pages: 0, failed: formatPdfError(t, e) } : i)));
       }
     }
   };
@@ -77,7 +79,7 @@ export default function PdfMerge({ compact = false }: { compact?: boolean }) {
         `${stripExt(valid[0].file.name)}-合并.pdf`,
       );
     } catch (e) {
-      setError(humanPdfError(e));
+      setError(formatPdfError(t, e));
     } finally {
       setBusy(false);
       setProgress(null);
@@ -92,8 +94,8 @@ export default function PdfMerge({ compact = false }: { compact?: boolean }) {
         accept="application/pdf,.pdf"
         multiple
         onFiles={(files) => void onFiles(files)}
-        title="把 PDF 拖到这里，或点击选择（可多选、可多次添加）"
-        hint="按列表从上到下的顺序合并成一个 PDF，顺序可上下调整"
+        title={t('tools.mergeDropTitle')}
+        hint={t('tools.mergeDropHint')}
       />
       {error && <ErrorBox msg={error} />}
 
@@ -108,20 +110,20 @@ export default function PdfMerge({ compact = false }: { compact?: boolean }) {
                     {item.failed ? (
                       <span className="text-red-300">{item.failed}</span>
                     ) : item.pages === null ? (
-                      '读取页数中…'
+                      t('tools.readingPages')
                     ) : (
-                      `${item.pages} 页 · ${formatBytes(item.file.size)}`
+                      t('tools.pagesMeta', { n: item.pages, size: formatBytes(item.file.size) })
                     )}
                   </p>
                 </div>
                 <div className="flex shrink-0 items-center gap-1">
-                  <button onClick={() => move(idx, -1)} disabled={idx === 0} className="rounded-md p-1.5 text-white/55 hover:bg-white/10 hover:text-white disabled:opacity-30" title="上移">
+                  <button onClick={() => move(idx, -1)} disabled={idx === 0} className="rounded-md p-1.5 text-white/55 hover:bg-white/10 hover:text-white disabled:opacity-30" title={t('tools.moveUp')}>
                     <ChevronUp size={15} />
                   </button>
-                  <button onClick={() => move(idx, 1)} disabled={idx === items.length - 1} className="rounded-md p-1.5 text-white/55 hover:bg-white/10 hover:text-white disabled:opacity-30" title="下移">
+                  <button onClick={() => move(idx, 1)} disabled={idx === items.length - 1} className="rounded-md p-1.5 text-white/55 hover:bg-white/10 hover:text-white disabled:opacity-30" title={t('tools.moveDown')}>
                     <ChevronDown size={15} />
                   </button>
-                  <button onClick={() => setItems((prev) => prev.filter((i) => i.id !== item.id))} className="rounded-md p-1.5 text-white/55 hover:bg-white/10 hover:text-red-300" title="删除">
+                  <button onClick={() => setItems((prev) => prev.filter((i) => i.id !== item.id))} className="rounded-md p-1.5 text-white/55 hover:bg-white/10 hover:text-red-300" title={t('task.delete')}>
                     <X size={15} />
                   </button>
                 </div>
@@ -131,13 +133,13 @@ export default function PdfMerge({ compact = false }: { compact?: boolean }) {
           <div className="mt-4 flex flex-wrap items-center gap-4">
             <PrimaryButton testId="merge-run" onClick={merge} disabled={busy || valid.length < 2}>
               <FileDown size={15} />
-              {busy ? '合并中…' : '合并并下载'}
+              {busy ? t('tools.merging') : t('tools.mergeRun')}
             </PrimaryButton>
             <span data-testid="merge-total" className="text-xs text-white/55">
-              {valid.length} 个文件 · 合计 {totalPages} 页{valid.length < 2 ? '（至少需要 2 个可用的 PDF）' : ''}
+              {t('tools.mergeTotal', { count: valid.length, total: totalPages, needMore: valid.length < 2 ? t('tools.mergeNeedMore') : '' })}
             </span>
           </div>
-          {busy && progress && <ProgressBar done={progress.done} total={progress.total} label="正在合并" />}
+          {busy && progress && <ProgressBar done={progress.done} total={progress.total} label={t('tools.mergingLabel')} />}
         </>
       )}
     </div>

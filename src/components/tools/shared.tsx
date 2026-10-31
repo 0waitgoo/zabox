@@ -1,5 +1,27 @@
 import React, { useRef, useState } from 'react';
 import { Upload, TriangleAlert, LoaderCircle } from 'lucide-react';
+import { useLang } from '../../i18n/useLang';
+import { pdfErrorInfo, type PdfErrorCode } from '../../utils/pdfTools';
+
+type TFn = (key: string, vars?: Record<string, string | number>) => string;
+
+const PDF_ERROR_KEYS: Record<PdfErrorCode, string> = {
+  password: 'tools.pdfErrPassword',
+  invalid: 'tools.pdfErrInvalid',
+  encrypted: 'tools.pdfErrEncrypted',
+  canvas: 'tools.pdfErrCanvas',
+  convert: 'tools.imgConvertFailed',
+  failed: 'tools.pdfErrFailed',
+};
+
+/** pdfTools 报错码 → 用户可见文案（调用处传当前语言的 t，util 层不直接拼中文） */
+export function formatPdfError(t: TFn, err: unknown): string {
+  const info = pdfErrorInfo(err);
+  if (info.code === 'failed') {
+    return t(PDF_ERROR_KEYS.failed, { detail: info.detail || t('tools.unknownError') });
+  }
+  return t(PDF_ERROR_KEYS[info.code]);
+}
 
 /** 拖拽投放区 + 点击选择，6 个工具共用。
  * compact（第八十六轮）：主页组件工作区内的紧凑形态——只收投放区内边距，
@@ -78,12 +100,13 @@ export function DropZone({
 
 /** 页级进度条 */
 export function ProgressBar({ done, total, label }: { done: number; total: number; label?: string }) {
+  const { t } = useLang();
   const pct = total > 0 ? Math.round((done / total) * 100) : 0;
   return (
     <div data-testid="tool-progress" className="mt-4">
       <div className="flex items-center gap-2 text-xs text-white/55">
         <LoaderCircle size={13} className="animate-spin shrink-0" />
-        <span>{label ?? '处理中'}：{done} / {total} 页（{pct}%）</span>
+        <span>{t('tools.progressPages', { label: label ?? t('tools.processing'), done, total, pct })}</span>
       </div>
       <div className="mt-2 h-1.5 rounded-full bg-white/10 overflow-hidden">
         <div className="h-full rounded-full bg-indigo-400 transition-all duration-200" style={{ width: `${pct}%` }} />
@@ -166,6 +189,7 @@ export function FileChip({
   meta: string;
   onRemove: () => void;
 }) {
+  const { t } = useLang();
   return (
     <div className="flex items-center gap-3 rounded-xl border border-white/10 bg-white/[0.04] px-4 py-3">
       <div className="min-w-0 flex-1">
@@ -173,7 +197,7 @@ export function FileChip({
         <p className="text-xs text-white/45">{meta}</p>
       </div>
       <button onClick={onRemove} className="text-xs text-white/45 hover:text-white shrink-0 px-1">
-        移除
+        {t('tools.remove')}
       </button>
     </div>
   );

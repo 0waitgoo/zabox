@@ -31,7 +31,20 @@ function extensionAssets(): Plugin {
         version: pkg.version,
         description: '杂盒 ZaBox 新标签页：个人资料整理收录 + 任务计划 + 日程处理，数据只存本地。',
         chrome_url_overrides: { newtab: 'index.html' },
-        permissions: ['storage'],
+        // action：点工具栏图标弹出添加面板（popup.html）；sidePanel：面板里「打开侧边栏」
+        // 用同一份新标签页；tabs：添加面板只读当前标签的标题与网址（不读历史）。
+        action: {
+          default_popup: 'popup.html',
+          default_title: '杂盒 ZaBox',
+          default_icon: {
+            '16': 'icons/icon-16.png',
+            '32': 'icons/icon-32.png',
+            '48': 'icons/icon-48.png',
+            '128': 'icons/icon-128.png',
+          },
+        },
+        side_panel: { default_path: 'index.html' },
+        permissions: ['storage', 'tabs', 'sidePanel'],
         host_permissions: ['https://zahe.hiitun.top/*'],
         icons: {
           '16': 'icons/icon-16.png',
@@ -61,6 +74,14 @@ export default defineConfig(({ mode }) => {
     build: {
       outDir: 'dist-ext',
       emptyOutDir: true,
+      // 双入口：index.html（新标签页/侧边栏）+ popup.html（添加面板），各自独立产物；
+      // 网站版构建（vite.config.ts）不读此配置，popup 绝不会进网站版 dist/。
+      rollupOptions: {
+        input: {
+          index: path.resolve(__dirname, 'index.html'),
+          popup: path.resolve(__dirname, 'popup.html'),
+        },
+      },
     },
   };
 });

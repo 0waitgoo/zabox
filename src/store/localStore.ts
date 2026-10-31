@@ -819,6 +819,8 @@ export const ALL_WIDGETS: { id: WidgetId; name: string; desc: string }[] = [
 ];
 
 const STORAGE_KEY = 'ainav-store-v1';
+/** 本地存储 key（扩展 popup 与主应用共用同一份数据，见 src/popup/addSite.ts） */
+export const STORE_STORAGE_KEY = STORAGE_KEY;
 const DEFAULT_WIDGETS: WidgetId[] = ['task', 'news', 'trending', 'tools'];
 
 const genId = (prefix: string) => `${prefix}-${Date.now().toString(36)}${Math.random().toString(36).slice(2, 7)}`;
@@ -1109,10 +1111,13 @@ function normalizeGroupsField(raw: unknown): NavGroup[] | null {
         delete site.iconMode;
         delete site.iconText;
         delete site.iconImage;
+        delete site.iconColor;
       } else if (site.iconMode === 'text') {
         if (typeof site.iconText !== 'string' || ![...site.iconText.trim()].length) delete site.iconMode;
         else site.iconText = [...site.iconText.trim()].slice(0, 2).join('');
         delete site.iconImage;
+        // 字母图标底色（扩展添加面板）：只留合法 #rrggbb，非 text 模式/非法值一律丢弃
+        if (typeof site.iconColor !== 'string' || !/^#[0-9a-fA-F]{6}$/.test(site.iconColor)) delete site.iconColor;
       } else {
         if (
           typeof site.iconImage !== 'string' ||
@@ -1123,6 +1128,7 @@ function normalizeGroupsField(raw: unknown): NavGroup[] | null {
           delete site.iconImage;
         }
         delete site.iconText;
+        delete site.iconColor;
       }
     }
   }
@@ -1258,25 +1264,32 @@ export interface SiteDraft {
   /** 图标来源（第四十九轮）：auto = 自动管线；text = iconText 字母图；upload = iconImage 上传图 */
   iconMode: 'auto' | 'text' | 'upload';
   iconText: string;
+  /** iconMode='text' 时的字母图标底色（扩展添加面板选色，#rrggbb；空 = 按文字自动取色） */
+  iconColor: string;
   iconImage: string;
   /** auto 模式下表单「重新检索」得到的新 logo（空 = 保存时按既有管线处理） */
   autoLogo: string;
 }
 
-/** 图标配置落盘（第四十九轮）：auto 不留字段（行为与改版前一致）；text/upload 写对应字段、清另一个 */
+/** 图标配置落盘（第四十九轮）：auto 不留字段（行为与改版前一致）；text/upload 写对应字段、清另一个；
+ *  text 模式下 draft 带合法底色时一并写 iconColor（扩展添加面板），否则不留字段 */
 function applyDraftIcon(site: SiteEntry, draft: SiteDraft): void {
   if (draft.iconMode === 'text' && [...draft.iconText.trim()].length) {
     site.iconMode = 'text';
     site.iconText = [...draft.iconText.trim()].slice(0, 2).join('');
+    if (/^#[0-9a-fA-F]{6}$/.test(draft.iconColor)) site.iconColor = draft.iconColor;
+    else delete site.iconColor;
     delete site.iconImage;
   } else if (draft.iconMode === 'upload' && draft.iconImage.startsWith('data:image/')) {
     site.iconMode = 'upload';
     site.iconImage = draft.iconImage;
     delete site.iconText;
+    delete site.iconColor;
   } else {
     delete site.iconMode;
     delete site.iconText;
     delete site.iconImage;
+    delete site.iconColor;
   }
 }
 
@@ -1300,6 +1313,27 @@ export function useLocalStore() {
       // 存储空间不足等情况下静默失败，不阻断使用
     }
   }, [data]);
+
+  /* 跨上下文写回采纳（扩展添加面板）：同一 origin 的另一个页面/弹窗（如扩展 popup）
+   * 直接写 localStorage 时，本页的 React 状态并不知道；storage 事件只发给「其他」
+   * 上下文，收到且对方 updatedAt 更新时采纳整份数据，避免本页后续写回把对方的
+   * 新增站点盖掉。只采纳更新的（updatedAt 更大），避免写回循环。 */
+  useEffect(() => {
+    const onStorage = (e: StorageEvent) => {
+      if (e.key !== STORAGE_KEY || !e.newValue) return;
+      let incoming: StoreData | null = null;
+      try {
+        incoming = validateStoreData(JSON.parse(e.newValue));
+      } catch {
+        return;
+      }
+      if (!incoming || incoming.updatedAt <= dataRef.current.updatedAt) return;
+      lastAppearance = appearanceOf(incoming, getDisplayPrefs());
+      setData(incoming);
+    };
+    window.addEventListener('storage', onStorage);
+    return () => window.removeEventListener('storage', onStorage);
+  }, []);
 
   /* 显示偏好订阅桥接（第一百一十一轮）：偏好改动同样走自动保存语义——
    * 内置预设期翻为 'my' 并刷新快照，本来就在 'my' 时同样刷新快照；

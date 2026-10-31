@@ -1,4 +1,4 @@
-import React, { useRef, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { motion } from 'motion/react';
 import { Pin, Pencil, Trash2, ChevronDown, ChevronUp } from 'lucide-react';
 import { GROUP_NAME_MAX, siteIconSrc, sortSites, textCharCount, type NavGroup } from '../../data/groups';
@@ -11,7 +11,9 @@ import { useSiteDragSort } from './useSiteDragSort';
 /**
  * B 型 · 编组列表卡（收起态占格由右键布局决定：默认 2 栏 × 2x）
  * 站点行式排布（图标 + 名称 + 一句介绍 + 标签，同旧站 AI 导航）。
- * 收起只显示站点：可见数按布局算（栏数 × 每列行数，2x 每列 5 行、1x 每列 2 行）。
+ * 收起只显示站点：可见行数按行区实测高度填充（2026-10-31 替代写死的 5/2 行：
+ * 量行区高 ÷ 行高向下取整，有空位就多显示一行、没空位不切半行；各视口与手机
+ * 估算高下都按同一口径，初渲染回落 2x 5 行 / 1x 2 行）。
  * 展开 / 收起入口（第十六轮修正，整卡单击太容易误触）：头部组名后的小胶囊按钮——收起态显示「展开」、展开态显示「收起」
  * （第三十/三十一轮最终形态；第十六轮的卡底渐隐提示条与卡底展开小按钮、第三十轮前的卡底收起条均已退役）。
  * 单击卡面空白处不展开也不收起，点站点行仍是打开网站。
@@ -39,13 +41,37 @@ export default function GroupListCard({
   store: LocalStore;
   /** 收起态宽度（右键布局）：1 栏时站点单列；2 栏时 3 列（第二十轮，与展开态统一） */
   colSpan?: 1 | 2;
-  /** 收起态高度（右键布局）：2x 每列 5 行；1x 每列 2 行——实际可见数按此计算，溢出提示的 N 才准确 */
+  /** 收起态高度（右键布局）：行数按行区实测填充（2x 回落 5 行、1x 回落 2 行），溢出提示的 N 才准确 */
   heightUnits?: 1 | 2;
   delay?: number;
 }) {
   const sorted = sortSites(group.sites);
   const cols = colSpan === 1 ? 1 : 3;
-  const rowsPerCol = heightUnits === 2 ? 5 : 2;
+  /* 收起行数实测填充：行区高度由卡高（桌面网格行高/手机估算高）固定，与内容无关，
+   * 量一次即可稳定；行高取首行实测。测不到时回落旧常量（2x 5 行、1x 2 行）。 */
+  const gridRef = useRef<HTMLDivElement | null>(null);
+  const [fitRows, setFitRows] = useState<number | null>(null);
+  useEffect(() => {
+    const grid = gridRef.current;
+    if (!grid || expanded) return;
+    const area = grid.parentElement;
+    if (!area) return;
+    const update = () => {
+      const first = grid.firstElementChild as HTMLElement | null;
+      const rowH = first?.getBoundingClientRect().height ?? 0;
+      const h = area.clientHeight;
+      if (rowH > 0 && h > 0) {
+        const n = Math.max(1, Math.floor(h / rowH));
+        setFitRows((prev) => (prev === n ? prev : n));
+      }
+    };
+    update();
+    const ro = new ResizeObserver(update);
+    ro.observe(area);
+    ro.observe(grid);
+    return () => ro.disconnect();
+  }, [expanded, colSpan, heightUnits]);
+  const rowsPerCol = fitRows ?? (heightUnits === 2 ? 5 : 2);
   const visibleCount = cols * rowsPerCol;
   const rows = sorted.slice(0, visibleCount);
 
@@ -246,6 +272,7 @@ export default function GroupListCard({
         <div className="flex-1 min-h-0 flex flex-col">
           <div className="flex-1 min-h-0 overflow-hidden">
           <div
+            ref={gridRef}
             data-collapsed-grid
             data-cross-source
             className={`grid gap-x-2 content-start ${colSpan === 1 ? 'grid-cols-1' : 'grid-cols-1 min-[480px]:grid-cols-3'}`}

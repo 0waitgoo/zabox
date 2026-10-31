@@ -1449,6 +1449,21 @@ export function useLocalStore() {
   );
 
   /**
+   * 只改一个站的图标地址（补图标功能专用）：不碰名称/网址/描述/置顶等其它字段，
+   * 手动文字图标与上传图标的站调用方已跳过，这里再守一道（不覆盖）。
+   */
+  const updateSiteLogo = useCallback(
+    (groupId: string, siteId: string, logo: string) => {
+      update((d) => {
+        const site = d.groups.find((g) => g.id === groupId)?.sites.find((s) => s.id === siteId);
+        if (site && site.iconMode !== 'text' && site.iconMode !== 'upload') site.logo = logo;
+        return d;
+      });
+    },
+    [update],
+  );
+
+  /**
    * 组内站点手动排序落盘（第三十八轮）：入参为完整的显示顺序（站点 id 数组，
    * 已由拖动侧按置顶分区夹好）。存储数组即显示顺序（sortSites 只做置顶分区稳定划分），
    * 这里再按 pinned 稳定分区一次兜底，保证任何调用方传错序也不会跨区；
@@ -2571,6 +2586,7 @@ export function useLocalStore() {
     data,
     addSite,
     updateSite,
+    updateSiteLogo,
     deleteSite,
     moveSite,
     reorderSites,

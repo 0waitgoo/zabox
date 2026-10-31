@@ -271,6 +271,7 @@ export default function SiteAiAssistant({
         tags: [],
         iconMode: 'auto',
         iconText: '',
+        iconColor: '',
         iconImage: '',
         autoLogo: '',
       });

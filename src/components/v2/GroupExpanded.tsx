@@ -186,6 +186,7 @@ export function SiteForm({
       tags: finalTags,
       iconMode,
       iconText: iconText.trim(),
+      iconColor: '',
       iconImage,
       autoLogo: autoLogo || (iconMode === 'auto' || identityChanged ? logoForSite(name.trim(), finalUrl) : ''),
     });
@@ -655,6 +656,7 @@ export default function GroupExpandedBody({
                   tags: s.needVpn ? ['VPN'] : [],
                   iconMode: 'auto',
                   iconText: '',
+                  iconColor: '',
                   iconImage: '',
                   autoLogo: s.logo,
                 });

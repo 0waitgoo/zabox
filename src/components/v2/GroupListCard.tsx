@@ -77,6 +77,8 @@ export default function GroupListCard({
   const rowsPerCol = fitRows ?? (heightUnits === 2 ? 5 : 2);
   const visibleCount = cols * rowsPerCol;
   const rows = sorted.slice(0, visibleCount);
+  // 收起态未显示的站点数（与上面同一 visibleCount 口径，按钮文案与实际显示一致才可信）
+  const hiddenCount = Math.max(0, sorted.length - visibleCount);
 
   // 收起态跨组拖拽（随时按住都可拖）：收起网格本身无组内排序语义，只做跨组移动；
   // 拖到别的组卡松手即 moveSite，同组/空白取消；展开体不接跨组、行为不变
@@ -182,7 +184,7 @@ export default function GroupListCard({
           <>
             <div className="flex items-center gap-2 min-w-0">
               <h3 className="font-semibold text-base sm:text-lg tracking-tight truncate">{displayGroupName(group, lang)}</h3>
-              {/* 组名后唯一的小胶囊按钮（第三十/三十一轮最终形态）：收起态 =「展开」、展开态 =「收起」，同位置同样式；
+              {/* 组名后唯一的小胶囊按钮（第三十/三十一轮最终形态）：收起态 =「展开」/有未显示站点时「展开 其他N个站点」、展开态 =「收起」，同位置同样式；
                   「· N 个站点」计数已删，卡底部不再有任何展开/收起条（第十六轮底部渐隐提示条与卡底展开小按钮就此退役） */}
               <button
                 type="button"
@@ -195,6 +197,8 @@ export default function GroupListCard({
               >
                 {expanded ? (
                   <>{t('menu.collapse')} <ChevronUp size={13} /></>
+                ) : hiddenCount > 0 ? (
+                  <>{t('menu.expandOthers', { n: hiddenCount })} <ChevronDown size={13} /></>
                 ) : (
                   <>{t('menu.expand')} <ChevronDown size={13} /></>
                 )}

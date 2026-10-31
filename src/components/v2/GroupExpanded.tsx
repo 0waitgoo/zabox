@@ -1,6 +1,6 @@
 import React, { useRef, useState } from 'react';
 import { Pin, Plus, Check, X, RefreshCw, Upload } from 'lucide-react';
-import { SITE_TAG_MAX, SITE_TAGS_MAX_COUNT, cleanSiteTag, cleanSiteTags, letterIconDataUri, siteIconSrc, siteLogoFallback, siteTags, sortSites, type NavGroup, type SiteEntry } from '../../data/groups';
+import { LETTER_ICON_COLORS, SITE_TAG_MAX, SITE_TAGS_MAX_COUNT, cleanSiteTag, cleanSiteTags, letterIconDataUri, siteIconSrc, siteLogoFallback, siteTags, sortSites, type NavGroup, type SiteEntry } from '../../data/groups';
 import { logoForSite, type LocalStore, type SiteDraft } from '../../store/localStore';
 import { useLang } from '../../i18n/useLang';
 import { SiteLogo } from './Card';
@@ -152,6 +152,8 @@ export function SiteForm({
   const [iconMode, setIconMode] = useState<'auto' | 'text' | 'upload'>(initial?.iconMode ?? 'auto');
   const [iconText, setIconText] = useState(initial?.iconText ?? '');
   const [iconImage, setIconImage] = useState(initial?.iconImage ?? '');
+  // 文字图标底色（空 = 按文字自动取色，与 groups.ts 的哈希取色一致；存量 popup 选过的色直接回显）
+  const [iconColor, setIconColor] = useState(initial?.iconColor ?? '');
   const [autoLogo, setAutoLogo] = useState('');
   const iconTextComposing = useRef(false);
   const iconFileRef = useRef<HTMLInputElement>(null);
@@ -161,7 +163,7 @@ export function SiteForm({
     iconMode === 'upload' && iconImage
       ? iconImage
       : iconMode === 'text' && iconText.trim()
-        ? letterIconDataUri(iconText.trim())
+        ? letterIconDataUri(iconText.trim(), iconColor || undefined)
         : autoLogo || initial?.logo || logoForSite(name.trim() || '站点', normalizeUrl(url) || 'https://example.com');
 
   const submit = () => {
@@ -188,7 +190,7 @@ export function SiteForm({
       tags: finalTags,
       iconMode,
       iconText: iconText.trim(),
-      iconColor: '',
+      iconColor,
       iconImage,
       autoLogo: autoLogo || (iconMode === 'auto' || identityChanged ? logoForSite(name.trim(), finalUrl) : ''),
     });
@@ -321,6 +323,37 @@ export function SiteForm({
           </>
         )}
       </div>
+      {/* 文字图标底色：仅 text 模式显示；色板与自动取色同源（LETTER_ICON_COLORS），空 = 自动 */}
+      {iconMode === 'text' && (
+        <div className="flex items-center gap-1.5 flex-wrap" data-icon-colors>
+          <span className="text-[11px] text-white/50">{t('menu.formIconBg')}</span>
+          {LETTER_ICON_COLORS.map((c) => (
+            <button
+              key={c}
+              type="button"
+              data-icon-color={c}
+              title={c}
+              aria-label={c}
+              onClick={() => setIconColor(c)}
+              className={`w-6 h-6 rounded-full border transition-transform hover:scale-110 ${
+                iconColor === c ? 'border-indigo-400 ring-2 ring-indigo-400/50' : 'border-white/20'
+              }`}
+              style={{ backgroundColor: c }}
+            />
+          ))}
+          <button
+            type="button"
+            data-icon-color-auto
+            title={t('menu.formIconBgAuto')}
+            aria-label={t('menu.formIconBgAuto')}
+            onClick={() => setIconColor('')}
+            className={`w-6 h-6 rounded-full border transition-transform hover:scale-110 ${
+              iconColor === '' ? 'border-indigo-400 ring-2 ring-indigo-400/50' : 'border-white/20'
+            }`}
+            style={{ background: 'conic-gradient(#f87171, #facc15, #4ade80, #38bdf8, #a78bfa, #f87171)' }}
+          />
+        </div>
+      )}
       <div className="flex items-center gap-2 flex-wrap">
         {/* 标签（第二十六轮；第三十九轮预设配色；第七十六轮改多选、最多 2 个）：自定义输入（灰色系，
             规则不变：仅英文字母、自动转大写、最多 4 个，回车/失焦并入已选）+ 三个写死预设按钮

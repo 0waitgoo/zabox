@@ -22,6 +22,31 @@ import {
   type GithubSyncMeta,
 } from '../../store/githubSync';
 import {
+  beginGiteeOAuthState,
+  buildGiteeOAuthAuthorizeUrl,
+  consumeGiteeOAuthState,
+  ensureGiteeRepo,
+  exchangeGiteeOAuthCode,
+  fetchGiteeOAuthClientId,
+  geGetFile,
+  geGetUser,
+  gePutFile,
+  giteeConfigComplete,
+  giteeRedirectUri,
+  isGiteeOAuthReturn,
+  isGiteeTokenExpired,
+  isGiteeUnauthorized,
+  loadGiteeSyncMeta,
+  loadSyncProvider,
+  refreshGiteeOAuthToken,
+  saveGiteeSyncMeta,
+  saveSyncProvider,
+  GITEE_OAUTH_FILE_PATH,
+  type GiteeSyncConfig,
+  type GiteeSyncMeta,
+  type SyncProvider,
+} from '../../store/giteeSync';
+import {
   clearPersistedHandle,
   formatSavedTime,
   fsAccessSupported,
@@ -190,15 +215,33 @@ export default function DataMenu({ store }: { store: LocalStore }) {
   const isGhLoggedIn = isOauthLoggedIn || isPatLoggedIn;
   const [patToken, setPatToken] = useState('');
 
+  /* ---- 同步方式二选一（Gitee 线，用户 2026-10-31 定）：同一时间只一条在跑，
+   * 另一条的自动拉取/推送全部停掉；两条各记各的配置与同步基准，切回来不重复推 ---- */
+  const [provider, setProvider] = useState<SyncProvider>(loadSyncProvider);
+  const providerRef = useRef(provider);
+  providerRef.current = provider;
+  const [geMeta, setGeMeta] = useState<GiteeSyncMeta>(loadGiteeSyncMeta);
+  const [geStatus, setGeStatus] = useState<{ kind: GhStatusKind; text: string } | null>(null);
+  /* Gitee 登录：client_id 同样从服务端拿；undefined = 正在查，null = 未配置（按钮置灰） */
+  const [giteeOauthClientId, setGiteeOauthClientId] = useState<string | null | undefined>(undefined);
+  const isGeOauthLoggedIn = geMeta.authMode === 'oauth' && !!geMeta.token;
+  const isGePatLoggedIn = IS_EXTENSION_BUILD && geMeta.authMode === 'pat' && !!geMeta.token;
+  const isGeLoggedIn = isGeOauthLoggedIn || isGePatLoggedIn;
+  const [gePatToken, setGePatToken] = useState('');
+
   useEffect(() => {
     if (IS_EXTENSION_BUILD) {
       // 扩展里不用 OAuth：不查服务端登录配置，登录区直接渲染令牌表单
       setOauthClientId(null);
+      setGiteeOauthClientId(null);
       return;
     }
     let cancelled = false;
     void fetchOAuthClientId().then((id) => {
       if (!cancelled) setOauthClientId(id);
+    });
+    void fetchGiteeOAuthClientId().then((id) => {
+      if (!cancelled) setGiteeOauthClientId(id);
     });
     return () => {
       cancelled = true;
@@ -221,6 +264,26 @@ export default function DataMenu({ store }: { store: LocalStore }) {
   useEffect(() => {
     saveGithubSyncMeta(ghMeta);
   }, [ghMeta]);
+
+  const geMetaRef = useRef(geMeta);
+  geMetaRef.current = geMeta;
+  const geBusyRef = useRef(false);
+
+  /** 同步更新 Gitee meta 的 state 与 ref（与 updateGhMeta 同款口径） */
+  const updateGeMeta = (patch: Partial<GiteeSyncMeta>) => {
+    const next = { ...geMetaRef.current, ...patch };
+    geMetaRef.current = next;
+    setGeMeta(next);
+  };
+
+  useEffect(() => {
+    saveGiteeSyncMeta(geMeta);
+  }, [geMeta]);
+
+  const geCfg = (): GiteeSyncConfig | null => {
+    const m = geMetaRef.current;
+    return giteeConfigComplete(m) ? m : null;
+  };
 
   const ghCfg = (): GithubSyncConfig | null => {
     const m = ghMetaRef.current;
@@ -366,6 +429,201 @@ export default function DataMenu({ store }: { store: LocalStore }) {
     }
   };
 
+  /* ---- Gitee 同步引擎（与 GitHub 引擎镜像，差别只在协议与令牌刷新）----
+   * 令牌过期：Gitee access_token 一天过期，拉/推前先看过期时间戳、过期就经服务端静默刷新；
+   * 撞 401 也先刷新重试一次，刷新失败才报过期、等用户重新登录（GitHub 线是直接重登跳转）。 */
+  /** 静默刷新 Gitee 令牌：成功换上新令牌（含轮换后的 refresh_token），失败返回 false */
+  const refreshGeToken = async (): Promise<boolean> => {
+    const m = geMetaRef.current;
+    if (m.authMode !== 'oauth' || !m.refreshToken) return false;
+    const refreshed = await refreshGiteeOAuthToken(m.refreshToken);
+    if ('error' in refreshed) return false;
+    updateGeMeta({
+      token: refreshed.token,
+      refreshToken: refreshed.refreshToken || m.refreshToken,
+      tokenExpiresAt: refreshed.expiresIn > 0 ? Date.now() + refreshed.expiresIn * 1000 : 0,
+    });
+    return true;
+  };
+
+  /** 取当前可用配置：OAuth 方式且令牌已过期时先静默刷新一次 */
+  const geFreshCfg = async (): Promise<GiteeSyncConfig | null> => {
+    const m = geMetaRef.current;
+    if (!giteeConfigComplete(m)) return null;
+    if (m.authMode === 'oauth' && isGiteeTokenExpired(m)) {
+      await refreshGeToken();
+    }
+    const fresh = geMetaRef.current;
+    return giteeConfigComplete(fresh) ? fresh : null;
+  };
+
+  /** 拉取（带一次刷新重试）：首调 401 且能刷新时，换上新令牌重拉一次 */
+  const geGetWithRefresh = async (cfg: GiteeSyncConfig) => {
+    const res = await geGetFile(cfg);
+    if (res.kind === 'error' && isGiteeUnauthorized(res.message) && (await refreshGeToken())) {
+      const fresh = geMetaRef.current;
+      if (giteeConfigComplete(fresh)) return geGetFile(fresh);
+    }
+    return res;
+  };
+
+  /** 写回（带一次刷新重试）：首调 401 且能刷新时，换上新令牌重写一次 */
+  const gePutWithRefresh = async (cfg: GiteeSyncConfig, text: string, sha: string | null) => {
+    const res = await gePutFile(cfg, text, sha);
+    if (res.kind === 'error' && isGiteeUnauthorized(res.message) && (await refreshGeToken())) {
+      const fresh = geMetaRef.current;
+      if (giteeConfigComplete(fresh)) return gePutFile(fresh, text, sha);
+    }
+    return res;
+  };
+
+  /** 用云端数据覆盖本地（与 applyRemote 同款：先落基准再导入，导入后恢复组件独立数据） */
+  const applyRemoteGe = (
+    remoteData: unknown,
+    sha: string,
+    remoteUpdatedAt: number,
+    widgetStorage?: Record<string, unknown> | null,
+  ): boolean => {
+    updateGeMeta({ lastSha: sha, baseUpdatedAt: remoteUpdatedAt, lastSyncedAt: Date.now() });
+    if (!storeRef.current.importData(remoteData)) {
+      setGeStatus({ kind: 'error', text: '云端数据结构不对，无法导入' });
+      return false;
+    }
+    if (widgetStorage) {
+      restoreWidgetStorage(widgetStorage);
+      reloadColorsData();
+    }
+    setGeStatus({ kind: 'ok', text: `已同步 · ${formatSavedTime(Date.now())}` });
+    return true;
+  };
+
+  const pushToGitee = async (): Promise<void> => {
+    if (geBusyRef.current) return;
+    const cfg = await geFreshCfg();
+    if (!cfg) return;
+    geBusyRef.current = true;
+    setGeStatus({ kind: 'syncing', text: '正在推送到 Gitee…' });
+    try {
+      const snapshot = dataRef.current;
+      const text = JSON.stringify(packDataEnvelope(snapshot), null, 2);
+      const res = await gePutWithRefresh(cfg, text, geMetaRef.current.lastSha);
+      if (res.kind === 'ok') {
+        updateGeMeta({ lastSha: res.sha, baseUpdatedAt: snapshot.updatedAt, lastSyncedAt: Date.now() });
+        setGeStatus({ kind: 'ok', text: `已同步 · ${formatSavedTime(Date.now())}` });
+        return;
+      }
+      if (res.kind === 'error') {
+        setGeStatus({ kind: 'error', text: res.message });
+        return;
+      }
+      // sha 冲突：重新拉取，按 updatedAt 裁决
+      const remote = await geGetWithRefresh(cfg);
+      if (remote.kind === 'error') {
+        setGeStatus({ kind: 'error', text: remote.message });
+        return;
+      }
+      if (remote.kind === 'missing') {
+        // 云端文件被删了：以无 sha 方式重建一次
+        const retry = await gePutWithRefresh(cfg, text, null);
+        if (retry.kind === 'ok') {
+          updateGeMeta({ lastSha: retry.sha, baseUpdatedAt: snapshot.updatedAt, lastSyncedAt: Date.now() });
+          setGeStatus({ kind: 'ok', text: `已同步 · ${formatSavedTime(Date.now())}` });
+        } else {
+          setGeStatus({ kind: 'conflict', text: '同步冲突：云端状态异常，请选择以哪边为准' });
+        }
+        return;
+      }
+      if (remote.updatedAt > dataRef.current.updatedAt) {
+        if (applyRemoteGe(remote.data, remote.sha, remote.updatedAt, remote.widgetStorage)) {
+          setGeStatus({ kind: 'ok', text: '云端有更新，已拉取云端数据' });
+        }
+        return;
+      }
+      // 本地较新：换上云端最新 sha 重试一次
+      const retry = await gePutWithRefresh(cfg, serializeData(), remote.sha);
+      if (retry.kind === 'ok') {
+        updateGeMeta({ lastSha: retry.sha, baseUpdatedAt: dataRef.current.updatedAt, lastSyncedAt: Date.now() });
+        setGeStatus({ kind: 'ok', text: `已同步 · ${formatSavedTime(Date.now())}` });
+      } else {
+        updateGeMeta({ lastSha: remote.sha });
+        setGeStatus({ kind: 'conflict', text: '同步冲突：本地与云端都有新变化，请选择以哪边为准' });
+      }
+    } finally {
+      geBusyRef.current = false;
+    }
+  };
+
+  const pullFromGitee = async (opts?: { forceApply?: boolean; autoRelogin?: boolean }): Promise<void> => {
+    if (geBusyRef.current) return;
+    const cfg = await geFreshCfg();
+    if (!cfg) return;
+    geBusyRef.current = true;
+    setGeStatus({ kind: 'syncing', text: '正在从 Gitee 拉取…' });
+    try {
+      const res = await geGetWithRefresh(cfg);
+      if (res.kind === 'missing') {
+        updateGeMeta({ lastSha: null });
+        setGeStatus({ kind: 'missing', text: '云端尚无数据文件' });
+        return;
+      }
+      if (res.kind === 'error') {
+        if (opts?.autoRelogin && isGiteeUnauthorized(res.message) && (await tryAutoReloginOnLoadGe())) return;
+        setGeStatus({ kind: 'error', text: res.message });
+        return;
+      }
+      const localUpdatedAt = dataRef.current.updatedAt;
+      if (opts?.forceApply || res.updatedAt > localUpdatedAt) {
+        applyRemoteGe(res.data, res.sha, res.updatedAt, res.widgetStorage);
+      } else if (res.updatedAt < localUpdatedAt) {
+        updateGeMeta({ lastSha: res.sha, baseUpdatedAt: res.updatedAt });
+        setGeStatus({ kind: 'ok', text: '本地数据较新，正在推送…' });
+        geBusyRef.current = false;
+        await pushToGitee();
+        return;
+      } else {
+        updateGeMeta({ lastSha: res.sha, baseUpdatedAt: res.updatedAt, lastSyncedAt: Date.now() });
+        setGeStatus({ kind: 'ok', text: `已同步 · ${formatSavedTime(Date.now())}` });
+      }
+    } finally {
+      geBusyRef.current = false;
+    }
+  };
+
+  /** 冲突手动裁决（Gitee）：以本地为准 = 取云端最新 sha 后强行覆盖写回 */
+  const forcePushLocalGe = async () => {
+    if (geBusyRef.current) return;
+    const cfg = await geFreshCfg();
+    if (!cfg) return;
+    geBusyRef.current = true;
+    setGeStatus({ kind: 'syncing', text: '正在以本地数据覆盖云端…' });
+    try {
+      const remote = await geGetWithRefresh(cfg);
+      if (remote.kind === 'error') {
+        setGeStatus({ kind: 'error', text: remote.message });
+        return;
+      }
+      const sha = remote.kind === 'ok' ? remote.sha : null;
+      const snapshot = dataRef.current;
+      const res = await gePutWithRefresh(cfg, JSON.stringify(packDataEnvelope(snapshot), null, 2), sha);
+      if (res.kind === 'ok') {
+        updateGeMeta({ lastSha: res.sha, baseUpdatedAt: snapshot.updatedAt, lastSyncedAt: Date.now() });
+        setGeStatus({ kind: 'ok', text: `已同步 · ${formatSavedTime(Date.now())}` });
+      } else if (res.kind === 'conflict') {
+        setGeStatus({ kind: 'conflict', text: '同步冲突：云端仍在变化，请稍后再试' });
+      } else {
+        setGeStatus({ kind: 'error', text: res.message });
+      }
+    } finally {
+      geBusyRef.current = false;
+    }
+  };
+
+  const toggleGeEnabled = () => {
+    const next = !geMetaRef.current.enabled;
+    updateGeMeta({ enabled: next });
+    if (next) void pullFromGitee();
+  };
+
   /* ---- GitHub 登录（OAuth）：点按钮跳授权页，回跳站点根带 ?code&state ---- */
   const startOAuthLogin = () => {
     if (!oauthClientId) return;
@@ -504,6 +762,206 @@ export default function DataMenu({ store }: { store: LocalStore }) {
     await pullFromGithub();
   };
 
+  /* ---- Gitee 登录（OAuth）：与 GitHub 线同款流程，差别是换令牌要带 redirect_uri、
+   * 且令牌一天过期（存 refresh_token + 过期时间戳，见 giteeSync.ts） ---- */
+  const startGiteeOAuthLogin = () => {
+    if (!giteeOauthClientId) return;
+    const state = beginGiteeOAuthState();
+    window.location.href = buildGiteeOAuthAuthorizeUrl(giteeOauthClientId, state, giteeRedirectUri());
+  };
+
+  /* 刷新时自动重登（Gitee）：页面加载拉取撞 401 且静默刷新失败时走 OAuth 重登，
+   * 与 GitHub 线同款 10 分钟冷却（各用各的冷却 key，互不干扰） */
+  const GITEE_OAUTH_AUTO_RETRY_KEY = 'ainav-gitee-oauth-auto-retry-at';
+  const tryAutoReloginOnLoadGe = async (): Promise<boolean> => {
+    if (IS_EXTENSION_BUILD) return false;
+    if (geMetaRef.current.authMode !== 'oauth') return false;
+    try {
+      const v = sessionStorage.getItem(GITEE_OAUTH_AUTO_RETRY_KEY);
+      if (v && Date.now() - Number(v) <= OAUTH_AUTO_RETRY_COOLDOWN_MS) return false;
+    } catch {
+      // 读不到也继续：跳转本身能完成重登
+    }
+    const cid = await fetchGiteeOAuthClientId();
+    if (!cid) return false;
+    try {
+      sessionStorage.setItem(GITEE_OAUTH_AUTO_RETRY_KEY, String(Date.now()));
+    } catch {
+      // 存不下也继续
+    }
+    setGeStatus({ kind: 'syncing', text: 'Gitee 登录已过期，正在重新登录…' });
+    const state = beginGiteeOAuthState();
+    window.location.href = buildGiteeOAuthAuthorizeUrl(cid, state, giteeRedirectUri());
+    return true;
+  };
+
+  /**
+   * Gitee OAuth 回跳处理：校验 state → 服务端换 token → 查账号 → 确保 ainav-data 仓库 →
+   * 写定同步配置（仓库/分支/文件按仓库实际默认分支）并开启同步、切到 Gitee 线、立即拉取一次。
+   */
+  const handleGiteeOAuthReturn = async (code: string, returnedState: string | null): Promise<void> => {
+    // 先把 URL 里的 code/state 清掉：避免刷新重复处理，授权码也不留在地址栏里
+    const url = new URL(window.location.href);
+    url.searchParams.delete('code');
+    url.searchParams.delete('state');
+    window.history.replaceState(null, '', `${url.pathname}${url.search}${url.hash}`);
+    setOpen(true);
+    const expected = consumeGiteeOAuthState();
+    if (!expected || !returnedState || returnedState !== expected) {
+      setGeStatus({ kind: 'error', text: 'Gitee 登录校验失败（state 不符），请重新登录' });
+      return;
+    }
+    setGeStatus({ kind: 'syncing', text: '正在完成 Gitee 登录…' });
+    const exchanged = await exchangeGiteeOAuthCode(code, giteeRedirectUri());
+    if ('error' in exchanged) {
+      setGeStatus({ kind: 'error', text: exchanged.error });
+      return;
+    }
+    const user = await geGetUser(exchanged.token);
+    if ('error' in user) {
+      setGeStatus({ kind: 'error', text: user.error });
+      return;
+    }
+    const ensured = await ensureGiteeRepo(exchanged.token, user.login);
+    if ('error' in ensured) {
+      setGeStatus({ kind: 'error', text: ensured.error });
+      return;
+    }
+    updateGeMeta({
+      authMode: 'oauth',
+      oauthLogin: user.login,
+      owner: user.login,
+      repo: ensured.repo,
+      branch: ensured.branch,
+      path: GITEE_OAUTH_FILE_PATH,
+      token: exchanged.token,
+      refreshToken: exchanged.refreshToken,
+      tokenExpiresAt: exchanged.expiresIn > 0 ? Date.now() + exchanged.expiresIn * 1000 : 0,
+      enabled: true,
+      lastSha: null,
+      baseUpdatedAt: 0,
+      lastSyncedAt: null,
+    });
+    setProvider('gitee');
+    providerRef.current = 'gitee';
+    saveSyncProvider('gitee');
+    setGeStatus({ kind: 'ok', text: `已登录 Gitee（${user.login}），同步已开启` });
+    await pullFromGitee();
+  };
+
+  /** 退出登录（Gitee）：只清本机凭证与同步开关，本地数据与已同步的云端数据都不动 */
+  const logoutGiteeOAuth = () => {
+    updateGeMeta({
+      token: '',
+      refreshToken: '',
+      tokenExpiresAt: 0,
+      enabled: false,
+      oauthLogin: '',
+      lastSha: null,
+      baseUpdatedAt: 0,
+      lastSyncedAt: null,
+    });
+    setGeStatus(null);
+  };
+
+  /* 扩展方案 B（Gitee）：粘贴令牌连接——验令牌拿账号 → 确保 ainav-data 仓库 → 写定配置开启同步并立即拉取。
+   * 令牌只存本机独立 key，绝不进同步/导出 JSON。 */
+  const connectWithGiteeToken = async () => {
+    const token = gePatToken.trim();
+    if (!token || geBusyRef.current) return;
+    geBusyRef.current = true;
+    setGeStatus({ kind: 'syncing', text: '正在验证令牌…' });
+    try {
+      const user = await geGetUser(token);
+      if ('error' in user) {
+        setGeStatus({ kind: 'error', text: user.error });
+        return;
+      }
+      const ensured = await ensureGiteeRepo(token, user.login);
+      if ('error' in ensured) {
+        setGeStatus({ kind: 'error', text: ensured.error });
+        return;
+      }
+      updateGeMeta({
+        authMode: 'pat',
+        oauthLogin: '',
+        owner: user.login,
+        repo: ensured.repo,
+        branch: ensured.branch,
+        path: GITEE_OAUTH_FILE_PATH,
+        token,
+        refreshToken: '',
+        tokenExpiresAt: 0,
+        enabled: true,
+        lastSha: null,
+        baseUpdatedAt: 0,
+        lastSyncedAt: null,
+      });
+      setGePatToken('');
+      setGeStatus({ kind: 'ok', text: `已连接 Gitee（${user.login}），同步已开启` });
+    } finally {
+      geBusyRef.current = false;
+    }
+    await pullFromGitee();
+  };
+
+  /** 切换同步方式：先拉取再推；两边都比各自基准新（已分叉）时停下问用户，不静默覆盖 */
+  const switchProvider = async (next: SyncProvider) => {
+    if (next === providerRef.current || geBusyRef.current || ghBusyRef.current) return;
+    setProvider(next);
+    providerRef.current = next;
+    saveSyncProvider(next);
+    if (next === 'gitee') {
+      const m = geMetaRef.current;
+      if (!m.enabled || !giteeConfigComplete(m)) {
+        setGeStatus(null);
+        return;
+      }
+      const cfg = await geFreshCfg();
+      if (!cfg) return;
+      const remote = await geGetWithRefresh(cfg);
+      if (remote.kind === 'error') {
+        setGeStatus({ kind: 'error', text: remote.message });
+        return;
+      }
+      if (
+        remote.kind === 'ok' &&
+        remote.updatedAt > m.baseUpdatedAt &&
+        dataRef.current.updatedAt > m.baseUpdatedAt &&
+        remote.updatedAt !== dataRef.current.updatedAt
+      ) {
+        updateGeMeta({ lastSha: remote.sha });
+        setGeStatus({ kind: 'conflict', text: '本地与 Gitee 云端都有未同步的变化，请选择以哪边为准' });
+        return;
+      }
+      await pullFromGitee();
+      return;
+    }
+    const m = ghMetaRef.current;
+    if (!m.enabled || !githubConfigComplete(m)) {
+      setGhStatus(null);
+      return;
+    }
+    const cfg = ghCfg();
+    if (!cfg) return;
+    const remote = await ghGetFile(cfg);
+    if (remote.kind === 'error') {
+      setGhStatus({ kind: 'error', text: remote.message });
+      return;
+    }
+    if (
+      remote.kind === 'ok' &&
+      remote.updatedAt > m.baseUpdatedAt &&
+      dataRef.current.updatedAt > m.baseUpdatedAt &&
+      remote.updatedAt !== dataRef.current.updatedAt
+    ) {
+      updateGhMeta({ lastSha: remote.sha });
+      setGhStatus({ kind: 'conflict', text: '本地与 GitHub 云端都有未同步的变化，请选择以哪边为准' });
+      return;
+    }
+    await pullFromGithub();
+  };
+
   // 页面加载：带 OAuth 回跳参数时先处理登录，否则同步已开启且配置完整时自动拉取一次
   const ghInitRef = useRef(false);
   useEffect(() => {
@@ -512,7 +970,17 @@ export default function DataMenu({ store }: { store: LocalStore }) {
     const params = new URLSearchParams(window.location.search);
     const code = params.get('code');
     if (code && !IS_EXTENSION_BUILD) {
-      void handleOAuthReturn(code, params.get('state'));
+      // 回跳归属按起登时记的 provider 标记分流（没标记时默认 GitHub，兼容进行中的旧回跳）
+      if (isGiteeOAuthReturn()) {
+        void handleGiteeOAuthReturn(code, params.get('state'));
+      } else {
+        void handleOAuthReturn(code, params.get('state'));
+      }
+      return;
+    }
+    if (providerRef.current === 'gitee') {
+      const m = geMetaRef.current;
+      if (m.enabled && giteeConfigComplete(m)) void pullFromGitee({ autoRelogin: true });
       return;
     }
     const m = ghMetaRef.current;
@@ -524,6 +992,11 @@ export default function DataMenu({ store }: { store: LocalStore }) {
   useEffect(() => {
     const onVisible = () => {
       if (document.visibilityState !== 'visible') return;
+      if (providerRef.current === 'gitee') {
+        const m = geMetaRef.current;
+        if (m.enabled && giteeConfigComplete(m)) void pullFromGitee();
+        return;
+      }
       const m = ghMetaRef.current;
       if (m.enabled && githubConfigComplete(m)) void pullFromGithub();
     };
@@ -542,6 +1015,15 @@ export default function DataMenu({ store }: { store: LocalStore }) {
     if (ghFirstDataRef.current) {
       ghFirstDataRef.current = false;
       return;
+    }
+    if (providerRef.current === 'gitee') {
+      const m = geMetaRef.current;
+      if (!m.enabled || !giteeConfigComplete(m)) return;
+      if (store.data.updatedAt <= m.baseUpdatedAt) return;
+      const timer = setTimeout(() => {
+        void pushToGitee();
+      }, 2000);
+      return () => clearTimeout(timer);
     }
     const m = ghMetaRef.current;
     if (!m.enabled || !githubConfigComplete(m)) return;
@@ -858,11 +1340,28 @@ export default function DataMenu({ store }: { store: LocalStore }) {
               )}
             </div>
 
-            {/* ---- GitHub 同步（第十五轮起）：数据同步到自己仓库的一个 JSON 文件，打开自动拉、变化自动推；
-                 网站版只保留 GitHub 一键登录（OAuth，仓库固定 ainav-data），第五十轮已删令牌备用方式；
-                 扩展构建例外走方案 B 粘贴令牌（OAuth 回跳不可用），仓库约定与 OAuth 相同 ---- */}
+            {/* ---- 云同步：GitHub / Gitee 二选一（Gitee 线 2026-10-31 新增，与 GitHub 线镜像）；
+                 同一时间只一条在跑；网站版一键登录（OAuth，仓库固定 ainav-data），
+                 扩展构建走方案 B 粘贴令牌（OAuth 回跳不可用），仓库约定与 OAuth 相同 ---- */}
             <div className="mt-1 border-t border-white/8 px-3 pt-2.5 pb-1">
-              <p className="text-[10px] font-medium text-white/50 tracking-wide">GitHub 同步</p>
+              <p className="text-[10px] font-medium text-white/50 tracking-wide">云同步</p>
+              <div className="mt-1.5 flex gap-1.5" data-sync-provider-tabs>
+                <button
+                  onClick={() => void switchProvider('github')}
+                  className={`px-2.5 py-1 rounded-lg text-[11px] font-medium transition-colors ${provider === 'github' ? 'bg-violet-500/80 text-white' : 'bg-white/6 text-white/60 hover:text-white/85'}`}
+                >
+                  GitHub
+                </button>
+                <button
+                  onClick={() => void switchProvider('gitee')}
+                  className={`px-2.5 py-1 rounded-lg text-[11px] font-medium transition-colors ${provider === 'gitee' ? 'bg-violet-500/80 text-white' : 'bg-white/6 text-white/60 hover:text-white/85'}`}
+                >
+                  Gitee
+                </button>
+              </div>
+              {provider === 'github' && (
+                <>
+              <p className="mt-2 text-[10px] font-medium text-white/50 tracking-wide">GitHub 同步</p>
               {isGhLoggedIn ? (
                 <>
                   <p className="mt-1.5 text-[11px] text-white/70 break-all">
@@ -992,6 +1491,143 @@ export default function DataMenu({ store }: { store: LocalStore }) {
                       {ghStatus.text}
                     </p>
                   )}
+                </>
+              )}
+                </>
+              )}
+              {provider === 'gitee' && (
+                <>
+              <p className="mt-2 text-[10px] font-medium text-white/50 tracking-wide">Gitee 同步</p>
+              {isGeLoggedIn ? (
+                <>
+                  <p className="mt-1.5 text-[11px] text-white/70 break-all">
+                    {isGePatLoggedIn ? '已连接 Gitee（令牌）：' : '已登录 Gitee：'}
+                    <span className="text-white/90">{geMeta.oauthLogin || geMeta.owner}</span>
+                  </p>
+                  <p className="mt-0.5 text-[11px] text-white/40 break-all">
+                    同步仓库（固定）：{geMeta.owner}/{geMeta.repo} · {geMeta.branch} · {geMeta.path}
+                  </p>
+                  <button
+                    onClick={toggleGeEnabled}
+                    className="mt-1 w-full flex items-center justify-between py-1.5 text-xs text-white/75"
+                  >
+                    <span>开启同步（打开自动拉取、变化自动推送）</span>
+                    <span className={`relative h-4.5 w-8 shrink-0 rounded-full transition-colors ${geMeta.enabled ? 'bg-violet-500' : 'bg-white/15'}`}>
+                      <span className={`absolute top-0.5 h-3.5 w-3.5 rounded-full bg-white transition-all ${geMeta.enabled ? 'left-4' : 'left-0.5'}`} />
+                    </span>
+                  </button>
+                  <div className="mt-0.5 -mx-3">
+                    <div className="flex">
+                      <button onClick={() => void pullFromGitee()} className={`${itemCls} w-auto flex-1`}>
+                        <Download size={14} className="text-white/45" /> 立即拉取
+                      </button>
+                      <button onClick={() => void pushToGitee()} className={`${itemCls} w-auto flex-1`}>
+                        <Upload size={14} className="text-white/45" /> 立即推送
+                      </button>
+                      <button onClick={logoutGiteeOAuth} className={`${itemCls} w-auto flex-1`}>
+                        <LogOut size={14} className="text-white/45" /> 退出登录
+                      </button>
+                    </div>
+                  </div>
+                  {geStatus?.kind === 'missing' && (
+                    <button
+                      onClick={() => void pushToGitee()}
+                      className="mt-1 w-full px-3 py-2 rounded-xl bg-violet-500/80 text-white text-xs font-medium hover:bg-violet-500 transition-colors"
+                    >
+                      把本机数据首次推送上去
+                    </button>
+                  )}
+                  {geStatus?.kind === 'conflict' && (
+                    <div className="mt-1 flex gap-2">
+                      <button
+                        onClick={() => void pullFromGitee({ forceApply: true })}
+                        className="flex-1 px-2.5 py-1.5 rounded-lg bg-white/8 text-white/80 text-[11px] hover:bg-white/12 transition-colors"
+                      >
+                        以云端为准
+                      </button>
+                      <button
+                        onClick={() => void forcePushLocalGe()}
+                        className="flex-1 px-2.5 py-1.5 rounded-lg bg-violet-500/80 text-white text-[11px] font-medium hover:bg-violet-500 transition-colors"
+                      >
+                        以本地为准
+                      </button>
+                    </div>
+                  )}
+                  <p className={`pb-1 pt-1 text-[11px] leading-relaxed ${geStatus ? ghStatusTextCls(geStatus.kind) : 'text-white/40'}`}>
+                    {geStatus
+                      ? geStatus.text
+                      : geMeta.lastSyncedAt
+                        ? `上次同步 · ${formatSavedTime(geMeta.lastSyncedAt)}`
+                        : '未连接'}
+                  </p>
+                  {geStatus?.kind === 'error' && isGiteeUnauthorized(geStatus.text) && (
+                    <button
+                      onClick={startGiteeOAuthLogin}
+                      disabled={!giteeOauthClientId}
+                      className="mt-1 w-full flex items-center justify-center gap-2 px-3 py-2 rounded-xl bg-violet-500/80 text-white text-xs font-medium hover:bg-violet-500 transition-colors disabled:bg-white/10 disabled:text-white/35 disabled:cursor-not-allowed"
+                    >
+                      <LogIn size={14} /> 重新登录（不用先退出）
+                    </button>
+                  )}
+                </>
+              ) : IS_EXTENSION_BUILD ? (
+                <>
+                  {/* 扩展方案 B（Gitee）：粘贴 Gitee 令牌直连同步（OAuth 回跳在扩展里不可用） */}
+                  <input
+                    type="password"
+                    value={gePatToken}
+                    onChange={(e) => setGePatToken(e.target.value)}
+                    placeholder="粘贴 Gitee 令牌"
+                    autoComplete="off"
+                    className="mt-2 w-full px-3 py-2 rounded-xl bg-white/6 border border-white/12 text-xs text-white placeholder:text-white/30 outline-none focus:border-violet-400/60"
+                  />
+                  <button
+                    onClick={() => void connectWithGiteeToken()}
+                    disabled={!gePatToken.trim()}
+                    className="mt-2 w-full flex items-center justify-center gap-2 px-3 py-2 rounded-xl bg-violet-500/80 text-white text-xs font-medium hover:bg-violet-500 transition-colors disabled:bg-white/10 disabled:text-white/35 disabled:cursor-not-allowed"
+                  >
+                    <KeyRound size={14} /> 连接并同步
+                  </button>
+                  <p className="mt-1 text-[10px] text-white/35 leading-relaxed">
+                    扩展版无法用 Gitee 一键登录，请粘贴令牌连接：Gitee 设置 → 私人令牌 生成（需 projects 权限）。连接后自动使用你账号下的私有仓库 ainav-data 同步；令牌只存本机，绝不上传。
+                  </p>
+                  {geStatus && (
+                    <p className={`pt-1 text-[11px] leading-relaxed ${ghStatusTextCls(geStatus.kind)}`}>
+                      {geStatus.kind === 'error' || geStatus.kind === 'conflict' ? (
+                        <AlertTriangle size={11} className="inline mr-1 -mt-0.5" />
+                      ) : null}
+                      {geStatus.text}
+                    </p>
+                  )}
+                </>
+              ) : (
+                <>
+                  <button
+                    onClick={startGiteeOAuthLogin}
+                    disabled={!giteeOauthClientId}
+                    className="mt-2 w-full flex items-center justify-center gap-2 px-3 py-2 rounded-xl bg-violet-500/80 text-white text-xs font-medium hover:bg-violet-500 transition-colors disabled:bg-white/10 disabled:text-white/35 disabled:cursor-not-allowed"
+                  >
+                    <LogIn size={14} /> 使用 Gitee 登录
+                  </button>
+                  {giteeOauthClientId === null ? (
+                    <p className="mt-1 text-[10px] text-white/35 leading-relaxed">服务端未配置 Gitee 登录。</p>
+                  ) : giteeOauthClientId === undefined ? (
+                    <p className="mt-1 text-[10px] text-white/35 leading-relaxed">正在检查 Gitee 登录配置…</p>
+                  ) : (
+                    <p className="mt-1 text-[10px] text-white/35 leading-relaxed">
+                      登录后自动在你的账号下创建私有仓库 ainav-data 并同步，不用填任何配置；每台设备登录一次即可。
+                    </p>
+                  )}
+                  {geStatus && (
+                    <p className={`pt-1 text-[11px] leading-relaxed ${ghStatusTextCls(geStatus.kind)}`}>
+                      {geStatus.kind === 'error' || geStatus.kind === 'conflict' ? (
+                        <AlertTriangle size={11} className="inline mr-1 -mt-0.5" />
+                      ) : null}
+                      {geStatus.text}
+                    </p>
+                  )}
+                </>
+              )}
                 </>
               )}
             </div>

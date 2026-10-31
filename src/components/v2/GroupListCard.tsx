@@ -1,6 +1,6 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { motion } from 'motion/react';
-import { Pin, Pencil, Trash2, ChevronDown, ChevronUp } from 'lucide-react';
+import { Pin, Pencil, Trash2, ChevronDown, ChevronUp, Check } from 'lucide-react';
 import { GROUP_NAME_MAX, siteIconSrc, sortSites, textCharCount, type NavGroup } from '../../data/groups';
 import type { LocalStore } from '../../store/localStore';
 import { useLang } from '../../i18n/useLang';
@@ -93,6 +93,11 @@ export default function GroupListCard({
   const [renaming, setRenaming] = useState(false);
   const [groupName, setGroupName] = useState(group.name);
   const [confirmDelete, setConfirmDelete] = useState(false);
+  /** 编辑模式（展开态标题行开关）：行点击改开编辑表单、每行行尾出垃圾桶一键删除；收起即退出 */
+  const [editMode, setEditMode] = useState(false);
+  useEffect(() => {
+    if (!expanded) setEditMode(false);
+  }, [expanded]);
   /** 收起态行左滑（第七十三轮）：当前打开操作条的行 + 左滑「编辑」直达请求（展开后由展开体消费） */
   const [swipeOpenId, setSwipeOpenId] = useState<string | null>(null);
   const [editRequestId, setEditRequestId] = useState<string | null>(null);
@@ -206,6 +211,21 @@ export default function GroupListCard({
             </div>
             {expanded && (
               <span className="flex items-center gap-2 ml-auto">
+                {/* 编辑模式开关：点后行点击改开编辑表单、每行行尾出垃圾桶；再点完成退出 */}
+                <button
+                  type="button"
+                  data-edit-mode-btn
+                  aria-pressed={editMode}
+                  title={editMode ? t('menu.editDone') : t('menu.editSites')}
+                  onClick={() => setEditMode((v) => !v)}
+                  className={`flex items-center gap-1 text-[11px] transition-colors rounded-full px-3 py-1 border shrink-0 ${
+                    editMode
+                      ? 'bg-indigo-500/70 text-white font-medium border-indigo-400/50'
+                      : 'text-white/45 hover:text-white/80 bg-white/5 hover:bg-white/10 border-white/10'
+                  }`}
+                >
+                  {editMode ? <><Check size={11} /> {t('menu.editDone')}</> : <><Pencil size={11} /> {t('menu.editSites')}</>}
+                </button>
                 <button
                   onClick={() => {
                     setGroupName(group.name);
@@ -273,6 +293,7 @@ export default function GroupListCard({
           colSpan={colSpan}
           editRequestId={editRequestId}
           onEditRequestDone={() => setEditRequestId(null)}
+          editMode={editMode}
         />
       ) : (
         /* 收起态：只显示站点（无底部横线、无「展开全部」字样、无底部渐隐）；展开靠头部组名后的「展开」按钮，不靠整卡点击 */

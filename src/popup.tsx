@@ -179,6 +179,7 @@ function PopupApp() {
       const push = await pushAddedStore(built.data);
       if (push.pushed) setStatus('已添加 · 已同步到 GitHub，网站版刷新后可见');
       else if (push.reason === 'not-configured') setStatus('已添加 · 已存到扩展本机数据（未开 GitHub 同步，网站版暂看不到）');
+      else if (push.reason === 'gitee-active') setStatus('已添加 · 已存本机，当前走 Gitee 同步：打开新标签页同步一次即可');
       else if (push.reason === 'remote-newer') setStatus('已添加 · 已存本机，云端有更新：打开新标签页同步一次即可');
       else setStatus(`已添加 · 已存本机，推送失败${push.message ? `：${push.message}` : ''}，打开新标签页可重试同步`);
     } catch {

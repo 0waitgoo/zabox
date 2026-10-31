@@ -22,11 +22,18 @@ import type { SiteEntry } from '../../data/groups';
  * 已认领的左滑拖出 150px 后经 activateCrossNow 转交跨组（往左拖出本组也是跨组移动）。
  * 与长按菜单的互斥：收起行按住不动的菜单由长按层在松手时开（500ms 不直接开，
  * 否则冻结位移、拖拽起不来）；位移一过 7px，长按层的松手菜单即取消（早于跨组激活 12px）。
+ *
+ * 展开态拖出本组（用户口径：展开也可以拖动）：组内排序实例只要配了 onMoveToGroup，
+ * 拖动中指针拖出源卡片 24px 即由排序转跨组（预览与占位丢弃、只跟随快照），
+ * 落在别的组卡上即移动、同组或空白处取消；左滑超距逃逸同样可转交跨组。
+ * 未配 onMoveToGroup 的实例（如文件夹式弹窗瓷砖）行为不变，仍只做组内排序。
  */
 const DRAG_THRESHOLD = 7;
 export { DRAG_THRESHOLD };
 /** 跨组激活位移（px）：高于左滑判定 10px，左滑认领前冒泡阶段看不到位移，不抢左滑 */
 const CROSS_ACTIVATE_PX = 12;
+/** 排序转跨组的出卡边距（px）：指针超出源卡片此距离才转交，卡内换位误触不到 */
+const CROSS_ESCAPE_MARGIN = 24;
 
 export function useSiteDragSort({
   sites,
@@ -56,7 +63,7 @@ export function useSiteDragSort({
   const containerRef = useRef<HTMLElement | null>(null);
   const pendingRef = useRef<{ id: string; pointerId: number; startX: number; startY: number } | null>(null);
   /** effect 内建的激活函数（左滑超距逃逸用）：组件体内的 activateCrossNow 经它调用 */
-  const activateRef = useRef<((pending: { id: string; pointerId: number; startX: number; startY: number }, x: number, y: number) => boolean) | null>(null);
+  const activateRef = useRef<((pending: { id: string; pointerId: number; startX: number; startY: number }, x: number, y: number, forceCross?: boolean) => boolean) | null>(null);
   const activeRef = useRef<{
     id: string;
     pointerId: number;
@@ -68,6 +75,8 @@ export function useSiteDragSort({
     rects: Map<string, DOMRect>;
     /** sort = 组内排序（占位 + 预览重排）；cross = 跨组移动（源行原样、只跟随快照） */
     mode: 'sort' | 'cross';
+    /** 激活瞬间源卡片（[data-group-card] 祖先）：排序转跨组按指针是否拖出它判定 */
+    sourceCard: HTMLElement | null;
   } | null>(null);
   /** 跨组模式当前高亮的目标组卡（同组不算目标）；高亮用内联 outline，结束时清除 */
   const crossTargetRef = useRef<{ groupId: string; el: HTMLElement } | null>(null);
@@ -203,11 +212,13 @@ export function useSiteDragSort({
       }
     };
 
-    /** 由待命转激活（onPointerMove 越阈值 / 左滑超距逃逸共用）：建快照、置 active */
+    /** 由待命转激活（onPointerMove 越阈值 / 左滑超距逃逸共用）：建快照、置 active；
+     * forceCross = 左滑逃逸或跨组容器直接进跨组模式（排序预览不建） */
     const activateFromPending = (
       pending: { id: string; pointerId: number; startX: number; startY: number },
       x: number,
       y: number,
+      forceCross = false,
     ): boolean => {
       const container = containerRef.current;
       const el = container?.querySelector(`[data-site-drag-id="${pending.id}"]`);
@@ -222,6 +233,7 @@ export function useSiteDragSort({
         if (nid) rects.set(nid, n.getBoundingClientRect());
       });
       pendingRef.current = null;
+      const mode: 'sort' | 'cross' = forceCross || crossGroupOnly ? 'cross' : 'sort';
       activeRef.current = {
         id: pending.id,
         pointerId: pending.pointerId,
@@ -230,16 +242,17 @@ export function useSiteDragSort({
         lastX: x,
         lastY: y,
         rects,
-        mode: crossGroupOnly ? 'cross' : 'sort',
+        mode,
+        sourceCard: container.closest('[data-group-card]') as HTMLElement | null,
       };
-      if (!crossGroupOnly) {
+      if (mode === 'sort') {
         setPreview(sitesRef.current.map((s) => s.id).filter((x): x is string => !!x));
       }
       setDragId(pending.id);
       setClone({ html: el.outerHTML, w: rect.width, h: rect.height });
       document.body.style.cursor = 'grabbing';
       document.body.style.userSelect = 'none';
-      if (crossGroupOnly) updateCrossTarget(x, y);
+      if (mode === 'cross') updateCrossTarget(x, y);
       return true;
     };
     activateRef.current = activateFromPending;
@@ -262,8 +275,25 @@ export function useSiteDragSort({
         d.lastX = e.clientX;
         d.lastY = e.clientY;
         positionClone(e.clientX, e.clientY);
-        if (d.mode === 'cross') updateCrossTarget(e.clientX, e.clientY);
-        else updatePreviewTarget(e.clientX, e.clientY);
+        if (d.mode === 'cross') {
+          updateCrossTarget(e.clientX, e.clientY);
+        } else {
+          // 排序转跨组：配了 onMoveToGroup 的实例，指针拖出源卡片边距即转交；
+          // 预览与占位随模式切换丢弃（isDragging 只认 sort），松手按跨组规则提交/取消
+          if (onMoveToGroupRef.current && d.sourceCard) {
+            const r = d.sourceCard.getBoundingClientRect();
+            const m = CROSS_ESCAPE_MARGIN;
+            if (e.clientX < r.left - m || e.clientX > r.right + m || e.clientY < r.top - m || e.clientY > r.bottom + m) {
+              d.mode = 'cross';
+              setPreview(null);
+              updateCrossTarget(e.clientX, e.clientY);
+            } else {
+              updatePreviewTarget(e.clientX, e.clientY);
+            }
+          } else {
+            updatePreviewTarget(e.clientX, e.clientY);
+          }
+        }
       }
     };
 
@@ -348,11 +378,12 @@ export function useSiteDragSort({
   /** 跨组激活状态（供左滑 gestureLock 读）：本次按压是否已进跨组拖拽 */
   const isCrossActive = () => activeRef.current?.mode === 'cross';
 
-  /** 左滑超距逃逸：已认领的左滑拖出 150px 后转交跨组拖拽（仅跨组容器；待命已不在时返回 false，左滑继续） */
+  /** 左滑超距逃逸：已认领的左滑拖出 150px 后转交跨组拖拽（仅配了跨组落盘的容器；
+   * 待命已不在时返回 false，左滑继续）。跨组容器与展开态排序实例都可转交。 */
   const activateCrossNow = (x: number, y: number) => {
     const pending = pendingRef.current;
-    if (!pending || activeRef.current || !crossGroupOnly) return false;
-    return activateRef.current?.(pending, x, y) ?? false;
+    if (!pending || activeRef.current || !onMoveToGroupRef.current) return false;
+    return activateRef.current?.(pending, x, y, true) ?? false;
   };
 
   /** 占位只属于组内排序：跨组模式源行保持原样，不套虚线占位 */

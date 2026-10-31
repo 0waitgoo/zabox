@@ -582,10 +582,13 @@ export default function GroupExpandedBody({
   }, [editRequestId, onEditRequestDone]);
   const sorted = sortSites(group.sites);
   /** 组内拖动排序（第三十八轮）：行网格内拖动换位，置顶区/普通区不跨区；
-   * 本区在 data-nodrag 滚动区内，按下不会触发整卡拖拽排序，两套手势互不干扰 */
+   * 本区在 data-nodrag 滚动区内，按下不会触发整卡拖拽排序，两套手势互不干扰。
+   * 展开态拖出本组：配 groupId + onMoveToGroup，指针拖出源卡片即转跨组（见 useSiteDragSort）。 */
   const siteDrag = useSiteDragSort({
     sites: sorted,
     onReorder: (ids) => store.reorderSites(group.id, ids),
+    groupId: group.id,
+    onMoveToGroup: (siteId, targetGroupId) => store.moveSite(group.id, siteId, targetGroupId),
   });
 
   const handleSiteMenu = (e: React.MouseEvent, site: SiteEntry) => {
@@ -606,6 +609,7 @@ export default function GroupExpandedBody({
         <div
           className="grid grid-cols-1 gap-x-2 content-start min-[480px]:grid-cols-3"
           data-expanded-grid
+          data-cross-source
           onPointerDownCapture={(e) => {
             // 左滑操作条开着时，按到该行之外（别行/空白/加站格）先收起（第七十三轮）
             if (!swipeOpenId) return;
@@ -636,6 +640,8 @@ export default function GroupExpandedBody({
                   rowKey={site.id ?? site.name}
                   openKey={swipeOpenId}
                   onOpenKeyChange={setSwipeOpenId}
+                  gestureLock={siteDrag.isCrossActive}
+                  onDragEscape={(x, y) => siteDrag.activateCrossNow(x, y)}
                   onEdit={() => setEditingSiteId(site.id ?? null)}
                   onDelete={() => {
                     if (site.id) store.deleteSite(group.id, site.id);

@@ -1,7 +1,7 @@
 {
   "name": "zabox",
   "private": true,
-  "version": "1.0.0",
+  "version": "1.1.0",
   "license": "MIT",
   "type": "module",
   "scripts": {
@@ -14,9 +14,7 @@
     "server": "node server/index.js",
     "start": "concurrently \"npm run server\" \"npm run dev\"",
     "build:plan": "vite build --config vite.config.plan.ts",
-    "dev:plan": "vite --config vite.config.plan.ts",
-    "test": "node --import tsx --test tests/liquid-appearance.test.ts tests/default-preset.test.ts tests/icon-loader.test.ts tests/api.test.ts tests/desktop-window.test.ts tests/desktop-login.test.ts tests/desktop-pin.test.ts tests/desktop-appearance.test.ts tests/desktop-close.test.ts tests/desktop-shortcut.test.ts",
-    "test:ui": "node --import tsx tests/desktop-ui.browser.ts"
+    "dev:plan": "vite --config vite.config.plan.ts"
   },
   "dependencies": {
     "@tailwindcss/vite": "^4.1.14",
@@ -40,9 +38,7 @@
     "@types/express": "^4.17.21",
     "@types/node": "^22.14.0",
     "concurrently": "^8.2.2",
-    "playwright": "^1.62.1",
     "tailwindcss": "^4.1.14",
-    "tsx": "^4.23.15",
     "typescript": "~5.8.2",
     "vite": "^6.2.0"
   }

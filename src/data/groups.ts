@@ -34,6 +34,11 @@ export interface SiteEntry {
   iconMode?: 'auto' | 'text' | 'upload';
   /** iconMode='text' 时的图标文字（1–2 个字符，中英文均可） */
   iconText?: string;
+  /**
+   * iconMode='text' 时的字母图标底色（扩展添加面板选色用，#rrggbb）：
+   * 缺省 = 按图标文字哈希自动取色（与旧行为一致）；网站版表单不写此字段。
+   */
+  iconColor?: string;
   /** iconMode='upload' 时的图片 data URL（最长边 ≤128px 的方形小图，体积受控才允许随同步走） */
   iconImage?: string;
 }
@@ -208,17 +213,18 @@ export const siteLogoFallback = logoFallback;
 /** 字母图标底色板：按文字哈希稳定取色（同一文字永远同色） */
 const LETTER_ICON_COLORS = ['#6366f1', '#0ea5e9', '#10b981', '#f59e0b', '#ef4444', '#8b5cf6', '#ec4899', '#14b8a6'];
 
-/** 用 1–2 个字符生成字母图标（本地 SVG data URI，不依赖网络）：圆角底 + 白色粗体居中字 */
-export function letterIconDataUri(text: string): string {
+/** 用 1–2 个字符生成字母图标（本地 SVG data URI，不依赖网络）：圆角底 + 白色粗体居中字；
+ *  bg 显式给定时用该色，否则按文字哈希自动取色（旧行为不变） */
+export function letterIconDataUri(text: string, bg?: string): string {
   const chars = [...text.trim()].slice(0, 2);
   const label = chars.join('') || '?';
   let hash = 0;
   for (const ch of label) hash = (hash * 31 + (ch.codePointAt(0) ?? 0)) >>> 0;
-  const bg = LETTER_ICON_COLORS[hash % LETTER_ICON_COLORS.length];
+  const bgColor = bg && /^#[0-9a-fA-F]{6}$/.test(bg) ? bg : LETTER_ICON_COLORS[hash % LETTER_ICON_COLORS.length];
   const fontSize = chars.length > 1 ? 34 : 44;
   const svg =
     `<svg xmlns="http://www.w3.org/2000/svg" width="96" height="96" viewBox="0 0 96 96">` +
-    `<rect width="96" height="96" rx="20" fill="${bg}"/>` +
+    `<rect width="96" height="96" rx="20" fill="${bgColor}"/>` +
     `<text x="48" y="50" dy="0.36em" text-anchor="middle" font-family="system-ui, -apple-system, 'Segoe UI', sans-serif" font-size="${fontSize}" font-weight="700" fill="#ffffff">${label.replace(/&/g, '&amp;').replace(/</g, '&lt;')}</text>` +
     `</svg>`;
   return `data:image/svg+xml,${encodeURIComponent(svg)}`;
@@ -227,7 +233,7 @@ export function letterIconDataUri(text: string): string {
 /** 站点图标最终来源：upload → iconImage；text → 字母图；auto/存量 → logo（自动管线产物） */
 export function siteIconSrc(site: SiteEntry): string {
   if (site.iconMode === 'upload' && site.iconImage) return site.iconImage;
-  if (site.iconMode === 'text' && site.iconText?.trim()) return letterIconDataUri(site.iconText);
+  if (site.iconMode === 'text' && site.iconText?.trim()) return letterIconDataUri(site.iconText, site.iconColor);
   return site.logo;
 }
 

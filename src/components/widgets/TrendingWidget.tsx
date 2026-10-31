@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { motion } from 'motion/react';
 import { TrendingUp, RefreshCw } from 'lucide-react';
+import { useLang } from '../../i18n/useLang';
 import { fetchTrends, type TrendItem } from '../../services/api';
 import type { WidgetTint } from '../../store/localStore';
 import WidgetTintLayer from '../v2/WidgetTint';
@@ -22,6 +23,7 @@ export default function TrendingWidget({
   const [stale, setStale] = useState(false);
   const [loading, setLoading] = useState(true);
   const [failed, setFailed] = useState(false);
+  const { t, lang } = useLang();
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -103,7 +105,7 @@ export default function TrendingWidget({
   void heightUnits;
   const rows = items;
   const timeText = updatedAt
-    ? new Date(updatedAt).toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit', hour12: false })
+    ? new Date(updatedAt).toLocaleTimeString(lang === 'en' ? 'en-US' : 'zh-CN', { hour: '2-digit', minute: '2-digit', hour12: false })
     : '';
 
   const tintLayer = tint ? <WidgetTintLayer tint={tint} emoji="🔥" /> : null;
@@ -123,10 +125,10 @@ export default function TrendingWidget({
             <div className="w-7 h-7 rounded-full bg-indigo-500 text-white shadow-[0_1px_4px_rgba(0,0,0,0.3)] ring-1 ring-black/20 flex items-center justify-center shrink-0">
               <TrendingUp size={14} />
             </div>
-            <h3 className="font-semibold text-base sm:text-lg tracking-tight truncate">热门话题</h3>
+            <h3 className="font-semibold text-base sm:text-lg tracking-tight truncate">{t('widget.trendingTitle')}</h3>
           </div>
           <span className={`text-[11px] shrink-0 ${stale ? 'text-amber-300/80' : 'text-white/40'}`}>
-            {loading ? '实时' : failed ? '实时' : stale ? `实时 · ${timeText}缓存` : `实时 · ${timeText}更新`}
+            {loading || failed ? t('widget.live') : stale ? t('widget.liveStale', { time: timeText }) : t('widget.liveUpdated', { time: timeText })}
           </span>
         </div>
 
@@ -136,13 +138,13 @@ export default function TrendingWidget({
           </div>
         ) : failed ? (
           <div className="flex-1 flex flex-col items-center justify-center gap-2 text-center px-4">
-            <span className="text-sm text-white/60">热榜暂时拉不到</span>
-            <span className="text-[11px] text-white/35">微博 / 百度热搜源暂时不可达</span>
+            <span className="text-sm text-white/60">{t('widget.trendsEmpty')}</span>
+            <span className="text-[11px] text-white/35">{t('widget.trendsUnreachable')}</span>
             <button
               onClick={load}
               className="mt-1 flex items-center gap-1.5 text-xs text-white/70 hover:text-white bg-white/5 hover:bg-white/10 rounded-full px-3 py-1.5 transition-colors"
             >
-              <RefreshCw size={12} /> 点此重试
+              <RefreshCw size={12} /> {t('widget.retry')}
             </button>
           </div>
         ) : (
@@ -163,7 +165,7 @@ export default function TrendingWidget({
                 <span className="flex-1 min-w-0 text-[13px] font-semibold truncate"># {trend.topic}</span>
                 <span className="shrink-0 text-[10px] text-white/35">{trend.source.replace('热搜', '')}</span>
                 <span className="shrink-0 text-xs text-white/60 tabular-nums">
-                  热度 <span className="text-white/85 font-medium">{trend.heatText}</span>
+                  {t('widget.heat')} <span className="text-white/85 font-medium">{trend.heatText}</span>
                 </span>
               </button>
             ))}

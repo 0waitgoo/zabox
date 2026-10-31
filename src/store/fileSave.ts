@@ -178,12 +178,12 @@ export function saveFileSaveMeta(meta: FileSaveMeta): void {
 /* ---- 选择 / 写入 ---- */
 
 /** 弹系统保存对话框让用户选（或新建）保存文件；用户取消返回 null */
-export async function pickDataFile(): Promise<FsFileHandle | null> {
+export async function pickDataFile(description = 'JSON 数据文件'): Promise<FsFileHandle | null> {
   if (!fsAccessSupported()) return null;
   try {
     const handle = await window.showSaveFilePicker!({
       suggestedName: 'ainav-data.json',
-      types: [{ description: 'JSON 数据文件', accept: { 'application/json': ['.json'] } }],
+      types: [{ description, accept: { 'application/json': ['.json'] } }],
     });
     return handle ?? null;
   } catch {

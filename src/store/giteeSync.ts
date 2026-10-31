@@ -173,6 +173,19 @@ export type GeGetResult =
   | { kind: 'missing' }
   | { kind: 'error'; message: string };
 
+/** 仓库还在但文件取不到时的裁决：仓库在 → 文件缺失；仓库不在/无权 → 报错 */
+async function missingOrRepoError(cfg: GiteeSyncConfig): Promise<GeGetResult> {
+  try {
+    const repoRes = await fetch(withToken(`${API_BASE}/repos/${encodeURIComponent(cfg.owner)}/${encodeURIComponent(cfg.repo)}`, cfg.token));
+    if (repoRes.status === 404) return { kind: 'error', message: '仓库不存在或无权访问' };
+    if (repoRes.status === 401) return { kind: 'error', message: httpErrorMessage(401) };
+    if (!repoRes.ok) return { kind: 'error', message: httpErrorMessage(repoRes.status) };
+  } catch {
+    return { kind: 'error', message: '网络错误，无法连接 Gitee' };
+  }
+  return { kind: 'missing' };
+}
+
 /** 拉取云端文件：区分「文件不存在（仓库在）」与各类错误 */
 export async function geGetFile(cfg: GiteeSyncConfig): Promise<GeGetResult> {
   let res: Response;
@@ -183,28 +196,26 @@ export async function geGetFile(cfg: GiteeSyncConfig): Promise<GeGetResult> {
   }
   if (res.status === 404) {
     // 分不清是仓库不存在还是文件不存在：再查一次仓库本身
-    try {
-      const repoRes = await fetch(withToken(`${API_BASE}/repos/${encodeURIComponent(cfg.owner)}/${encodeURIComponent(cfg.repo)}`, cfg.token));
-      if (repoRes.status === 404) return { kind: 'error', message: '仓库不存在或无权访问' };
-      if (repoRes.status === 401) return { kind: 'error', message: httpErrorMessage(401) };
-      if (!repoRes.ok) return { kind: 'error', message: httpErrorMessage(repoRes.status) };
-    } catch {
-      return { kind: 'error', message: '网络错误，无法连接 Gitee' };
-    }
-    return { kind: 'missing' };
+    return missingOrRepoError(cfg);
   }
   if (!res.ok) return { kind: 'error', message: httpErrorMessage(res.status) };
   try {
     const body = (await res.json()) as { content?: unknown; sha?: unknown; message?: unknown };
     if (Array.isArray(body)) {
-      return { kind: 'error', message: 'Gitee 返回的文件格式异常（可能路径指向文件夹）' };
+      if (body.length > 0) {
+        return { kind: 'error', message: 'Gitee 返回的文件格式异常（可能路径指向文件夹）' };
+      }
+      // 空数组：该路径下无内容，视同文件缺失
+      return missingOrRepoError(cfg);
     }
     // Gitee 偶发以 200 带 message 文案代替标准文件体：原样报出，便于定位
     if (typeof body?.message === 'string' && body.message) {
       return { kind: 'error', message: `Gitee：${body.message}` };
     }
     if (typeof body?.content !== 'string' || typeof body?.sha !== 'string') {
-      return { kind: 'error', message: 'Gitee 返回的文件格式异常（可能路径指向文件夹）' };
+      // Gitee 对不存在的文件偶发回 200 + 非文件体（而非 404）：仓库在即视同缺失，
+      // 面板显示首次推送入口，而不是吓人的格式异常
+      return missingOrRepoError(cfg);
     }
     const text = b64DecodeUtf8(body.content);
     const parsed: unknown = JSON.parse(text);

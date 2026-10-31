@@ -24,6 +24,7 @@ import {
   loadGithubSyncMeta,
   saveGithubSyncMeta,
 } from '../store/githubSync';
+import { loadSyncProvider } from '../store/giteeSync';
 import { packDataEnvelope } from '../store/widgetStorage';
 
 export interface PopupAddInput {
@@ -123,12 +124,16 @@ export function savePopupStore(data: StoreData): void {
 
 export interface PushResult {
   pushed: boolean;
-  reason?: 'not-configured' | 'remote-newer' | 'conflict' | 'error';
+  reason?: 'not-configured' | 'remote-newer' | 'conflict' | 'error' | 'gitee-active';
   message?: string;
 }
 
-/** 按 DataMenu 同款裁决把刚写好的本地数据推上 GitHub（仅在已配置且开启时） */
+/** 按 DataMenu 同款裁决把刚写好的本地数据推上 GitHub（仅在已配置且开启时）；
+ * 当前同步方式是 Gitee 时不推 GitHub（两条不同时抢同一份数据），留给新标签页走 Gitee 同步 */
 export async function pushAddedStore(data: StoreData): Promise<PushResult> {
+  if (loadSyncProvider() === 'gitee') {
+    return { pushed: false, reason: 'gitee-active' };
+  }
   const meta = loadGithubSyncMeta();
   if (!meta.enabled || !githubConfigComplete(meta)) {
     return { pushed: false, reason: 'not-configured' };

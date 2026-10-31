@@ -15,6 +15,7 @@ import {
   type TaskItem,
 } from '../../store/localStore';
 import { splitTasksText } from '../../utils/taskSplit';
+import { useLang } from '../../i18n/useLang';
 
 /** 标题三行收起：超 3 行自动收起并在后面显示展开/收起按钮（只在确实超行时显示）；双击标题直接编辑（调用方传 onDoubleClick） */
 function ExpandableTitle({
@@ -38,6 +39,7 @@ function ExpandableTitle({
 }) {
   const ref = useRef<HTMLSpanElement | null>(null);
   const [overflow, setOverflow] = useState(false);
+  const { t } = useLang();
   useLayoutEffect(() => {
     if (expanded) return;
     const el = ref.current;
@@ -62,7 +64,7 @@ function ExpandableTitle({
           onClick={onToggle}
           className="mt-0.5 text-xs text-indigo-300 hover:text-indigo-200"
         >
-          {expanded ? '收起' : '展开'}
+          {expanded ? t('task.collapse') : t('task.expand')}
         </button>
       )}
     </div>
@@ -342,6 +344,7 @@ function useOutsidePressConfirm() {
  */
 export function TasksSection({ store, pinned = false }: { store: LocalStore; pinned?: boolean }) {
   const { tasks } = store.data;
+  const { t } = useLang();
   const [menu, setMenu] = useState<RowMenuState | null>(null);
   /** 「已完成」分组头右键菜单（第四十八轮）：只记位置，开/关与行菜单分开管理 */
   const [doneMenu, setDoneMenu] = useState<{ x: number; y: number } | null>(null);
@@ -493,7 +496,7 @@ export function TasksSection({ store, pinned = false }: { store: LocalStore; pin
             : 'hover:bg-white/[0.04]'
         } ${dragVisual === 'source' ? 'opacity-40' : ''}`}
       >
-        {checkBtn(task.done, () => store.toggleTask(task.id), task.done ? '取消完成' : '标记完成')}
+        {checkBtn(task.done, () => store.toggleTask(task.id), task.done ? t('task.unmarkDone') : t('task.markDone'))}
         {editingTaskId === task.id ? (
           titleEditor()
         ) : (
@@ -505,14 +508,14 @@ export function TasksSection({ store, pinned = false }: { store: LocalStore; pin
               if (drag.wasJustDragged()) return;
               startEditTask(task);
             }}
-            titleAttr={expandedTitles.has(task.id) ? '点击收起' : '点击展开全文'}
+            titleAttr={expandedTitles.has(task.id) ? t('task.clickCollapse') : t('task.clickExpand')}
             sizeClass="text-sm"
             toneClass={task.done ? 'line-through text-white/35' : 'text-white/85'}
             spanData={{ 'data-task-title': '' }}
           />
         )}
         {!inOpen && editingTaskId !== task.id && (
-          <DoneTrashButton label={`删除已完成待办「${task.title}」`} onDelete={() => store.deleteTask(task.id)} />
+          <DoneTrashButton label={t('task.deleteDoneTodo', { title: task.title })} onDelete={() => store.deleteTask(task.id)} />
         )}
       </div>
     );
@@ -522,7 +525,7 @@ export function TasksSection({ store, pinned = false }: { store: LocalStore; pin
     <section className={pinned ? 'flex flex-col h-full min-h-0' : undefined}>
       {/* 标题行（第八十七轮）：计数去掉（卡头 x/y 已含）；「+ 建组」降为行右小文字按钮 */}
       <div className="flex items-center gap-2 mb-1 shrink-0">
-        <h4 className="text-sm font-semibold">待办</h4>
+        <h4 className="text-sm font-semibold">{t('task.todosTitle')}</h4>
         {!showGroupForm && (
           <button
             type="button"
@@ -530,7 +533,7 @@ export function TasksSection({ store, pinned = false }: { store: LocalStore; pin
             onClick={() => setShowGroupForm(true)}
             className="ml-auto text-[11px] leading-none px-1.5 py-1 rounded-md text-zinc-300 hover:text-white hover:bg-white/10 transition-colors"
           >
-            + 建组
+            {t('task.newGroup')}
           </button>
         )}
       </div>
@@ -557,7 +560,7 @@ export function TasksSection({ store, pinned = false }: { store: LocalStore; pin
             className="flex items-center gap-1.5 px-1.5 py-1 text-xs text-zinc-300 hover:text-white transition-colors"
           >
             <ChevronDown size={13} className={`transition-transform ${showDone ? '' : '-rotate-90'}`} />
-            已完成 {doneEntries.length} 项
+            {t('task.doneCount', { n: doneEntries.length })}
           </button>
           {showDone && <div data-nodrag>{doneEntries.map((t) => taskRow(t, false))}</div>}
         </div>
@@ -589,7 +592,7 @@ export function TasksSection({ store, pinned = false }: { store: LocalStore; pin
                 if (e.key === 'Escape') setShowGroupForm(false);
                 else enterToSubmit(submitGroup)(e);
               }}
-              placeholder="组名，如 周末采购"
+              placeholder={t('task.groupNamePlaceholder')}
               data-group-name
               className="flex-1 min-w-0 bg-white/5 border border-white/12 rounded-xl px-2.5 py-1.5 text-sm outline-none focus:border-indigo-400/50 placeholder:text-zinc-400"
             />
@@ -599,14 +602,14 @@ export function TasksSection({ store, pinned = false }: { store: LocalStore; pin
               data-group-create
               className="px-3 py-1.5 rounded-lg bg-indigo-500/80 hover:bg-indigo-500 disabled:opacity-40 text-white text-xs font-medium transition-colors shrink-0"
             >
-              建组
+              {t('task.createGroup')}
             </button>
             <button
               type="button"
               onClick={() => setShowGroupForm(false)}
               className="px-3 py-1.5 rounded-lg bg-white/8 text-white/70 text-xs hover:bg-white/12 transition-colors shrink-0"
             >
-              取消
+              {t('task.cancel')}
             </button>
           </form>
         )}
@@ -625,7 +628,7 @@ export function TasksSection({ store, pinned = false }: { store: LocalStore; pin
           onChange={(e) => changeNewTask(e.target.value)}
           onKeyDown={enterToSubmit(submitNewTask)}
           onBlur={submitNewTask}
-          placeholder="添加待办，回车确认"
+          placeholder={t('task.addTodoPlaceholder')}
           data-task-add
           className="flex-1 min-w-0 bg-transparent text-sm py-1 outline-none placeholder:text-zinc-400"
         />
@@ -713,6 +716,7 @@ const GroupBlock: React.FC<{
   onTitleDoubleClick?: () => void;
 }> = ({ group, store, startExpanded, editing, editor, onMenu, onChildMenu, checkBtn, entryId, dragVisual, onGripPointerDown, wasJustDragged, onDeleteSelf, onDeleteChild, onTitleDoubleClick }) => {
   const [expanded, setExpanded] = useState(startExpanded);
+  const { t } = useLang();
   /** 组标题/子任务标题的点击展开全文（第六十九轮，点文字切换，与展开箭头的折叠子任务互不影响） */
   const [titleExpanded, setTitleExpanded] = useState(false);
   const [expandedKids, setExpandedKids] = useState<ReadonlySet<string>>(new Set());
@@ -750,7 +754,7 @@ const GroupBlock: React.FC<{
       <div className="flex items-center gap-2 min-w-0" data-task-grip onPointerDown={onGripPointerDown}>
         <button
           type="button"
-          aria-label={expanded ? '收起组' : '展开组'}
+          aria-label={expanded ? t('task.collapseGroup') : t('task.expandGroup')}
           data-group-toggle
           onClick={() => setExpanded((v) => !v)}
           className="w-[18px] h-[18px] flex items-center justify-center shrink-0 text-zinc-300 hover:text-white transition-colors"
@@ -769,7 +773,7 @@ const GroupBlock: React.FC<{
                 setTitleExpanded((v) => !v);
               }}
               onDoubleClick={onTitleDoubleClick}
-              titleAttr={titleExpanded ? '点击收起' : '点击展开全文'}
+              titleAttr={titleExpanded ? t('task.clickCollapse') : t('task.clickExpand')}
               sizeClass="text-sm font-medium"
               toneClass={allDone ? 'line-through text-white/35' : 'text-white/90'}
               spanData={{ 'data-group-title': '' }}
@@ -778,7 +782,7 @@ const GroupBlock: React.FC<{
               {done}/{total}
             </span>
             {onDeleteSelf && (
-              <DoneTrashButton label={`删除已完成组「${group.title}」`} onDelete={onDeleteSelf} />
+              <DoneTrashButton label={t('task.deleteDoneGroup', { title: group.title })} onDelete={onDeleteSelf} />
             )}
           </>
         )}
@@ -786,7 +790,7 @@ const GroupBlock: React.FC<{
       {expanded && (
         <div className="mt-0.5 ml-[26px] flex flex-col">
           {kids.length === 0 && (
-            <p className="text-xs text-zinc-300 py-1.5">组里还没有子任务，在下方添加。</p>
+            <p className="text-xs text-zinc-300 py-1.5">{t('task.groupEmpty')}</p>
           )}
           {kids.map((child) => (
             <div
@@ -798,7 +802,7 @@ const GroupBlock: React.FC<{
               }}
               className="flex items-center gap-2.5 py-[3px] min-w-0"
             >
-              {checkBtn(child.done, () => store.toggleSubTask(group.id, child.id), child.done ? '取消完成' : '标记完成')}
+              {checkBtn(child.done, () => store.toggleSubTask(group.id, child.id), child.done ? t('task.unmarkDone') : t('task.markDone'))}
               <ExpandableTitle
                 text={child.title}
                 expanded={expandedKids.has(child.id)}
@@ -811,13 +815,13 @@ const GroupBlock: React.FC<{
                     return next;
                   });
                 }}
-                titleAttr={expandedKids.has(child.id) ? '点击收起' : '点击展开全文'}
+                titleAttr={expandedKids.has(child.id) ? t('task.clickCollapse') : t('task.clickExpand')}
                 sizeClass="text-[13px]"
                 toneClass={child.done ? 'line-through text-white/35' : 'text-white/80'}
                 spanData={{ 'data-subtask-title': '' }}
               />
               {onDeleteChild && (
-                <DoneTrashButton label={`删除已完成子任务「${child.title}」`} onDelete={() => onDeleteChild(child.id)} />
+                <DoneTrashButton label={t('task.deleteDoneSubtask', { title: child.title })} onDelete={() => onDeleteChild(child.id)} />
               )}
             </div>
           ))}
@@ -841,7 +845,7 @@ const GroupBlock: React.FC<{
                 }
               }}
               onBlur={submitSub}
-              placeholder="添加子任务，回车确认"
+              placeholder={t('task.addSubtaskPlaceholder')}
               data-subtask-add
               className="flex-1 min-w-0 bg-transparent text-[13px] py-1 outline-none placeholder:text-zinc-400 border-b border-transparent focus:border-indigo-400/40 transition-colors"
             />
@@ -861,6 +865,7 @@ const GroupBlock: React.FC<{
  */
 function DoneTrashButton({ label, onDelete }: { label: string; onDelete: () => void }) {
   const [confirming, setConfirming] = useState(false);
+  const { t } = useLang();
   if (confirming) {
     return (
       <span className="flex items-center gap-1 shrink-0" data-done-trash-confirm>
@@ -873,7 +878,7 @@ function DoneTrashButton({ label, onDelete }: { label: string; onDelete: () => v
           }}
           className="px-2 py-1 rounded-md bg-red-500/80 hover:bg-red-500 text-white text-[11px] font-medium transition-colors"
         >
-          确认删除
+          {t('task.confirmDelete')}
         </button>
         <button
           type="button"
@@ -884,7 +889,7 @@ function DoneTrashButton({ label, onDelete }: { label: string; onDelete: () => v
           }}
           className="px-2 py-1 rounded-md bg-white/8 hover:bg-white/12 text-white/70 text-[11px] transition-colors"
         >
-          算了
+          {t('task.neverMind')}
         </button>
       </span>
     );
@@ -921,6 +926,7 @@ function DoneClearMenu({
   onConfirm: () => void;
 }) {
   const ref = useRef<HTMLDivElement>(null);
+  const { t } = useLang();
 
   useEffect(() => {
     const onPointerDown = (e: MouseEvent) => {
@@ -955,7 +961,7 @@ function DoneClearMenu({
         onClick={onConfirm}
         className="w-full flex items-center gap-2 px-2.5 py-2 rounded-lg text-left text-xs text-red-300 hover:bg-red-500/10 transition-colors"
       >
-        <Trash2 size={13} /> 删除全部已完成项（{count}）
+        <Trash2 size={13} /> {t('task.clearAllDone', { count })}
       </button>
     </div>
   );
@@ -973,6 +979,7 @@ function RowContextMenu({
 }) {
   const ref = useRef<HTMLDivElement>(null);
   const [confirming, setConfirming] = useState(false);
+  const { t } = useLang();
 
   useEffect(() => {
     setConfirming(false);
@@ -999,7 +1006,7 @@ function RowContextMenu({
   const itemCls =
     'w-full flex items-center gap-2 px-2.5 py-2 rounded-lg text-left text-xs text-white/75 hover:bg-white/8 hover:text-white transition-colors';
   const showEdit = state.kind !== 'taskChild';
-  const deleteLabel = state.kind === 'taskGroup' ? '删除组' : '删除';
+  const deleteLabel = state.kind === 'taskGroup' ? t('task.deleteGroup') : t('task.delete');
 
   return (
     <div
@@ -1015,7 +1022,7 @@ function RowContextMenu({
           <p className="px-2.5 pt-1.5 pb-1 text-[11px] font-medium text-white/55 truncate">{state.title}</p>
           {showEdit && (
             <button type="button" onClick={() => onPick('edit')} className={itemCls}>
-              <Pencil size={13} className="text-white/45" /> {state.kind === 'taskGroup' ? '改名' : '编辑'}
+              <Pencil size={13} className="text-white/45" /> {state.kind === 'taskGroup' ? t('task.rename') : t('task.edit')}
             </button>
           )}
           <button
@@ -1029,7 +1036,7 @@ function RowContextMenu({
       ) : (
         <>
           <p className="px-2.5 pt-1.5 pb-1.5 text-[11px] text-red-300 truncate">
-            {state.kind === 'taskGroup' ? `删除组「${state.title}」及全部子任务？` : `删除「${state.title}」？`}
+            {state.kind === 'taskGroup' ? t('task.confirmDeleteGroup', { title: state.title }) : t('task.confirmDeleteItem', { title: state.title })}
           </p>
           <div className="flex gap-1.5 px-1 pb-1">
             <button
@@ -1037,14 +1044,14 @@ function RowContextMenu({
               onClick={() => onPick('delete')}
               className="flex-1 px-2.5 py-1.5 rounded-lg bg-red-500/80 text-white text-[11px] font-medium hover:bg-red-500 transition-colors"
             >
-              确认删除
+              {t('task.confirmDelete')}
             </button>
             <button
               type="button"
               onClick={() => setConfirming(false)}
               className="flex-1 px-2.5 py-1.5 rounded-lg bg-white/8 text-white/70 text-[11px] hover:bg-white/12 transition-colors"
             >
-              算了
+              {t('task.neverMind')}
             </button>
           </div>
         </>
@@ -1057,6 +1064,7 @@ function RowContextMenu({
  * 第六十九轮起由计划卡卡面头部「AI 整理」按钮切换卡内视图承载（原在展开面板里） */
 export function AiView({ store, onDone }: { store: LocalStore; onDone: () => void }) {
   const [text, setText] = useState('');
+  const { t } = useLang();
   const [preview, setPreview] = useState<{
     todos: { title: string; checked: boolean }[];
   } | null>(null);
@@ -1089,7 +1097,7 @@ export function AiView({ store, onDone }: { store: LocalStore; onDone: () => voi
   const checkBox = (checked: boolean, onToggle: () => void) => (
     <button
       type="button"
-      aria-label={checked ? '不添加' : '添加'}
+      aria-label={checked ? t('ai.skipAdd') : t('ai.addItem')}
       onClick={onToggle}
       className={`w-[18px] h-[18px] rounded-[5px] border flex items-center justify-center shrink-0 transition-colors ${
         checked ? 'bg-indigo-500 border-indigo-500 text-white' : 'border-white/50 hover:border-indigo-300 text-transparent'
@@ -1107,7 +1115,7 @@ export function AiView({ store, onDone }: { store: LocalStore; onDone: () => voi
           setText(e.target.value);
           setPreview(null);
         }}
-        placeholder="下周要交设计稿，还想练吉他，顺便把桌面整理了……想到什么写什么，一行一件也行"
+        placeholder={t('ai.splitPlaceholder')}
         rows={4}
         autoFocus
         data-ai-input
@@ -1121,20 +1129,20 @@ export function AiView({ store, onDone }: { store: LocalStore; onDone: () => voi
           data-ai-split
           className="flex items-center gap-1.5 px-4 py-2 rounded-xl bg-indigo-500/80 hover:bg-indigo-500 disabled:opacity-40 text-white text-sm font-medium transition-colors"
         >
-          <Sparkles size={14} /> 拆分
+          <Sparkles size={14} /> {t('ai.split')}
         </button>
-        <p className="text-[11px] text-zinc-400 leading-relaxed">AI 只做拆分归类，不改动已有事项（当前为本地规则拆分）</p>
+        <p className="text-[11px] text-zinc-400 leading-relaxed">{t('ai.splitNote')}</p>
       </div>
 
       {preview && (
         <div className="mt-4">
           {preview.todos.length === 0 ? (
-            <p className="text-sm text-zinc-300 py-2">没有拆出可添加的事项，换个说法再试试。</p>
+            <p className="text-sm text-zinc-300 py-2">{t('ai.splitEmpty')}</p>
           ) : (
             <>
               {preview.todos.length > 0 && (
                 <div className="mb-4">
-                  <p className="text-xs font-semibold text-zinc-300 mb-1.5">待办 · {preview.todos.length}</p>
+                  <p className="text-xs font-semibold text-zinc-300 mb-1.5">{t('ai.splitTodos', { n: preview.todos.length })}</p>
                   <div className="flex flex-col">
                     {preview.todos.map((item, i) => (
                       <div key={i} data-ai-todo className="flex items-center gap-2.5 px-2 py-1.5 rounded-xl hover:bg-white/[0.04]">
@@ -1164,7 +1172,7 @@ export function AiView({ store, onDone }: { store: LocalStore; onDone: () => voi
                 data-ai-confirm
                 className="px-4 py-2 rounded-xl bg-indigo-500/80 hover:bg-indigo-500 disabled:opacity-40 text-white text-sm font-medium transition-colors"
               >
-                确认添加（{checkedCount}）
+                {t('ai.confirmAdd', { n: checkedCount })}
               </button>
             </>
           )}

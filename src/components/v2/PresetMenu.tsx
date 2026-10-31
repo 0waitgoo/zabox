@@ -3,6 +3,7 @@ import { Check, LayoutTemplate } from 'lucide-react';
 import { AnimatePresence, motion } from 'motion/react';
 import type { LocalStore, PresetId } from '../../store/localStore';
 import { BUILTIN_PRESET_META, buildBuiltinPreset } from '../../data/presets';
+import { useLang } from '../../i18n/useLang';
 import AppearanceSection from './AppearanceSection';
 
 /**
@@ -16,6 +17,7 @@ import AppearanceSection from './AppearanceSection';
  * 面板形态与原 BackgroundMenu 同款：无底色图标触发 + 实色浮层 + 点外关闭。
  */
 export default function PresetMenu({ store }: { store: LocalStore }) {
+  const { t } = useLang();
   const [open, setOpen] = useState(false);
   // 面板横向平移（打开时按按钮位置算）：按钮在顶栏左组第三位，手机上从按钮左缘
   // 展开 288px 面板会溢出右缘——把面板往左平移进视口（两侧各留 12px），桌面不动
@@ -88,16 +90,16 @@ export default function PresetMenu({ store }: { store: LocalStore }) {
         data-preset-option={meta.id}
         data-preset-current={current || undefined}
         data-preset-highlight={highlight || undefined}
-        title={meta.desc}
+        title={t(`preset.desc.${meta.id}`)}
         onClick={() => pick(meta.id)}
         className={cardClass(current, false, highlight)}
       >
         <span className="flex items-center gap-1 w-full">
-          <span className="text-[13px] font-medium text-white/90">{meta.name}</span>
+          <span className="text-[13px] font-medium text-white/90">{t(`preset.name.${meta.id}`)}</span>
           {current && checkmark}
         </span>
         <span className="text-[11px] text-white/45 truncate">
-          {SHORT_DESC[meta.id] ?? meta.desc}
+          {t(`preset.short.${meta.id}`)}
         </span>
       </button>
     );
@@ -105,21 +107,14 @@ export default function PresetMenu({ store }: { store: LocalStore }) {
 
   // 第一百一十四轮：面板压缩——预设行由两行卡片改单行（名 + 短述 + 勾），
   // 全述只放 title 悬停；短述为原述的忠实缩写，语义不变
-  const SHORT_DESC: Record<string, string> = {
-    default: '均衡排版',
-    designer: '设计资源优先',
-    developer: '开发资源优先',
-    tools: '整页小组件',
-    entertainment: '影音娱乐站点',
-  };
 
   return (
     <div ref={containerRef} className="relative shrink-0">
       {/* 触发按钮：与顶栏其他图标同款——无底色、白色图标，明暗随开合 */}
       <button
         onClick={() => setOpen((v) => !v)}
-        title="预设：一键切换主页排版"
-        aria-label="预设"
+        title={t('preset.switchTitle')}
+        aria-label={t('preset.aria')}
         data-testid="topnav-presets"
         className={`p-2 sm:p-2.5 rounded-xl flex items-center justify-center transition-colors duration-300 ${
           open ? 'text-white' : 'text-white/55 hover:text-white'
@@ -140,7 +135,7 @@ export default function PresetMenu({ store }: { store: LocalStore }) {
             className="absolute left-0 top-full mt-2 w-72 max-w-[calc(100vw-24px)] max-h-[85vh] overflow-y-auto rounded-3xl bg-[#17171d] border border-white/15 p-2.5 shadow-2xl shadow-black/70 z-50"
             style={{ marginLeft: panelShift }}
           >
-            <p className="px-1 pb-1.5 text-[10px] tracking-wider text-white/40 uppercase">主页预设</p>
+            <p className="px-1 pb-1.5 text-[10px] tracking-wider text-white/40 uppercase">{t('preset.heading')}</p>
             <div className="grid grid-cols-2 gap-1">
               {builtinCard(BUILTIN_PRESET_META[0])}
               {/* 「我的」：恢复自己的存档（含外观）。无存档时呈禁用态注明「暂无存档」；
@@ -148,26 +143,26 @@ export default function PresetMenu({ store }: { store: LocalStore }) {
               <button
                 data-preset-option="my"
                 data-preset-current={activePreset === 'my' || undefined}
-                title="你现在的排版与外观，改动即自动保存"
+                title={t('preset.myTitle')}
                 onClick={() => pick('my')}
                 className={cardClass(activePreset === 'my', !hasMyArchive && activePreset !== 'my')}
               >
                 <span className="flex items-center gap-1 w-full">
-                  <span className="text-[13px] font-medium text-white/90">我的</span>
+                  <span className="text-[13px] font-medium text-white/90">{t('preset.my')}</span>
                   {activePreset === 'my' && checkmark}
                 </span>
                 <span className="text-[11px] text-white/45 truncate">
-                  {hasMyArchive || activePreset === 'my' ? '改动即自动保存' : '暂无存档'}
+                  {hasMyArchive || activePreset === 'my' ? t('preset.myAutosave') : t('preset.myEmpty')}
                 </span>
               </button>
               {BUILTIN_PRESET_META.slice(1).map((meta) => builtinCard(meta))}
             </div>
             <p className="px-1 pt-2 text-[11px] text-white/35 truncate">
-              计划不受影响；改动自动存进「我的」。
+              {t('preset.planNote')}
             </p>
             {/* 外观节（第一百一十一轮）：原顶栏背景按钮的面板正文整体并入此处 */}
             <div className="my-2 border-t border-white/[0.07]" />
-            <p className="px-1 pb-1.5 text-[10px] tracking-wider text-white/40 uppercase">外观</p>
+            <p className="px-1 pb-1.5 text-[10px] tracking-wider text-white/40 uppercase">{t('preset.appearance')}</p>
             <AppearanceSection store={store} />
           </motion.div>
         )}

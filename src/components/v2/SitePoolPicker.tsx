@@ -2,6 +2,8 @@ import React, { useMemo, useState } from 'react';
 import { Check, Search } from 'lucide-react';
 import { toolsByCategory, type NavPoolSite } from '../../data/navPool';
 import type { NavGroup } from '../../data/groups';
+import { useLang } from '../../i18n/useLang';
+import { displayPoolCategory } from '../../i18n/groupNames';
 import { SiteLogo } from './Card';
 
 /**
@@ -27,6 +29,7 @@ export default function SitePoolPicker({
 }) {
   const [query, setQuery] = useState('');
   const [selected, setSelected] = useState<ReadonlySet<string>>(new Set());
+  const { t, lang } = useLang();
   const existing = useMemo(() => new Set(group.sites.map((s) => normalizeUrl(s.url))), [group]);
   const q = query.trim().toLowerCase();
   const sections = useMemo(
@@ -60,14 +63,14 @@ export default function SitePoolPicker({
   return (
     <div data-pool-picker className="mt-2 rounded-2xl border border-white/10 bg-white/[0.03] p-3">
       <div className="flex items-center gap-2">
-        <span className="text-[12px] font-medium shrink-0">在杂盒里找</span>
-        <span className="text-[11px] text-white/35 shrink-0">{total} 个网站</span>
+        <span className="text-[12px] font-medium shrink-0">{t('menu.findInBox')}</span>
+        <span className="text-[11px] text-white/35 shrink-0">{t('menu.siteTotal', { n: total })}</span>
         <button
           data-pool-cancel
           onClick={onClose}
           className="ml-auto text-[11px] text-white/50 hover:text-white/85 px-2 py-1 rounded-lg hover:bg-white/10 transition-colors shrink-0"
         >
-          取消
+          {t('menu.cancel')}
         </button>
       </div>
 
@@ -77,19 +80,19 @@ export default function SitePoolPicker({
           data-pool-search
           value={query}
           onChange={(e) => setQuery(e.target.value)}
-          placeholder="搜名字或简介"
+          placeholder={t('menu.poolSearchPlaceholder')}
           className="w-full bg-white/5 border border-white/10 rounded-xl pl-8 pr-3 py-1.5 text-[12px] outline-none focus:border-indigo-400/60 placeholder:text-white/25"
         />
       </div>
 
       <div className="mt-2 max-h-[320px] overflow-y-auto pr-1 -mr-1">
         {sections.length === 0 ? (
-          <p className="text-[12px] text-white/35 py-6 text-center">没找到，换个词试试</p>
+          <p className="text-[12px] text-white/35 py-6 text-center">{t('menu.poolEmpty')}</p>
         ) : (
           sections.map((sec) => (
             <div key={sec.category} className="mt-2 first:mt-0">
               <div className="text-[11px] font-medium text-white/45 px-1 py-1">
-                {sec.category}（{sec.sites.length}）
+                {displayPoolCategory(sec.category, lang)}（{sec.sites.length}）
               </div>
               <div className="flex flex-col gap-1">
                 {sec.sites.map((site) => {
@@ -119,7 +122,7 @@ export default function SitePoolPicker({
                         <span className="text-[9px] font-medium text-amber-300 bg-amber-500/15 px-1 py-px rounded shrink-0">VPN</span>
                       )}
                       {inGroup ? (
-                        <span className="text-[11px] text-white/35 shrink-0">已在组内</span>
+                        <span className="text-[11px] text-white/35 shrink-0">{t('menu.inGroup')}</span>
                       ) : (
                         <span
                           className={`w-5 h-5 rounded-full border flex items-center justify-center shrink-0 transition-colors ${
@@ -144,7 +147,7 @@ export default function SitePoolPicker({
           onClick={onBack}
           className="px-3 py-1.5 rounded-xl bg-white/10 text-[12px] text-white/70 hover:text-white transition-colors"
         >
-          返回
+          {t('menu.back')}
         </button>
         <button
           data-pool-confirm
@@ -152,7 +155,7 @@ export default function SitePoolPicker({
           onClick={() => onAdd(selectedSites)}
           className="flex-1 px-3 py-1.5 rounded-xl bg-indigo-500/80 text-[12px] font-medium text-white disabled:opacity-40 disabled:cursor-default transition-colors"
         >
-          加入所选（{selectedSites.length}）
+          {t('menu.addSelected', { n: selectedSites.length })}
         </button>
       </div>
     </div>

@@ -1,5 +1,6 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { Download } from 'lucide-react';
+import { useLang } from '../../i18n/useLang';
 
 /** 安装前事件（TS DOM 库未内置，本地最小定义） */
 interface BeforeInstallPromptEvent extends Event {
@@ -20,6 +21,7 @@ export default function PwaInstallButton() {
   const [installed, setInstalled] = useState(false);
   const [open, setOpen] = useState(false);
   const containerRef = useRef<HTMLDivElement>(null);
+  const { t } = useLang();
 
   useEffect(() => {
     const standalone =
@@ -76,8 +78,8 @@ export default function PwaInstallButton() {
     <div ref={containerRef} className="relative shrink-0">
       <button
         onClick={() => void handleClick()}
-        title="安装到手机/桌面"
-        aria-label="安装应用"
+        title={t('nav.pwaTitle')}
+        aria-label={t('nav.pwaAria')}
         data-testid="topnav-pwa-install"
         className={`p-2 sm:p-2.5 rounded-xl flex items-center justify-center transition-colors duration-300 ${
           open ? 'text-white' : 'text-white/55 hover:text-white'
@@ -91,17 +93,17 @@ export default function PwaInstallButton() {
           data-pwa-install-guide
           className="absolute right-0 top-full mt-2 w-64 max-w-[calc(100vw-24px)] rounded-3xl bg-[#17171d] border border-white/15 p-3.5 shadow-2xl shadow-black/70 z-50"
         >
-          <p className="text-[13px] font-medium text-white/90 pb-1.5">安装杂盒到主屏幕</p>
+          <p className="text-[13px] font-medium text-white/90 pb-1.5">{t('nav.pwaHeading')}</p>
           {isIOS ? (
             <p className="text-[12px] leading-relaxed text-white/60">
-              在 Safari 里点底部的「分享」按钮，再点「添加到主屏幕」，桌面就会多一个杂盒图标。
+              {t('nav.pwaIos')}
             </p>
           ) : (
             <p className="text-[12px] leading-relaxed text-white/60">
-              点浏览器菜单里的「添加到主屏幕」（安卓）或「安装杂盒」（桌面 Chrome/Edge），即可像应用一样打开。
+              {t('nav.pwaOther')}
             </p>
           )}
-          <p className="pt-2 text-[11px] text-white/35">装好后数据仍存在你自己的浏览器里，和网站版同一份。</p>
+          <p className="pt-2 text-[11px] text-white/35">{t('nav.pwaNote')}</p>
         </div>
       )}
     </div>

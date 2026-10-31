@@ -1,5 +1,6 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { Pencil, Trash2 } from 'lucide-react';
+import { useLang } from '../../i18n/useLang';
 
 /**
  * 站点行左滑操作（第七十三轮）：详细列表行通用包装，用于 B 卡收起态行与 B 卡展开态行。
@@ -68,6 +69,7 @@ export default function SwipeableRow({
   const [dragTx, setDragTx] = useState<number | null>(null);
   /** 删除两步确认态（与站点右键菜单同口径） */
   const [confirming, setConfirming] = useState(false);
+  const { t } = useLang();
   /** 操作条挂载延时隐藏：收起动画（180ms）期间保持挂载，动画完才卸下，避免滑动途中条先消失 */
   const [stripShown, setStripShown] = useState(false);
   const lastSwipeEndRef = useRef(0);
@@ -247,7 +249,7 @@ export default function SwipeableRow({
                 className="flex-1 flex flex-col items-center justify-center gap-0.5 bg-indigo-500/70 hover:bg-indigo-500/90 text-white transition-colors"
               >
                 <Pencil size={14} />
-                <span className="text-[10px] font-medium">编辑</span>
+                <span className="text-[10px] font-medium">{t('menu.edit')}</span>
               </button>
               <button
                 type="button"
@@ -259,7 +261,7 @@ export default function SwipeableRow({
                 className="flex-1 flex flex-col items-center justify-center gap-0.5 bg-red-500/75 hover:bg-red-500/90 text-white transition-colors"
               >
                 <Trash2 size={14} />
-                <span className="text-[10px] font-medium">删除</span>
+                <span className="text-[10px] font-medium">{t('menu.delete')}</span>
               </button>
             </>
           ) : (
@@ -276,7 +278,7 @@ export default function SwipeableRow({
                 className="flex-1 flex flex-col items-center justify-center gap-0.5 bg-red-500 hover:bg-red-400 text-white transition-colors"
               >
                 <Trash2 size={14} />
-                <span className="text-[10px] font-medium">确认</span>
+                <span className="text-[10px] font-medium">{t('menu.confirmAction')}</span>
               </button>
               <button
                 type="button"
@@ -287,7 +289,7 @@ export default function SwipeableRow({
                 }}
                 className="flex-1 flex flex-col items-center justify-center gap-0.5 bg-white/12 hover:bg-white/20 text-white/85 transition-colors"
               >
-                <span className="text-[10px] font-medium">算了</span>
+                <span className="text-[10px] font-medium">{t('menu.cancelDelete')}</span>
               </button>
             </>
           )}

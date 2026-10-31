@@ -1,5 +1,6 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { openUrl } from '@tauri-apps/plugin-opener';
+import { useLang } from '../../i18n/useLang';
 import { isTauri } from './planWindow';
 import { captureShortcut, shortcutLabel } from './desktopShortcut';
 import {
@@ -58,6 +59,7 @@ export default function PlanSettings({
 }) {
   const shortcutButton = useRef<HTMLButtonElement>(null);
   useEffect(() => { if (shortcutRecording) shortcutButton.current?.focus(); }, [shortcutRecording]);
+  const { t } = useLang();
   const [cfg, setCfg] = useState<AiConfig>(loadAiConfig);
   const [saved, setSaved] = useState(false);
   const [websiteError, setWebsiteError] = useState(false);
@@ -103,14 +105,14 @@ export default function PlanSettings({
               : 'bg-white/10 hover:bg-white/[0.18] text-white'
           }`}
         >
-          ← 返回
+          ← {t('plan.back')}
         </button>
-        <h2 className={`text-base font-medium ${light ? 'text-zinc-900' : 'text-white'}`}>设置</h2>
+        <h2 className={`text-base font-medium ${light ? 'text-zinc-900' : 'text-white'}`}>{t('plan.settingsTitle')}</h2>
       </div>
 
       {/* 外观 */}
       <section className="flex flex-col gap-3">
-        <h3 className={sectionTitle}>外观</h3>
+        <h3 className={sectionTitle}>{t('plan.appearance')}</h3>
         <div className="flex items-center gap-2 flex-wrap">
           <button
             type="button"
@@ -122,7 +124,7 @@ export default function PlanSettings({
                 : inactiveAppearanceButton
             }`}
           >
-            ☾ 暗夜
+            ☾ {t('plan.themeDark')}
           </button>
           <button
             type="button"
@@ -134,7 +136,7 @@ export default function PlanSettings({
                 : inactiveAppearanceButton
             }`}
           >
-            ☀ 白天
+            ☀ {t('plan.themeLight')}
           </button>
           <label className={`relative flex items-center gap-2 px-3 py-1.5 rounded-lg text-xs font-medium cursor-pointer focus-within:ring-2 focus-within:ring-indigo-400 ${
             customColor ? 'bg-indigo-500 text-white'
@@ -143,15 +145,15 @@ export default function PlanSettings({
           }`}>
             <span className="w-3.5 h-3.5 rounded-sm border border-current/30"
               style={{ backgroundColor: customColor ?? (light ? '#f2f2f5' : '#17171d') }} />
-            自定义底色
-            <input type="color" aria-label="自定义窗口底色"
+            {t('plan.customBg')}
+            <input type="color" aria-label={t('plan.customBgAria')}
               value={customColor ?? (light ? '#f2f2f5' : '#17171d')}
               onChange={(event) => onCustomColorChange(event.target.value)}
               className="absolute inset-0 w-full h-full opacity-0 cursor-pointer" />
           </label>
         </div>
         <label className={`flex items-center gap-3 text-xs ${faint}`}>
-          <span className="shrink-0">底色透明度</span>
+          <span className="shrink-0">{t('plan.bgOpacity')}</span>
           <input
             type="range"
             min={50}
@@ -162,25 +164,25 @@ export default function PlanSettings({
           />
           <span className="tabular-nums w-8 shrink-0">{opacity}%</span>
         </label>
-        <p className={`text-[11px] ${faint}`}>只改窗口底色透明度，字体保持不透明。</p>
+        <p className={`text-[11px] ${faint}`}>{t('plan.opacityNote')}</p>
       </section>
 
       <section className="flex flex-col gap-3">
         <label className="flex items-center justify-between gap-4 cursor-pointer">
-          <span className={`text-xs ${light ? 'text-zinc-900' : 'text-white/90'}`}>点击关闭时收进托盘</span>
-          <input type="checkbox" role="switch" aria-label="点击关闭时收进托盘"
+          <span className={`text-xs ${light ? 'text-zinc-900' : 'text-white/90'}`}>{t('plan.trayOnClose')}</span>
+          <input type="checkbox" role="switch" aria-label={t('plan.trayOnClose')}
             checked={minimizeOnClose}
             onChange={(event) => onMinimizeOnCloseChange(event.target.checked)}
             className="peer sr-only" />
           <span aria-hidden="true" className="relative w-9 h-5 shrink-0 rounded-full bg-zinc-500/40 peer-checked:bg-indigo-500 peer-focus-visible:ring-2 peer-focus-visible:ring-indigo-400 after:absolute after:top-0.5 after:left-0.5 after:h-4 after:w-4 after:rounded-full after:bg-white after:transition-transform peer-checked:after:translate-x-4" />
         </label>
         <label className="flex items-center justify-between gap-4 cursor-pointer">
-          <span className={`text-xs ${light ? 'text-zinc-900' : 'text-white/90'}`}>启用展开 / 收起快捷键</span>
-          <input type="checkbox" aria-label="启用展开收起快捷键" checked={shortcutEnabled} disabled={shortcutBusy || shortcutRecording}
+          <span className={`text-xs ${light ? 'text-zinc-900' : 'text-white/90'}`}>{t('plan.shortcutEnable')}</span>
+          <input type="checkbox" aria-label={t('plan.shortcutEnableAria')} checked={shortcutEnabled} disabled={shortcutBusy || shortcutRecording}
             onChange={(event) => onShortcutEnabledChange(event.target.checked)}
             className="h-4 w-4 accent-indigo-500 cursor-pointer disabled:opacity-50" />
         </label>
-        <button ref={shortcutButton} type="button" aria-label="设置展开收起快捷键" disabled={shortcutBusy}
+        <button ref={shortcutButton} type="button" aria-label={t('plan.shortcutSetAria')} disabled={shortcutBusy}
           className={`self-start px-3 py-1.5 rounded-lg text-xs ${inactiveAppearanceButton} ${shortcutRecording ? 'ring-2 ring-indigo-400' : ''}`}
           onClick={() => onShortcutRecordingChange(true)}
           onBlur={() => { if (shortcutRecording && !shortcutBusy) onShortcutRecordingChange(false); }}
@@ -191,20 +193,20 @@ export default function PlanSettings({
             const value = captureShortcut(event.nativeEvent);
             if (value) onShortcutBindingChange(value);
           }}>
-          {shortcutRecording ? '请按下组合键，Esc 取消' : shortcutLabel(shortcutBinding)}
+          {shortcutRecording ? t('plan.shortcutRecording') : shortcutLabel(shortcutBinding)}
         </button>
         {shortcutError && <p role="alert" className={`text-[11px] ${faint}`}>{shortcutError}</p>}
       </section>
 
       {/* AI 接口 */}
       <section className="flex flex-col gap-3">
-        <h3 className={sectionTitle}>AI 接口（用于 AI 整理）</h3>
+        <h3 className={sectionTitle}>{t('plan.aiApiTitle')}</h3>
         <div className="flex items-center gap-2 flex-wrap">
           {(
             [
               ['deepseek', 'DeepSeek'],
               ['openai', 'OpenAI'],
-              ['custom', '自定义'],
+              ['custom', t('plan.providerCustom')],
             ] as [AiProvider, string][]
           ).map(([p, label]) => (
             <button
@@ -224,7 +226,7 @@ export default function PlanSettings({
           ))}
         </div>
         <label className="flex flex-col gap-1.5">
-          <span className={`text-xs ${faint}`}>接口地址</span>
+          <span className={`text-xs ${faint}`}>{t('plan.apiBaseUrl')}</span>
           <input
             type="text"
             value={cfg.baseUrl}
@@ -237,7 +239,7 @@ export default function PlanSettings({
           />
         </label>
         <label className="flex flex-col gap-1.5">
-          <span className={`text-xs ${faint}`}>模型</span>
+          <span className={`text-xs ${faint}`}>{t('plan.apiModel')}</span>
           <input
             type="text"
             value={cfg.model}
@@ -250,7 +252,7 @@ export default function PlanSettings({
           />
         </label>
         <label className="flex flex-col gap-1.5">
-          <span className={`text-xs ${faint}`}>口令（API Key）</span>
+          <span className={`text-xs ${faint}`}>{t('plan.apiKeyLabel')}</span>
           <input
             type="password"
             value={cfg.key}
@@ -259,7 +261,7 @@ export default function PlanSettings({
               setCfg((c) => ({ ...c, key: e.target.value }));
               setSaved(false);
             }}
-            placeholder="只存本机，不会同步到 GitHub"
+            placeholder={t('plan.apiKeyPlaceholder')}
             className={inputCls}
           />
         </label>
@@ -269,19 +271,19 @@ export default function PlanSettings({
             onClick={save}
             className="shrink-0 px-4 py-1.5 rounded-lg text-xs font-medium bg-indigo-500 hover:bg-indigo-400 text-white transition-colors"
           >
-            保存
+            {t('plan.save')}
           </button>
-          {saved && <span className="text-xs text-emerald-500">已保存，只存本机</span>}
+          {saved && <span className="text-xs text-emerald-500">{t('plan.savedLocal')}</span>}
         </div>
       </section>
       <section className="flex flex-col gap-3">
-        <h3 className={sectionTitle}>关于</h3>
+        <h3 className={sectionTitle}>{t('plan.about')}</h3>
         <div className="flex items-center gap-2">
           <img data-plan-logo src="logo.svg" alt="" className="w-6 h-6 shrink-0" />
-          <span className={sectionTitle}>杂盒计划</span>
+          <span className={sectionTitle}>{t('plan.appName')}</span>
         </div>
         <p className={`text-xs ${faint}`}>
-          官网：<a href="https://zahe.hiitun.top/" target="_blank" rel="noopener noreferrer"
+          {t('plan.websiteLabel')}<a href="https://zahe.hiitun.top/" target="_blank" rel="noopener noreferrer"
             className="underline underline-offset-2 hover:text-indigo-400"
             onClick={(event) => {
               if (!isTauri()) return;
@@ -290,7 +292,7 @@ export default function PlanSettings({
               void openUrl('https://zahe.hiitun.top/').catch(() => setWebsiteError(true));
             }}>https://zahe.hiitun.top/</a>
         </p>
-        {websiteError && <p role="alert" className={`text-xs ${faint}`}>无法打开浏览器，请复制上方网址访问官网。</p>}
+        {websiteError && <p role="alert" className={`text-xs ${faint}`}>{t('plan.websiteError')}</p>}
       </section>
     </div>
   );

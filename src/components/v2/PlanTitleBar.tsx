@@ -1,5 +1,6 @@
 import React from 'react';
 import { ChevronDown, Settings, Square, X } from 'lucide-react';
+import { useLang } from '../../i18n/useLang';
 import PinButton from './PinButton';
 import { requestToolbarToggle } from './desktopToolbar';
 import type { PlanTheme } from '../../plan-app';
@@ -43,6 +44,7 @@ export default function PlanTitleBar({
   onToggleMaximize: () => void;
 }) {
   const light = theme === 'light';
+  const { t } = useLang();
   const btnBase =
     'shrink-0 w-6 h-6 flex items-center justify-center rounded-md text-xs transition-colors';
   const btnCls = light
@@ -60,7 +62,7 @@ export default function PlanTitleBar({
       <button
         type="button"
         data-plan-dock-limit
-        title="设置"
+        title={t('plan.settingsTitle')}
         aria-pressed={settingsOpen}
         onClick={onSettingsToggle}
         className={settingsCls}
@@ -69,7 +71,7 @@ export default function PlanTitleBar({
       </button>
       <button
         type="button"
-        title="收起，只留顶栏"
+        title={t('plan.collapseHeaderOnly')}
         onClick={onToggleHeaderOnly}
         className={btnCls}
       >
@@ -77,7 +79,7 @@ export default function PlanTitleBar({
       </button>
       <button
         type="button"
-        title="最大化 / 还原"
+        title={t('plan.maxRestore')}
         onClick={onToggleMaximize}
         className={btnCls}
       >

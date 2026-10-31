@@ -29,10 +29,28 @@ import TrendingWidget from '../widgets/TrendingWidget';
 /** 商店分类（规范 5.3 已定：只有「工具」与「外观」两类） */
 export type WidgetCategory = 'tools' | 'appearance';
 
-export const WIDGET_CATEGORIES: { id: WidgetCategory; label: string }[] = [
-  { id: 'tools', label: '工具' },
-  { id: 'appearance', label: '外观' },
+export const WIDGET_CATEGORIES: { id: WidgetCategory; label: string; labelKey: string }[] = [
+  { id: 'tools', label: '工具', labelKey: 'widget.catTools' },
+  { id: 'appearance', label: '外观', labelKey: 'widget.catAppearance' },
 ];
+
+/** t() 函数形态（useLang 返回的 t）：注册表本身不调 hook，调用处把 t 传进来 */
+export type WidgetT = (key: string, vars?: Record<string, string | number>) => string;
+
+/** 注册表显示名/简介取翻译：有 key 时走 t()，否则回落中文原文（与 translate 缺词回落一致） */
+export function widgetDisplayName(d: WidgetDefinition, t: WidgetT): string {
+  return d.nameKey ? t(d.nameKey) : d.name;
+}
+
+export function widgetDisplayDesc(d: WidgetDefinition, t: WidgetT): string {
+  return d.descKey ? t(d.descKey) : d.desc;
+}
+
+export function widgetCategoryLabelText(id: WidgetCategory, t: WidgetT): string {
+  const c = WIDGET_CATEGORIES.find((x) => x.id === id);
+  if (!c) return id;
+  return c.labelKey ? t(c.labelKey) : c.label;
+}
 
 /** 组件统一渲染 props（规范 5.2 的 WidgetProps 落地形态）：各组件签名不同，
  *  由注册表里的适配组件把这套统一 props 映射到各自的真实 props，组件本体不感知注册表 */
@@ -54,8 +72,12 @@ export interface WidgetDefinition {
   id: WidgetId;
   /** 商店与菜单显示名（与卡面标题统一，规范第 7 节收编口径） */
   name: string;
+  /** 显示名的 i18n key（name 仍为中文原文，供未接 i18n 的调用处作回落） */
+  nameKey?: string;
   /** 一句话简介 */
   desc: string;
+  /** 简介的 i18n key（同 nameKey 口径） */
+  descKey?: string;
   /** 分类：只有 tools / appearance 两类（规范 5.3） */
   category: WidgetCategory;
   /** 商店列表与详情用的 lucide 图标（与卡面标题徽保持同一枚） */
@@ -69,9 +91,9 @@ export interface WidgetDefinition {
   /** 精选标记（规范 5.4）：只由维护者手动设置，组件作者不自填 */
   featured?: boolean;
   /** 联网声明（规范 4.2 声明制）：只读公共数据地址与用途；不联网则省略 */
-  network?: { endpoint: string; purpose: string }[];
+  network?: { endpoint: string; purpose: string; purposeKey?: string }[];
   /** 数据声明（规范 4.1）：'store' = 进主仓（缺省）| 'device' = 本机偏好 key | 独立 key 附 key 名与理由 */
-  storage?: 'store' | 'device' | { own: string; reason: string };
+  storage?: 'store' | 'device' | { own: string; reason: string; reasonKey?: string };
   /** 组件渲染入口（适配组件，见下方） */
   component: React.ComponentType<WidgetRenderProps>;
 }
@@ -132,7 +154,9 @@ export const WIDGET_DEFINITIONS: WidgetDefinition[] = [
     id: 'task',
     // 规范第 7 节收编口径：注册名「今日任务」与卡面标题「计划」统一为卡面名「计划」
     name: '计划',
+    nameKey: 'widget.nameTask',
     desc: '待办、日程表与推进表小工具',
+    descKey: 'widget.descTask',
     category: 'tools',
     icon: ListTodo,
     watermark: '📋',
@@ -145,32 +169,38 @@ export const WIDGET_DEFINITIONS: WidgetDefinition[] = [
   {
     id: 'news',
     name: 'AI 资讯',
+    nameKey: 'widget.nameNews',
     desc: '今日最热头条 + 热门榜单',
+    descKey: 'widget.descNews',
     category: 'tools',
     icon: Newspaper,
     watermark: '📰',
     supportedSizes: ALL_SIZES,
     defaultLayout: DEFAULT_WIDGET_LAYOUTS.news,
     featured: true,
-    network: [{ endpoint: '/api?type=news', purpose: '本站资讯接口：只读拉取对所有人一致的公共资讯（头条与热榜）' }],
+    network: [{ endpoint: '/api?type=news', purpose: '本站资讯接口：只读拉取对所有人一致的公共资讯（头条与热榜）', purposeKey: 'widget.netNews' }],
     component: NewsWidget,
   },
   {
     id: 'trending',
     name: '热门话题',
+    nameKey: 'widget.nameTrending',
     desc: '微博 / 百度真实热榜',
+    descKey: 'widget.descTrending',
     category: 'tools',
     icon: TrendingUp,
     watermark: '🔥',
     supportedSizes: ALL_SIZES,
     defaultLayout: DEFAULT_WIDGET_LAYOUTS.trending,
-    network: [{ endpoint: '/api?type=trends', purpose: '本站话题接口：服务端聚合微博热搜与百度热搜的公开热榜，热度为源站真实值' }],
+    network: [{ endpoint: '/api?type=trends', purpose: '本站话题接口：服务端聚合微博热搜与百度热搜的公开热榜，热度为源站真实值', purposeKey: 'widget.netTrending' }],
     component: TrendingWidgetAdapter,
   },
   {
     id: 'tools',
     name: '文件工具',
+    nameKey: 'widget.nameTools',
     desc: 'PDF 转图片/长图、图片转 PDF、合并与拆分',
+    descKey: 'widget.descTools',
     category: 'tools',
     icon: Wrench,
     watermark: '🧰',
@@ -182,7 +212,9 @@ export const WIDGET_DEFINITIONS: WidgetDefinition[] = [
   {
     id: 'colors',
     name: '中式色卡',
+    nameKey: 'widget.nameColors',
     desc: '158 种中国传统色：色墙浏览、传统配色、一键复制色值',
+    descKey: 'widget.descColors',
     category: 'tools',
     icon: Palette,
     watermark: '🎨',
@@ -190,7 +222,7 @@ export const WIDGET_DEFINITIONS: WidgetDefinition[] = [
     defaultLayout: DEFAULT_WIDGET_LAYOUTS.colors,
     // 数据随包内置（src/data/traditionalColors.ts）、零联网，故无 network 声明；
     // 收藏/自存配色走独立 key（规范 4.1），同步/导出/导入按 store/widgetStorage.ts 的登记一并处理
-    storage: { own: 'ainav-widget-colors-data', reason: '收藏与自存配色是组件自有数据，与站点数据无关，独立迭代/整表清理更稳妥' },
+    storage: { own: 'ainav-widget-colors-data', reason: '收藏与自存配色是组件自有数据，与站点数据无关，独立迭代/整表清理更稳妥', reasonKey: 'widget.storageColorsReason' },
     component: ColorsWidget,
   },
 ];
@@ -200,8 +232,10 @@ export function widgetDefOf(id: WidgetId): WidgetDefinition {
   return WIDGET_DEFINITIONS.find((d) => d.id === id) ?? WIDGET_DEFINITIONS[0];
 }
 
-/** 尺寸标签（如「2 栏 × 2X」）：商店详情/预览标注与尺寸选择共用 */
-export function widgetSizeLabel(layout: WidgetLayout): string {
+/** 尺寸标签（如「2 栏 × 2X」）：商店详情/预览标注与尺寸选择共用。
+ *  不传 t 时回落中文原文（未接 i18n 的调用处）；传 t 时走 widget.sizeLabel。 */
+export function widgetSizeLabel(layout: WidgetLayout, t?: WidgetT): string {
+  if (t) return t('widget.sizeLabel', { cols: layout.colSpan, rows: layout.heightUnits });
   return `${layout.colSpan} 栏 × ${layout.heightUnits}X`;
 }
 

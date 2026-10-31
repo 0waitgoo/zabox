@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { fetch as tauriFetch } from '@tauri-apps/plugin-http';
 import type { LocalStore } from '../../store/localStore';
+import { useLang } from '../../i18n/useLang';
 import { loadAiConfig } from './planAiConfig';
 import type { PlanTheme } from '../../plan-app';
 
@@ -28,6 +29,7 @@ export default function PlanAiView({
   const [steps, setSteps] = useState<string[]>([]);
   const [busy, setBusy] = useState(false);
   const [status, setStatus] = useState<string | null>(null);
+  const { t, lang } = useLang();
   const light = theme === 'light';
 
   const faint = light ? 'text-zinc-500' : 'text-white/45';
@@ -68,7 +70,7 @@ export default function PlanAiView({
   const generate = async () => {
     if (!hasKey || busy) return;
     setBusy(true);
-    setStatus('正在生成…');
+    setStatus(t('plan.aiStatusGenerating'));
     setSteps([]);
     try {
       const targets =
@@ -106,9 +108,8 @@ export default function PlanAiView({
       });
       if (!res.ok) {
         const errText = await res.text().catch(() => '');
-        setStatus(
-          `接口返回 ${res.status}，请检查设置里的地址、模型与口令${errText ? `（${errText.slice(0, 80)}）` : ''}`,
-        );
+        const detail = errText ? (lang === 'en' ? ` (${errText.slice(0, 80)})` : `（${errText.slice(0, 80)}）`) : '';
+        setStatus(t('plan.aiStatusHttp', { status: res.status, detail }));
         return;
       }
       const json = (await res.json()) as {
@@ -117,14 +118,14 @@ export default function PlanAiView({
       const content = json.choices?.[0]?.message?.content ?? '';
       const parsed = parseSteps(content);
       if (parsed.length === 0) {
-        setStatus('模型没有返回可用步骤，换句话再试一次');
+        setStatus(t('plan.aiStatusNoSteps'));
         return;
       }
       setSteps(parsed);
-      setStatus(`已生成 ${parsed.length} 个小步骤，确认后点应用到待办`);
+      setStatus(t('plan.aiStatusGenerated', { n: parsed.length }));
     } catch (e) {
       const msg = e instanceof Error ? e.message : String(e);
-      setStatus(`网络异常或接口不通，请检查设置里的地址与口令（${msg.replace(/\s+/g, ' ').slice(0, 60)}）`);
+      setStatus(t('plan.aiStatusNetwork', { msg: msg.replace(/\s+/g, ' ').slice(0, 60) }));
     } finally {
       setBusy(false);
     }
@@ -135,15 +136,15 @@ export default function PlanAiView({
     if (list.length === 0) return;
     store.addSplitResult(list, []);
     setSteps([]);
-    setStatus(`已应用 ${list.length} 条到待办`);
+    setStatus(t('plan.aiStatusApplied', { n: list.length }));
   };
 
   if (!hasKey) {
     return (
       <div className="flex flex-col gap-3 px-1 py-1">
-        <h2 className={`text-base font-medium ${light ? 'text-zinc-900' : 'text-white'}`}>AI 整理</h2>
+        <h2 className={`text-base font-medium ${light ? 'text-zinc-900' : 'text-white'}`}>{t('ai.title')}</h2>
         <p className={`text-sm ${faint}`}>
-          还没配 AI 接口。去设置页选 DeepSeek / OpenAI 或自定义接口，填好地址、模型与口令就能用。
+          {t('plan.aiNoKey')}
         </p>
         <div>
           <button
@@ -151,7 +152,7 @@ export default function PlanAiView({
             onClick={onOpenSettings}
             className="px-4 py-1.5 rounded-lg text-xs font-medium bg-indigo-500 hover:bg-indigo-400 text-white transition-colors"
           >
-            去设置
+            {t('plan.aiGoSettings')}
           </button>
         </div>
       </div>
@@ -160,15 +161,15 @@ export default function PlanAiView({
 
   return (
     <div className="flex flex-col gap-4 px-1 py-1">
-      <h2 className={`text-base font-medium ${light ? 'text-zinc-900' : 'text-white'}`}>AI 整理</h2>
+      <h2 className={`text-base font-medium ${light ? 'text-zinc-900' : 'text-white'}`}>{t('ai.title')}</h2>
       <label className="flex flex-col gap-1.5">
-        <span className={`text-xs ${faint}`}>拆哪一个计划</span>
+        <span className={`text-xs ${faint}`}>{t('plan.aiWhichPlan')}</span>
         <select
           value={targetId}
           onChange={(e) => setTargetId(e.target.value)}
           className={inputCls}
         >
-          <option value="all">全部长期计划</option>
+          <option value="all">{t('plan.aiAllPlans')}</option>
           {plans.map((p) => (
             <option key={p.id} value={p.id}>
               {p.title}
@@ -177,12 +178,12 @@ export default function PlanAiView({
         </select>
       </label>
       <label className="flex flex-col gap-1.5">
-        <span className={`text-xs ${faint}`}>你想怎么整理</span>
+        <span className={`text-xs ${faint}`}>{t('plan.aiHowOrganize')}</span>
         <textarea
           value={intent}
           onChange={(e) => setIntent(e.target.value)}
           rows={3}
-          placeholder="比如：把大计划拆成每天 30 分钟能做完的小步骤"
+          placeholder={t('plan.aiIntentPlaceholder')}
           className={`${inputCls} resize-none`}
         />
       </label>
@@ -193,7 +194,7 @@ export default function PlanAiView({
           disabled={busy}
           className="shrink-0 px-4 py-1.5 rounded-lg text-xs font-medium bg-indigo-500 hover:bg-indigo-400 disabled:opacity-40 text-white transition-colors"
         >
-          {busy ? '生成中…' : '生成小步骤'}
+          {busy ? t('plan.aiGenerating') : t('plan.aiGenerate')}
         </button>
         {status && <span className={`text-xs ${faint}`}>{status}</span>}
       </div>
@@ -205,7 +206,7 @@ export default function PlanAiView({
               <span className="flex-1 min-w-0">{s}</span>
               <button
                 type="button"
-                title="去掉这条"
+                title={t('plan.aiRemoveStep')}
                 onClick={() => setSteps((prev) => prev.filter((_, j) => j !== i))}
                 className={`shrink-0 ${faint} hover:text-red-500`}
               >
@@ -219,7 +220,7 @@ export default function PlanAiView({
               onClick={apply}
               className="px-4 py-1.5 rounded-lg text-xs font-medium bg-emerald-500 hover:bg-emerald-400 text-white transition-colors"
             >
-              应用到待办
+              {t('plan.aiApplyToTodos')}
             </button>
           </div>
         </div>

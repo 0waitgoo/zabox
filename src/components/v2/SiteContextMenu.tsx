@@ -1,6 +1,7 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { ExternalLink, Pencil, Trash2 } from 'lucide-react';
 import type { SiteEntry } from '../../data/groups';
+import { useLang } from '../../i18n/useLang';
 
 /**
  * 站点右键菜单（第十六轮追加）：取代站点行/瓷砖上的悬停编辑/删除图标。
@@ -39,6 +40,7 @@ export default function SiteContextMenu({
 }) {
   const ref = useRef<HTMLDivElement>(null);
   const [confirming, setConfirming] = useState(false);
+  const { t } = useLang();
 
   // 换一个站点打开菜单时回到未确认态
   useEffect(() => {
@@ -87,7 +89,7 @@ export default function SiteContextMenu({
             }}
             className={itemCls}
           >
-            <ExternalLink size={13} className="text-white/45" /> 打开网站
+            <ExternalLink size={13} className="text-white/45" /> {t('menu.openSite')}
           </button>
           <button
             type="button"
@@ -97,19 +99,19 @@ export default function SiteContextMenu({
             }}
             className={itemCls}
           >
-            <Pencil size={13} className="text-white/45" /> 编辑
+            <Pencil size={13} className="text-white/45" /> {t('menu.edit')}
           </button>
           <button
             type="button"
             onClick={() => setConfirming(true)}
             className="w-full flex items-center gap-2 px-2.5 py-2 rounded-lg text-left text-xs text-red-300 hover:bg-red-500/10 transition-colors"
           >
-            <Trash2 size={13} /> 删除
+            <Trash2 size={13} /> {t('menu.delete')}
           </button>
         </>
       ) : (
         <>
-          <p className="px-2.5 pt-1.5 pb-1.5 text-[11px] text-red-300 truncate">删除「{state.site.name}」？</p>
+          <p className="px-2.5 pt-1.5 pb-1.5 text-[11px] text-red-300 truncate">{t('menu.deleteSiteConfirm', { name: state.site.name })}</p>
           <div className="flex gap-1.5 px-1 pb-1">
             <button
               type="button"
@@ -119,14 +121,14 @@ export default function SiteContextMenu({
               }}
               className="flex-1 px-2.5 py-1.5 rounded-lg bg-red-500/80 text-white text-[11px] font-medium hover:bg-red-500 transition-colors"
             >
-              确认删除
+              {t('menu.confirmDelete')}
             </button>
             <button
               type="button"
               onClick={() => setConfirming(false)}
               className="flex-1 px-2.5 py-1.5 rounded-lg bg-white/8 text-white/70 text-[11px] hover:bg-white/12 transition-colors"
             >
-              算了
+              {t('menu.cancelDelete')}
             </button>
           </div>
         </>

@@ -15,6 +15,7 @@ import {
 } from '../../store/localStore';
 import { AiView, TasksSection } from './TaskSections';
 import { MonthView, TimelineView } from './PlanScheduleViews';
+import { useLang } from '../../i18n/useLang';
 import WidgetTintLayer from './WidgetTint';
 
 /**
@@ -63,6 +64,7 @@ export default function TaskCard({
   onOpenPlanPage?: () => void;
 }) {
   const { tasks, plans, cardFaceStyles } = store.data;
+  const { t: tr } = useLang();
   const face = cardFaceStyleOf(cardFaceStyles, widgetCardKey('task'));
   /** 刚在卡面上勾完的待办：先划线留影，片刻后才移出前 3（避免勾完瞬间跳变） */
   const [justDone, setJustDone] = useState<Record<string, true>>({});
@@ -149,8 +151,8 @@ export default function TaskCard({
     <button
       type="button"
       data-plan-open
-      title="打开计划页"
-      aria-label="打开计划页"
+      title={tr('plan.openPage')}
+      aria-label={tr('plan.openPage')}
       onClick={onOpenPlanPage}
       className="w-7 h-7 rounded-lg bg-white/10 hover:bg-white/[0.18] text-zinc-200 hover:text-white flex items-center justify-center transition-colors shrink-0"
     >
@@ -176,23 +178,23 @@ export default function TaskCard({
         <div className="flex items-center gap-1.5 mb-2 shrink-0">
           <div className="flex gap-0.5 p-0.5 rounded-xl bg-white/5 border border-white/10">
             {([
-              ['plan', '计划', ListTodo],
-              ['timeline', '日程表', CalendarDays],
-              ['month', '推进表', CalendarRange],
-            ] as const).map(([tab, label, Icon]) => (
+              ['plan', 'plan.tabPlan', ListTodo],
+              ['timeline', 'plan.tabTimeline', CalendarDays],
+              ['month', 'plan.tabMonth', CalendarRange],
+            ] as const).map(([tab, labelKey, Icon]) => (
               <button
                 key={tab}
                 type="button"
                 data-plan-tab={tab}
-                title={label}
-                aria-label={label}
+                title={tr(labelKey)}
+                aria-label={tr(labelKey)}
                 onClick={() => switchPlanTab(tab)}
                 className={`${colSpan === 1 ? 'w-7 h-7 flex items-center justify-center' : 'flex items-center gap-1 px-2.5 py-1.5'} rounded-lg transition-colors ${
                   planTab === tab ? 'bg-indigo-500/80 text-white font-medium' : 'text-white/55 hover:text-white/85'
                 }`}
               >
                 <Icon size={13} />
-                {colSpan !== 1 && <span className="text-xs">{label}</span>}
+                {colSpan !== 1 && <span className="text-xs">{tr(labelKey)}</span>}
               </button>
             ))}
           </div>
@@ -203,8 +205,8 @@ export default function TaskCard({
           <button
             type="button"
             data-ai-open
-            title={cardView === 'ai' ? '返回' : 'AI 整理'}
-            aria-label={cardView === 'ai' ? '返回' : 'AI 整理'}
+            title={cardView === 'ai' ? tr('plan.back') : tr('ai.title')}
+            aria-label={cardView === 'ai' ? tr('plan.back') : tr('ai.title')}
             onClick={() => setCardView((v) => (v === 'ai' ? 'main' : 'ai'))}
             className="w-7 h-7 rounded-lg bg-white/10 hover:bg-white/[0.18] text-zinc-200 hover:text-white flex items-center justify-center transition-colors shrink-0"
           >
@@ -261,7 +263,7 @@ export default function TaskCard({
         <div className="w-7 h-7 rounded-full bg-indigo-500 text-white shadow-[0_1px_4px_rgba(0,0,0,0.3)] ring-1 ring-black/20 flex items-center justify-center shrink-0">
           <ListTodo size={14} />
         </div>
-        <h3 className="font-semibold text-base sm:text-lg tracking-tight">计划</h3>
+        <h3 className="font-semibold text-base sm:text-lg tracking-tight">{tr('widget.nameTask')}</h3>
         <span data-task-progress className="ml-auto text-xs text-zinc-300 tabular-nums">
           {doneCount}/{total}
         </span>
@@ -274,7 +276,7 @@ export default function TaskCard({
       {face === 'list' ? (
         <div className="flex-1 min-h-0 flex flex-col gap-1">
           {rows.length === 0 ? (
-            <p className="flex-1 flex items-center text-[13px] text-zinc-300">暂无待办。</p>
+            <p className="flex-1 flex items-center text-[13px] text-zinc-300">{tr('task.empty')}</p>
           ) : (
             rows.map((t) =>
               isTaskGroup(t) ? (
@@ -298,7 +300,7 @@ export default function TaskCard({
                 <div key={t.id} className="flex items-center gap-2 py-1 min-w-0">
                   <button
                     type="button"
-                    aria-label={t.done ? '取消完成' : '标记完成'}
+                    aria-label={t.done ? tr('task.unmarkDone') : tr('task.markDone')}
                     onClick={() => handleToggle(t)}
                     className={`w-[18px] h-[18px] rounded-[5px] border flex items-center justify-center shrink-0 transition-colors ${
                       t.done ? 'bg-indigo-500 border-indigo-500 text-white' : 'border-white/50 hover:border-indigo-300 text-transparent'
@@ -324,7 +326,7 @@ export default function TaskCard({
         <div className="flex-1 min-h-0 flex flex-col">
           {focusTask ? (
             <>
-              <p className="text-[11px] tracking-wider text-zinc-300 uppercase mb-1.5">下一件事</p>
+              <p className="text-[11px] tracking-wider text-zinc-300 uppercase mb-1.5">{tr('task.nextUp')}</p>
               <p
                 data-task-focus-title
                 onClick={() => setFocusExpanded((v) => !v)}
@@ -334,17 +336,17 @@ export default function TaskCard({
               </p>
               {isTaskGroup(focusTask) && (
                 <p className="mt-1 text-xs text-zinc-300 tabular-nums">
-                  一组 {taskChildProgress(focusTask).total} 项 · 已完成 {taskChildProgress(focusTask).done}
+                  {tr('task.groupProgress', { total: taskChildProgress(focusTask).total, done: taskChildProgress(focusTask).done })}
                 </p>
               )}
               <p className="mt-auto text-xs text-zinc-300">
-                {restCount > 0 ? `还有 ${restCount} 件` : '就这一件了'}
+                {restCount > 0 ? tr('task.moreLeft', { n: restCount }) : tr('task.onlyOne')}
               </p>
             </>
           ) : (
             <>
-              <p className="text-[11px] tracking-wider text-zinc-300 uppercase mb-1.5">下一件事</p>
-              <p className="text-xl font-semibold leading-snug text-zinc-200">暂无待办</p>
+              <p className="text-[11px] tracking-wider text-zinc-300 uppercase mb-1.5">{tr('task.nextUp')}</p>
+              <p className="text-xl font-semibold leading-snug text-zinc-200">{tr('task.emptyShort')}</p>
             </>
           )}
         </div>

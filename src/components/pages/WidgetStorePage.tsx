@@ -12,11 +12,15 @@ import {
   WIDGET_CATEGORIES,
   WIDGET_DEFINITIONS,
   sameWidgetSize,
+  widgetCategoryLabelText,
   widgetDefOf,
+  widgetDisplayDesc,
+  widgetDisplayName,
   widgetSizeLabel,
   type WidgetCategory,
 } from '../v2/widgetRegistry';
 import { useDisplayPrefs } from '../../store/displayPrefs';
+import { useLang } from '../../i18n/useLang';
 
 /**
  * 组件商店页（第七十四轮，按已定稿线稿落地）：
@@ -36,12 +40,6 @@ import { useDisplayPrefs } from '../../store/displayPrefs';
  */
 
 type StoreTab = 'all' | 'featured' | WidgetCategory;
-
-const TABS: { id: StoreTab; label: string }[] = [
-  { id: 'all', label: '全部' },
-  { id: 'featured', label: '精选' },
-  ...WIDGET_CATEGORIES.map((c) => ({ id: c.id as StoreTab, label: c.label })),
-];
 
 /** 预览的自然像素尺寸：按桌面网格参考值（栏宽 368 + 间距 16、行高 176/368）折算，
  * 舞台按容器实际宽度等比缩放（见 PreviewStage），任何视口下不溢出、不裁切 */
@@ -82,6 +80,7 @@ export default function WidgetStorePage({
   store: LocalStore;
   onNavigate: (page: string) => void;
 }) {
+  const { t, lang } = useLang();
   const [tab, setTab] = useState<StoreTab>('all');
   const [query, setQuery] = useState('');
   const [selectedId, setSelectedId] = useState<WidgetId>(
@@ -107,8 +106,16 @@ export default function WidgetStorePage({
   const { theme } = useDisplayPrefs();
   const light = theme === 'light';
 
+  const tabs: { id: StoreTab; label: string }[] = [
+    { id: 'all', label: t('store.tabAll') },
+    { id: 'featured', label: t('store.tabFeatured') },
+    ...WIDGET_CATEGORIES.map((c) => ({ id: c.id as StoreTab, label: widgetCategoryLabelText(c.id, t) })),
+  ];
+
   const addedIds = store.data.widgets;
   const def = widgetDefOf(selectedId);
+  const defName = widgetDisplayName(def, t);
+  const defDesc = widgetDisplayDesc(def, t);
   const isAdded = addedIds.includes(def.id);
   const currentLayout = store.data.widgetLayouts[def.id] ?? def.defaultLayout;
   const activeSize = sizePick[def.id] ?? (isAdded ? currentLayout : def.defaultLayout);
@@ -118,10 +125,11 @@ export default function WidgetStorePage({
     return WIDGET_DEFINITIONS.filter((d) => {
       if (tab === 'featured' && !d.featured) return false;
       if ((tab === 'tools' || tab === 'appearance') && d.category !== tab) return false;
-      if (q && !`${d.name} ${d.desc}`.toLowerCase().includes(q)) return false;
+      // 中文原文与当前语言译名都参与匹配，EN 下搜英文名也能命中
+      if (q && !`${d.name} ${d.desc} ${widgetDisplayName(d, t)} ${widgetDisplayDesc(d, t)}`.toLowerCase().includes(q)) return false;
       return true;
     });
-  }, [tab, query]);
+  }, [tab, query, lang]);
 
   /** 预览底色：已分配的用已分配的；未添加组件尚未分配底色，预览临时挑一个同屏未用色（不落盘，
    * 真正添加后由主页的补抽逻辑正式分配，颜色可能与预览不同——底色本就是首次出现时随机抽的） */
@@ -156,8 +164,8 @@ export default function WidgetStorePage({
       {/* 页头：标题 + 仓库链接（规范 5.4：项目级热度信号链回 GitHub） */}
       <div className="flex items-end justify-between gap-3 flex-wrap">
         <div>
-          <h2 className="text-xl sm:text-2xl font-bold tracking-tight">组件商店</h2>
-          <p className="text-xs sm:text-sm text-white/45 mt-1">给主页挑组件：左边选，右边看真实预览，选好尺寸一键添加。</p>
+          <h2 className="text-xl sm:text-2xl font-bold tracking-tight">{t('store.title')}</h2>
+          <p className="text-xs sm:text-sm text-white/45 mt-1">{t('store.subtitle')}</p>
         </div>
         <a
           href="https://github.com/0waitgoo/zabox"
@@ -165,7 +173,7 @@ export default function WidgetStorePage({
           rel="noreferrer"
           className="flex items-center gap-1.5 text-xs text-white/55 hover:text-white bg-white/5 hover:bg-white/10 border border-white/10 rounded-lg px-2.5 py-1.5 transition-colors"
         >
-          <Star size={13} /> GitHub 仓库
+          <Star size={13} /> {t('store.githubRepo')}
         </a>
       </div>
 
@@ -177,16 +185,16 @@ export default function WidgetStorePage({
         >
           <div className="p-3 pb-2.5 border-b border-white/8 shrink-0">
             <div className="flex gap-1.5 overflow-x-auto pb-2.5" data-store-tabs>
-              {TABS.map((t) => (
+              {tabs.map((tabItem) => (
                 <button
-                  key={t.id}
-                  data-store-tab={t.id}
-                  onClick={() => setTab(t.id)}
+                  key={tabItem.id}
+                  data-store-tab={tabItem.id}
+                  onClick={() => setTab(tabItem.id)}
                   className={`px-3 py-1.5 rounded-full text-xs whitespace-nowrap transition-colors ${
-                    tab === t.id ? 'bg-indigo-500/85 text-white font-medium' : 'bg-white/5 text-white/55 hover:bg-white/10 hover:text-white'
+                    tab === tabItem.id ? 'bg-indigo-500/85 text-white font-medium' : 'bg-white/5 text-white/55 hover:bg-white/10 hover:text-white'
                   }`}
                 >
-                  {t.label}
+                  {tabItem.label}
                 </button>
               ))}
             </div>
@@ -196,7 +204,7 @@ export default function WidgetStorePage({
                 data-store-search
                 value={query}
                 onChange={(e) => setQuery(e.target.value)}
-                placeholder="搜索组件名称或简介"
+                placeholder={t('store.searchPlaceholder')}
                 className="w-full bg-white/5 border border-white/10 rounded-xl pl-9 pr-3 py-2 text-sm outline-none focus:border-indigo-400/50 placeholder:text-white/30"
               />
             </div>
@@ -212,6 +220,8 @@ export default function WidgetStorePage({
                   const selected = d.id === selectedId;
                   const added = addedIds.includes(d.id);
                   const Icon = d.icon;
+                  const tileName = widgetDisplayName(d, t);
+                  const tileDesc = widgetDisplayDesc(d, t);
                   return (
                     <button
                       key={d.id}
@@ -230,18 +240,18 @@ export default function WidgetStorePage({
                         <span className="flex flex-col items-end gap-1">
                           {d.featured && (
                             <span data-store-badge="featured" className="flex items-center gap-0.5 text-[10px] text-amber-300 bg-amber-400/10 border border-amber-300/25 rounded-full px-1.5 py-0.5">
-                              <Star size={9} /> 精选
+                              <Star size={9} /> {t('store.featured')}
                             </span>
                           )}
                           {added && (
                             <span data-store-added-badge data-store-badge="added" className="flex items-center gap-0.5 text-[10px] text-emerald-300">
-                              <Check size={10} /> 已添加
+                              <Check size={10} /> {t('store.added')}
                             </span>
                           )}
                         </span>
                       </span>
-                      <span className="block mt-2 text-sm font-medium leading-tight">{d.name}</span>
-                      <span className="block mt-0.5 text-[11px] text-white/40 leading-snug line-clamp-2">{d.desc}</span>
+                      <span className="block mt-2 text-sm font-medium leading-tight">{tileName}</span>
+                      <span className="block mt-0.5 text-[11px] text-white/40 leading-snug line-clamp-2">{tileDesc}</span>
                     </button>
                   );
                 })}
@@ -249,12 +259,12 @@ export default function WidgetStorePage({
             ) : (
               <div className="h-full flex flex-col items-center justify-center text-center px-6 py-10">
                 <p className="text-sm text-white/50">
-                  {tab === 'appearance' && !query.trim() ? '外观类组件即将到来' : '没有符合条件的组件'}
+                  {tab === 'appearance' && !query.trim() ? t('store.emptyAppearance') : t('store.emptyNone')}
                 </p>
                 <p className="text-[11px] text-white/35 mt-1.5 leading-relaxed">
                   {tab === 'appearance' && !query.trim()
-                    ? '视觉效果、背景美化这类社区贡献会归到「外观」类，上架后会出现在这里。'
-                    : '换个分类或清空搜索词试试。'}
+                    ? t('store.emptyAppearanceNote')
+                    : t('store.emptyHint')}
                 </p>
               </div>
             )}
@@ -273,27 +283,27 @@ export default function WidgetStorePage({
               </span>
               <div className="min-w-0">
                 <p className="flex items-center gap-2 flex-wrap">
-                  <span className="text-base font-semibold">{def.name}</span>
+                  <span className="text-base font-semibold">{defName}</span>
                   <span className="text-[10px] text-white/60 bg-white/8 border border-white/10 rounded-full px-2 py-0.5">
-                    {WIDGET_CATEGORIES.find((c) => c.id === def.category)?.label}
+                    {widgetCategoryLabelText(def.category, t)}
                   </span>
                   {def.featured && (
                     <span data-store-badge="featured" className="flex items-center gap-0.5 text-[10px] text-amber-300 bg-amber-400/10 border border-amber-300/25 rounded-full px-2 py-0.5">
-                      <Star size={9} /> 维护者精选
+                      <Star size={9} /> {t('store.curatorFeatured')}
                     </span>
                   )}
                   {isAdded && (
                     <span data-store-badge="added" className="flex items-center gap-0.5 text-[10px] text-emerald-300 bg-emerald-400/10 border border-emerald-300/25 rounded-full px-2 py-0.5">
-                      <Check size={9} /> 已在主页
+                      <Check size={9} /> {t('store.onHome')}
                     </span>
                   )}
                 </p>
-                <p className="text-xs text-white/45 mt-0.5">{def.desc}</p>
+                <p className="text-xs text-white/45 mt-0.5">{defDesc}</p>
               </div>
             </div>
             <div className="mt-3.5 flex flex-col gap-2 text-[11px] leading-relaxed">
               <p className="flex gap-2 flex-wrap">
-                <span className="text-white/35 shrink-0">支持尺寸</span>
+                <span className="text-white/35 shrink-0">{t('store.supportedSizes')}</span>
                 <span className="flex gap-1.5 flex-wrap">
                   {def.supportedSizes.map((s) => (
                     <span
@@ -304,31 +314,31 @@ export default function WidgetStorePage({
                           : 'border-white/12 text-white/55 bg-white/[0.04]'
                       }`}
                     >
-                      {widgetSizeLabel(s)}
+                      {widgetSizeLabel(s, t)}
                     </span>
                   ))}
                 </span>
               </p>
               <p className="flex gap-2">
-                <span className="text-white/35 shrink-0">默认尺寸</span>
-                <span className="text-white/65">{widgetSizeLabel(def.defaultLayout)}</span>
+                <span className="text-white/35 shrink-0">{t('store.defaultSize')}</span>
+                <span className="text-white/65">{widgetSizeLabel(def.defaultLayout, t)}</span>
               </p>
               <p className="flex gap-2">
-                <span className="text-white/35 shrink-0">联网声明</span>
+                <span className="text-white/35 shrink-0">{t('store.networkDecl')}</span>
                 <span className="text-white/65">
                   {def.network
-                    ? def.network.map((n) => `${n.endpoint} — ${n.purpose}`).join('；')
-                    : '不联网，不上传任何用户数据'}
+                    ? def.network.map((n) => `${n.endpoint} — ${n.purposeKey ? t(n.purposeKey) : n.purpose}`).join(lang === 'en' ? '; ' : '；')
+                    : t('store.noNetwork')}
                 </span>
               </p>
               <p className="flex gap-2">
-                <span className="text-white/35 shrink-0">数据存放</span>
+                <span className="text-white/35 shrink-0">{t('store.storageLabel')}</span>
                 <span className="text-white/65">
                   {def.storage && typeof def.storage === 'object'
-                    ? `独立存储 ${def.storage.own}（${def.storage.reason}）`
+                    ? t('store.storageOwn', { own: def.storage.own, reason: def.storage.reasonKey ? t(def.storage.reasonKey) : def.storage.reason })
                     : def.storage === 'device'
-                      ? '本机显示偏好（不进同步/导出）'
-                      : '本机本地存储（随数据导出 / GitHub 同步一起走，不经过官方服务器）'}
+                      ? t('store.storageDevice')
+                      : t('store.storageStore')}
                 </span>
               </p>
             </div>
@@ -339,14 +349,14 @@ export default function WidgetStorePage({
             className="store-panel rounded-[24px] bg-[#17171d] border border-white/12 p-4"
           >
             <div className="flex items-center justify-between gap-2 mb-3">
-              <p className={`text-xs font-medium ${light ? 'text-black/60' : 'text-white/60'}`}>实时预览（组件本体）</p>
+              <p className={`text-xs font-medium ${light ? 'text-black/60' : 'text-white/60'}`}>{t('store.livePreview')}</p>
               <span
                 data-store-size-label
                 className={`text-[11px] rounded-full px-2 py-0.5 border ${
                   light ? 'text-indigo-700 bg-indigo-600/10 border-indigo-500/35' : 'text-indigo-200 bg-indigo-500/15 border-indigo-400/40'
                 }`}
               >
-                当前尺寸：{widgetSizeLabel(activeSize)}
+                {t('store.currentSize', { size: widgetSizeLabel(activeSize, t) })}
               </span>
             </div>
             <PreviewStage layout={activeSize}>
@@ -358,7 +368,7 @@ export default function WidgetStorePage({
                 layout={activeSize}
               />
             </PreviewStage>
-            <p className={`text-[10px] mt-2.5 ${light ? 'text-black/40' : 'text-white/30'}`}>预览只展示、不响应点击；添加后在主页里正常使用。</p>
+            <p className={`text-[10px] mt-2.5 ${light ? 'text-black/40' : 'text-white/30'}`}>{t('store.previewNote')}</p>
           </div>
         </section>
       </div>
@@ -372,7 +382,7 @@ export default function WidgetStorePage({
         data-store-actionbar
         className="group-card-scope store-panel rounded-[24px] bg-[#17171d] border border-white/12 px-3 py-3 sm:px-4 flex items-center gap-2.5 flex-wrap sm:sticky sm:bottom-3 sm:z-10 sm:shadow-2xl sm:shadow-black/50"
       >
-        <span className="text-xs text-white/50 shrink-0">{isAdded ? '主页尺寸' : '添加尺寸'}</span>
+        <span className="text-xs text-white/50 shrink-0">{isAdded ? t('store.homeSize') : t('store.addSize')}</span>
         <div className="flex gap-1.5 flex-wrap">
           {def.supportedSizes.map((s) => {
             const selected = sameWidgetSize(s, activeSize);
@@ -386,7 +396,7 @@ export default function WidgetStorePage({
                 }`}
               >
                 {selected && <Check size={12} />}
-                {widgetSizeLabel(s)}
+                {widgetSizeLabel(s, t)}
               </button>
             );
           })}
@@ -394,7 +404,7 @@ export default function WidgetStorePage({
         <div className="flex-1" />
         {justAdded === def.id && (
           <span data-store-added-note data-store-badge="added" className="flex items-center gap-1 text-xs text-emerald-300">
-            <Check size={13} /> 已添加到主页
+            <Check size={13} /> {t('store.addedToHome')}
           </span>
         )}
         {isAdded ? (
@@ -403,14 +413,14 @@ export default function WidgetStorePage({
               onClick={() => onNavigate('home')}
               className="px-3 py-2 rounded-xl bg-indigo-500/85 hover:bg-indigo-500 text-white text-sm font-medium transition-colors"
             >
-              去主页看看
+              {t('store.goHome')}
             </button>
             <button
               data-store-remove
               onClick={() => store.setWidgetVisible(def.id, false)}
               className="flex items-center gap-1 px-3 py-2 rounded-xl bg-white/8 hover:bg-white/12 text-white/75 text-sm transition-colors"
             >
-              <Minus size={13} /> 移除
+              <Minus size={13} /> {t('store.remove')}
             </button>
           </>
         ) : (
@@ -419,11 +429,11 @@ export default function WidgetStorePage({
             onClick={addSelected}
             className="flex items-center gap-1.5 px-4 py-2 rounded-xl bg-indigo-500/85 hover:bg-indigo-500 text-white text-sm font-medium transition-colors"
           >
-            <Plus size={14} /> 添加到主页
+            <Plus size={14} /> {t('store.addToHome')}
           </button>
         )}
       </div>
-      <p className="text-[11px] text-white/30 text-center">移除组件不会删除它的数据，重新添加即原样恢复。</p>
+      <p className="text-[11px] text-white/30 text-center">{t('store.removeNote')}</p>
     </div>
   );
 }

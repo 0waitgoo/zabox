@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { ArrowLeft, CalendarDays, CalendarRange, ListTodo, Sparkles } from 'lucide-react';
+import { useLang } from '../../i18n/useLang';
 import {
   taskFlatStats,
   widgetCardKey,
@@ -40,6 +41,7 @@ export default function PlanPage({
   flatPanels?: boolean;
 }) {
   const { tasks } = store.data;
+  const { t } = useLang();
   /** 主视图 / AI 整理（与 2x 卡面头部同一对视图、同一切换语言） */
   const [innerView, setInnerView] = useState<'main' | 'ai'>('main');
   const curView = view ?? innerView;
@@ -84,14 +86,14 @@ export default function PlanPage({
       {!hideHeader && (
         <div className="flex items-end justify-between gap-3 flex-wrap">
           <div>
-            <h2 className="text-xl sm:text-2xl font-bold tracking-tight">计划</h2>
+            <h2 className="text-xl sm:text-2xl font-bold tracking-tight">{t('plan.pageTitle')}</h2>
             <p className="text-xs sm:text-sm text-white/45 mt-1">
-              待办、日程表与推进表的全窗工作区——和主页计划卡同一份数据，在哪边改都即时同步。
+              {t('plan.pageSubtitle')}
             </p>
           </div>
           <div className="flex items-center gap-3 shrink-0">
             <span data-plan-page-progress className="text-xs text-white/50 tabular-nums">
-              今日进度 {done}/{total} · {pct}%
+              {t('plan.todayProgress', { done, total, pct })}
             </span>
             {!hideAiButton && (
               <button
@@ -102,11 +104,11 @@ export default function PlanPage({
               >
                 {curView === 'ai' ? (
                   <>
-                    <ArrowLeft size={12} /> 返回
+                    <ArrowLeft size={12} /> {t('plan.back')}
                   </>
                 ) : (
                   <>
-                    <Sparkles size={12} /> AI 整理
+                    <Sparkles size={12} /> {t('ai.title')}
                   </>
                 )}
               </button>
@@ -132,23 +134,23 @@ export default function PlanPage({
           <div className="flex items-center gap-1.5 shrink-0">
             <div className="flex gap-0.5 p-0.5 rounded-xl bg-white/5 border border-white/10">
               {([
-                ['plan', '计划', ListTodo],
-                ['timeline', '日程表', CalendarDays],
-                ['month', '推进表', CalendarRange],
-              ] as const).map(([tab, label, Icon]) => (
+                ['plan', 'plan.tabPlan', ListTodo],
+                ['timeline', 'plan.tabTimeline', CalendarDays],
+                ['month', 'plan.tabMonth', CalendarRange],
+              ] as const).map(([tab, labelKey, Icon]) => (
                 <button
                   key={tab}
                   type="button"
                   data-plan-page-tab={tab}
-                  title={label}
-                  aria-label={label}
+                  title={t(labelKey)}
+                  aria-label={t(labelKey)}
                   onClick={() => switchPlanTab(tab)}
                   className={`flex items-center gap-1 px-3 py-1.5 rounded-lg transition-colors text-xs ${
                     planTab === tab ? 'bg-indigo-500/80 text-white font-medium' : 'text-white/55 hover:text-white/85'
                   }`}
                 >
                   <Icon size={13} />
-                  <span>{label}</span>
+                  <span>{t(labelKey)}</span>
                 </button>
               ))}
             </div>

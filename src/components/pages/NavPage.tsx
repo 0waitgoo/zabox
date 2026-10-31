@@ -2,6 +2,8 @@ import React, { useState } from 'react';
 import { motion } from 'motion/react';
 import IconImage from '../v2/IconImage';
 import { toolsByCategory } from '../../data/navPool';
+import { useLang } from '../../i18n/useLang';
+import { displayPoolCategory } from '../../i18n/groupNames';
 
 /** 娱乐六分类（与 navPool 娱乐分组同名）：筛选时只留这六组 */
 const ENT_CATEGORIES = ['视频', '二次元', '音乐', '阅读', '游戏', '娱乐'];
@@ -9,6 +11,7 @@ const ENT_CATEGORIES = ['视频', '二次元', '音乐', '阅读', '游戏', '�
 function NavPage() {
   // 娱乐筛选（2026-10-28 晚）：点“娱乐导航”只显示娱乐六分类，再点“全部网站”回到全部
   const [entOnly, setEntOnly] = useState(false);
+  const { t, lang } = useLang();
   const visibleEntries = Object.entries(toolsByCategory).filter(
     ([category]) => !entOnly || ENT_CATEGORIES.includes(category),
   );
@@ -17,7 +20,7 @@ function NavPage() {
     <div className="space-y-8">
       <div className="flex items-center justify-between">
         <h2 className="text-xl font-bold tracking-tight">
-          {entOnly ? '娱乐导航' : 'AI网站导航'}
+          {entOnly ? t('nav.entertainmentTitle') : t('nav.aiNavTitle')}
         </h2>
         <button
           type="button"
@@ -25,7 +28,7 @@ function NavPage() {
           onClick={() => setEntOnly(!entOnly)}
           className="rounded-full border border-white/10 bg-white/5 px-3.5 py-1.5 text-sm text-white/80 hover:bg-white/10 hover:text-white transition-colors"
         >
-          {entOnly ? '全部网站' : '娱乐导航'}
+          {entOnly ? t('nav.allSites') : t('nav.entertainment')}
         </button>
       </div>
       {visibleEntries.map(([category, tools], categoryIdx) => (
@@ -36,7 +39,7 @@ function NavPage() {
           transition={{ duration: 0.3, delay: categoryIdx * 0.05 }}
         >
           <div className="group-card-panel rounded-[32px] p-6">
-            <h3 className="font-semibold text-lg tracking-tight mb-4">{category}</h3>
+            <h3 className="font-semibold text-lg tracking-tight mb-4">{displayPoolCategory(category, lang)}</h3>
             <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-2.5">
               {tools.map((tool, idx) => (
                 <a

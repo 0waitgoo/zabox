@@ -1,12 +1,15 @@
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { Clock, ArrowUpRight, History, RefreshCw } from 'lucide-react';
 import { fetchNews, type NewsItem } from '../../services/api';
+import { useLang } from '../../i18n/useLang';
 
 function NewsPage() {
   const [news, setNews] = useState<NewsItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshKey, setRefreshKey] = useState(0);
   const [expandedNewsId, setExpandedNewsId] = useState<number | null>(null);
+  const { t, lang } = useLang();
+  const dateLocale = lang === 'en' ? 'en-US' : 'zh-CN';
 
   useEffect(() => {
     let cancelled = false;
@@ -86,7 +89,7 @@ function NewsPage() {
           <p>{newsItem.description}</p>
         )}
         <p className="text-white/60">
-          更多精彩内容，敬请关注我们的新闻更新。
+          {t('nav.newsMore')}
         </p>
       </div>
       {newsItem.url && newsItem.url !== '#' && (
@@ -94,7 +97,7 @@ function NewsPage() {
           onClick={() => handleNewsLink(newsItem.url)}
           className="mt-4 flex items-center gap-2 px-6 py-3 bg-indigo-500/80 hover:bg-indigo-600/90 backdrop-blur-md rounded-xl text-white font-medium transition-all shadow-lg shadow-indigo-500/20"
         >
-          阅读原文
+          {t('nav.newsReadOriginal')}
           <ArrowUpRight size={18} />
         </button>
       )}
@@ -105,12 +108,12 @@ function NewsPage() {
     return (
       <div className="space-y-8">
         <div className="flex items-center justify-between">
-          <h2 className="text-xl font-bold tracking-tight">AI新闻</h2>
+          <h2 className="text-xl font-bold tracking-tight">{t('nav.newsTitle')}</h2>
         </div>
         <div className="glass-panel rounded-[32px] p-8 border border-white/10">
           <div className="flex items-center justify-center gap-3 text-white/60">
             <RefreshCw size={20} className="animate-spin" />
-            <span>加载中...</span>
+            <span>{t('nav.newsLoading')}</span>
           </div>
         </div>
       </div>
@@ -121,25 +124,25 @@ function NewsPage() {
     <div className="space-y-8">
       {news.length === 0 && (
         <div className="glass-panel rounded-3xl p-8 text-center text-white/60">
-          <p>资讯暂时不可用，请稍后重试。</p>
-          <button type="button" onClick={handleRefresh} className="mt-3 text-indigo-300">重新加载</button>
+          <p>{t('nav.newsPageEmpty')}</p>
+          <button type="button" onClick={handleRefresh} className="mt-3 text-indigo-300">{t('nav.newsPageReload')}</button>
         </div>
       )}
       <div className="flex items-center justify-between">
-        <h2 className="text-xl font-bold tracking-tight">AI新闻</h2>
+        <h2 className="text-xl font-bold tracking-tight">{t('nav.newsTitle')}</h2>
         <button 
           onClick={handleRefresh}
           className="text-white/50 text-sm hover:text-white/80 transition-colors flex items-center gap-1"
         >
           <RefreshCw size={14} />
-          换一批
+          {t('nav.newsRefresh')}
         </button>
       </div>
 
       {[
-        { label: '今天', data: today },
-        { label: '昨天', data: yesterday },
-        { label: '历史新闻', data: history, isHistory: true }
+        { label: t('nav.newsToday'), data: today },
+        { label: t('nav.newsYesterday'), data: yesterday },
+        { label: t('nav.newsHistory'), data: history, isHistory: true }
       ].map(({ label, data, isHistory }) => data.length > 0 && (
         <div key={label}>
           {isHistory ? (
@@ -158,7 +161,7 @@ function NewsPage() {
                       >
                         <div className="flex items-center gap-3">
                           <span className="text-white/60 text-xs">
-                            {item.publishedAt ? new Date(item.publishedAt).toLocaleDateString('zh-CN') : ''}
+                            {item.publishedAt ? new Date(item.publishedAt).toLocaleDateString(dateLocale) : ''}
                           </span>
                           <span className="text-indigo-300 text-xs">{item.category}</span>
                           <span className="text-white/80 text-xs group-hover:text-white transition-colors max-w-[300px] truncate">
@@ -167,7 +170,7 @@ function NewsPage() {
                         </div>
                         <div className="flex items-center gap-2">
                           {expandedNewsId === item.id && (
-                            <span className="text-white/50 text-xs">收起</span>
+                            <span className="text-white/50 text-xs">{t('nav.newsCollapse')}</span>
                           )}
                           <ArrowUpRight 
                             size={12} 
@@ -177,13 +180,13 @@ function NewsPage() {
                       </div>
                       {expandedNewsId === item.id && (
                         <div className="mt-2 pb-2 text-white/70 text-sm leading-relaxed space-y-2">
-                          <p>{item.description || `这是关于${item.title}的详细报道。`}</p>
+                          <p>{item.description || t('nav.newsDetailFallback', { name: item.title })}</p>
                           {item.url && item.url !== '#' && (
                             <button 
                               onClick={(e) => { e.stopPropagation(); handleNewsLink(item.url); }}
                               className="text-indigo-300 hover:text-indigo-200 text-xs"
                             >
-                              查看原文 →
+                              {t('nav.newsViewOriginal')}
                             </button>
                           )}
                         </div>
@@ -217,7 +220,7 @@ function NewsPage() {
                           </div>
                           <div className="flex items-center gap-2 text-white/70 text-xs mb-3 font-medium flex-wrap">
                             <Clock size={14} />
-                            <span>{item.publishedAt ? new Date(item.publishedAt).toLocaleDateString('zh-CN') : ''}</span>
+                            <span>{item.publishedAt ? new Date(item.publishedAt).toLocaleDateString(dateLocale) : ''}</span>
                             <span className="w-1 h-1 rounded-full bg-white/30 mx-1"></span>
                             <span className="text-indigo-300">{item.source}</span>
                           </div>
@@ -252,7 +255,7 @@ function NewsPage() {
                             <div className="flex-1 min-w-0">
                               <div className="flex items-center gap-2 text-white/50 text-xs mb-1">
                                 <Clock size={12} />
-                                <span>{item.publishedAt ? new Date(item.publishedAt).toLocaleDateString('zh-CN') : ''}</span>
+                                <span>{item.publishedAt ? new Date(item.publishedAt).toLocaleDateString(dateLocale) : ''}</span>
                                 <span className="text-indigo-300 text-xs">{item.source}</span>
                               </div>
                               <h4 className="text-sm font-semibold text-white/80 group-hover:text-white transition-colors truncate">
@@ -283,7 +286,7 @@ function NewsPage() {
                                 onClick={() => handleNewsLink(item.url)}
                                 className="mt-3 flex items-center gap-2 px-4 py-2 bg-indigo-500/80 hover:bg-indigo-600/90 backdrop-blur-md rounded-lg text-white text-sm font-medium transition-all"
                               >
-                                阅读原文
+                                {t('nav.newsReadOriginal')}
                                 <ArrowUpRight size={14} />
                               </button>
                             )}

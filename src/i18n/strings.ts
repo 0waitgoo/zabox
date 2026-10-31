@@ -72,7 +72,10 @@ const zh: Dict = {
   'ai.fillApply': '应用图标（{n} 站）',
   'ai.fillDone': '已补 {n} 个站的图标。',
   'ai.fillRescan': '重新扫描',
-  'ai.fillNote': '只补显示字标的站；你手动设过文字图标或上传过图标的站会跳过，不用 AI 口令。',
+  'ai.fillNote': '只补显示字标的站；你手动设过文字图标或上传过图标的站会跳过。探测不到的站会用已配置的 AI 找官网 Logo 地址，验证通过才列出；没配 AI 时只用探测。',
+  'ai.fillAiBadge': 'AI 推荐',
+  'ai.fillAiWorking': '探测没找到的站，正在用 AI 找官网 Logo 地址…',
+  'ai.fillAiFallback': 'AI 找图失败，本次只显示探测结果。',
 };
 
 const en: Dict = {
@@ -118,7 +121,10 @@ const en: Dict = {
   'ai.fillApply': 'Apply icons ({n} sites)',
   'ai.fillDone': 'Applied icons to {n} sites.',
   'ai.fillRescan': 'Scan again',
-  'ai.fillNote': 'Only sites showing a letter icon are scanned; sites with a custom text or uploaded icon are skipped. No AI key needed.',
+  'ai.fillNote': 'Only sites showing a letter icon are scanned; sites with a custom text or uploaded icon are skipped. Sites the probe misses are looked up by the configured AI for an official logo URL, listed only after loading checks pass; without AI configured, probe results only.',
+  'ai.fillAiBadge': 'AI suggested',
+  'ai.fillAiWorking': 'Looking up official logo URLs with AI for the sites the probe missed…',
+  'ai.fillAiFallback': 'AI lookup failed; showing probe results only.',
 };
 
 /** 取文案：英文缺词回落中文，中文缺词回落 key；支持 {n} 占位替换。 */

@@ -195,8 +195,15 @@ export async function geGetFile(cfg: GiteeSyncConfig): Promise<GeGetResult> {
   }
   if (!res.ok) return { kind: 'error', message: httpErrorMessage(res.status) };
   try {
-    const body = (await res.json()) as { content?: string; sha?: string };
-    if (typeof body.content !== 'string' || typeof body.sha !== 'string') {
+    const body = (await res.json()) as { content?: unknown; sha?: unknown; message?: unknown };
+    if (Array.isArray(body)) {
+      return { kind: 'error', message: 'Gitee 返回的文件格式异常（可能路径指向文件夹）' };
+    }
+    // Gitee 偶发以 200 带 message 文案代替标准文件体：原样报出，便于定位
+    if (typeof body?.message === 'string' && body.message) {
+      return { kind: 'error', message: `Gitee：${body.message}` };
+    }
+    if (typeof body?.content !== 'string' || typeof body?.sha !== 'string') {
       return { kind: 'error', message: 'Gitee 返回的文件格式异常（可能路径指向文件夹）' };
     }
     const text = b64DecodeUtf8(body.content);
@@ -210,12 +217,13 @@ export async function geGetFile(cfg: GiteeSyncConfig): Promise<GeGetResult> {
 
 export type GePutResult = { kind: 'ok'; sha: string } | { kind: 'conflict' } | { kind: 'error'; message: string };
 
-/** 写回云端文件：sha 为 null 表示新建；sha 与云端不一致时按冲突归类（409/422，与 GitHub 线同口径） */
+/** 写回云端文件：与 GitHub 不同，Gitee 新建文件走 POST、更新文件走 PUT（PUT 新建会 400）。
+ * sha 为 null 表示新建；sha 与云端不一致时按冲突归类（409/422，与 GitHub 线同口径） */
 export async function gePutFile(cfg: GiteeSyncConfig, text: string, sha: string | null): Promise<GePutResult> {
   let res: Response;
   try {
     res = await fetch(withToken(contentsUrl(cfg), cfg.token), {
-      method: 'PUT',
+      method: sha ? 'PUT' : 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
         access_token: cfg.token,
@@ -231,8 +239,8 @@ export async function gePutFile(cfg: GiteeSyncConfig, text: string, sha: string 
   if (res.status === 409 || res.status === 422) return { kind: 'conflict' };
   if (!res.ok) return { kind: 'error', message: httpErrorMessage(res.status) };
   try {
-    const body = (await res.json()) as { content?: { sha?: string }; commit?: { sha?: string } };
-    const newSha = body.content?.sha;
+    const body = (await res.json()) as { content?: { sha?: unknown }; sha?: unknown };
+    const newSha = typeof body.content?.sha === 'string' ? body.content.sha : body.sha;
     if (typeof newSha !== 'string') return { kind: 'error', message: 'Gitee 未返回新文件 sha' };
     return { kind: 'ok', sha: newSha };
   } catch {

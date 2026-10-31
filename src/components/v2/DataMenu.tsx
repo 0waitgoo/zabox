@@ -1356,7 +1356,7 @@ export default function DataMenu({ store }: { store: LocalStore }) {
                   onClick={() => void switchProvider('gitee')}
                   className={`px-2.5 py-1 rounded-lg text-[11px] font-medium transition-colors ${provider === 'gitee' ? 'bg-violet-500/80 text-white' : 'bg-white/6 text-white/60 hover:text-white/85'}`}
                 >
-                  Gitee
+                  Gitee (CN)
                 </button>
               </div>
               {provider === 'github' && (

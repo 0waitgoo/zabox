@@ -1,5 +1,5 @@
 import React, { useRef, useState } from 'react';
-import { Pin, Plus, Check, X, RefreshCw, Upload } from 'lucide-react';
+import { Pin, Plus, Check, X, RefreshCw, Upload, Trash2 } from 'lucide-react';
 import { LETTER_ICON_COLORS, SITE_TAG_MAX, SITE_TAGS_MAX_COUNT, cleanSiteTag, cleanSiteTags, letterIconDataUri, siteIconSrc, siteLogoFallback, siteTags, sortSites, type NavGroup, type SiteEntry } from '../../data/groups';
 import { logoForSite, type LocalStore, type SiteDraft } from '../../store/localStore';
 import { useLang } from '../../i18n/useLang';
@@ -439,6 +439,7 @@ export function SiteForm({
 /**
  * 展开态里的一行站点：点击打开站点；编辑 / 删除改走右键菜单（第十六轮追加，
  * 悬停不再冒出铅笔/垃圾桶图标）。编辑态由父级控制（菜单点「编辑」后进入）。
+ * 编辑模式（标题行开关）时：点击行改开编辑表单、行尾出垃圾桶一键删除。
  */
 function EditableSiteRow({
   site,
@@ -450,6 +451,8 @@ function EditableSiteRow({
   formSpanCls,
   dragging = false,
   guardClick,
+  editMode = false,
+  onEditSite,
 }: {
   site: SiteEntry;
   groupId: string;
@@ -463,6 +466,10 @@ function EditableSiteRow({
   dragging?: boolean;
   /** 点击守卫：刚拖完时吞掉紧随的 click，避免顺带打开站点 */
   guardClick?: () => boolean;
+  /** 编辑模式：行点击开编辑、行尾出垃圾桶 */
+  editMode?: boolean;
+  /** 编辑模式下行点击：打开该站点的编辑表单 */
+  onEditSite?: () => void;
 }) {
   const { t } = useLang();
   if (editing) {
@@ -491,6 +498,11 @@ function EditableSiteRow({
       <button
         onClick={() => {
           if (guardClick?.()) return;
+          // 编辑模式：行点击开编辑表单，不打开网站
+          if (editMode) {
+            onEditSite?.();
+            return;
+          }
           window.open(site.url, '_blank');
         }}
         className="flex items-center gap-2.5 flex-1 min-w-0 text-left"
@@ -509,6 +521,22 @@ function EditableSiteRow({
           <span className="block text-[11px] text-white/45 truncate mt-0.5">{site.description}</span>
         </span>
       </button>
+      {editMode && (
+        <button
+          type="button"
+          data-site-delete
+          title={t('menu.delete')}
+          aria-label={`${t('menu.delete')}${site.name}`}
+          onPointerDown={(e) => e.stopPropagation()}
+          onClick={(e) => {
+            e.stopPropagation();
+            if (site.id) store.deleteSite(groupId, site.id);
+          }}
+          className="shrink-0 p-1.5 rounded-lg text-white/40 hover:text-red-300 hover:bg-red-500/10 transition-colors"
+        >
+          <Trash2 size={14} />
+        </button>
+      )}
     </div>
   );
 }
@@ -527,6 +555,7 @@ export default function GroupExpandedBody({
   store,
   editRequestId,
   onEditRequestDone,
+  editMode = false,
 }: {
   group: NavGroup;
   store: LocalStore;
@@ -535,6 +564,8 @@ export default function GroupExpandedBody({
   /** 收起态行左滑「编辑」的直达请求（第七十三轮）：展开挂载后打开该站点的编辑表单，随即回调清空 */
   editRequestId?: string | null;
   onEditRequestDone?: () => void;
+  /** 编辑模式（标题行开关）：行点击改开编辑表单、每行行尾出垃圾桶一键删除 */
+  editMode?: boolean;
 }) {
   const [addMode, setAddMode] = useState<'choice' | 'custom' | 'pool' | null>(null);
   const [menu, setMenu] = useState<SiteMenuState | null>(null);
@@ -621,6 +652,8 @@ export default function GroupExpandedBody({
                       formSpanCls="col-span-1 min-[480px]:col-span-3"
                       dragging={siteDrag.isDragging(site)}
                       guardClick={() => siteDrag.consumeSuppressClick() || swipeGuard()}
+                      editMode={editMode}
+                      onEditSite={() => setEditingSiteId(site.id ?? null)}
                     />
                   )}
                 </SwipeableRow>

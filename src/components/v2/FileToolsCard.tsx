@@ -8,6 +8,7 @@ import {
   useToolsWorkspace,
 } from '../../store/toolsWorkspace';
 import type { WidgetTint } from '../../store/localStore';
+import { useLang } from '../../i18n/useLang';
 import { Card, CardIconBadge } from './Card';
 
 const PdfToImages = React.lazy(() => import('../tools/PdfToImages'));
@@ -58,6 +59,12 @@ export default function FileToolsCard({
   const ws = useToolsWorkspace();
   /** 工作区是否曾经打开过：首次打开才挂载（懒加载工具实现），之后常驻保状态 */
   const [everOpened, setEverOpened] = useState(ws.open);
+  const { t } = useLang();
+  const toolLabel = (id: ToolTabId, fallback: string): string => {
+    const key = `home.tool.${id}`;
+    const translated = t(key);
+    return translated === key ? fallback : translated;
+  };
   useEffect(() => {
     if (ws.open) setEverOpened(true);
   }, [ws.open]);
@@ -78,7 +85,7 @@ export default function FileToolsCard({
 
   return (
     <Card
-      title="文件工具"
+      title={t('home.toolsTitle')}
       icon={
         <CardIconBadge className="bg-indigo-500 text-white">
           <Wrench size={14} />
@@ -96,7 +103,7 @@ export default function FileToolsCard({
             className="flex items-center gap-1 rounded-lg px-2 py-1 text-[11px] text-white/50 transition-colors hover:bg-white/10 hover:text-white shrink-0"
           >
             <X size={12} />
-            收起
+            {t('menu.collapse')}
           </button>
         ) : undefined
       }
@@ -113,7 +120,7 @@ export default function FileToolsCard({
               key={t.id}
               type="button"
               data-tool-link={t.id}
-              aria-label={t.label}
+              aria-label={toolLabel(t.id, t.label)}
               onClick={(e) => {
                 e.stopPropagation();
                 openToolsWorkspace(t.id);
@@ -130,7 +137,7 @@ export default function FileToolsCard({
                 <Icon size={compact ? 14 : 19} />
               </span>
               <span className={`leading-tight text-white/75 whitespace-nowrap ${compact ? 'text-[11px]' : 'text-center text-xs'}`}>
-                {t.label}
+                {toolLabel(t.id, t.label)}
               </span>
             </button>
           );
@@ -148,19 +155,19 @@ export default function FileToolsCard({
               className="flex items-center gap-0.5 rounded-lg px-1.5 py-1 text-xs text-white/60 transition-colors hover:bg-white/10 hover:text-white shrink-0"
             >
               <ChevronLeft size={14} />
-              全部工具
+              {t('home.toolsAll')}
             </button>
-            <span className="text-sm font-medium text-white/90 truncate">{activeDef.label}</span>
+            <span className="text-sm font-medium text-white/90 truncate">{toolLabel(activeDef.id, activeDef.label)}</span>
             <span className="ml-auto hidden sm:flex items-center gap-1 text-[11px] text-white/40 shrink-0">
               <ShieldCheck size={12} className="text-emerald-300/80 shrink-0" />
-              本地处理，文件不上传
+              {t('home.toolsLocal')}
             </span>
           </div>
 
           {/* 工具切换条：不回瓷砖面也能换工具（切换即重挂载，与原工具页切 tab 一致）。
               可换行（第一百零四轮）：窄屏放不下就排两行，6 个标签全可见——不横滚、不裁切；
               桌面宽卡一行放得下时自然保持单行 */}
-          <div className="mt-2 flex flex-wrap gap-1.5 pb-1 shrink-0" role="tablist" aria-label="工具列表">
+          <div className="mt-2 flex flex-wrap gap-1.5 pb-1 shrink-0" role="tablist" aria-label={t('home.toolsList')}>
             {TOOL_DEFS.map((t) => {
               const Icon = t.icon;
               const active = t.id === ws.tool;
@@ -179,7 +186,7 @@ export default function FileToolsCard({
                   }`}
                 >
                   <Icon size={13} />
-                  {t.label}
+                  {toolLabel(t.id, t.label)}
                 </button>
               );
             })}

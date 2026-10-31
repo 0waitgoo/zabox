@@ -2,6 +2,7 @@ import React, { useRef, useState } from 'react';
 import { Pin, Plus, Check, X, RefreshCw, Upload } from 'lucide-react';
 import { SITE_TAG_MAX, SITE_TAGS_MAX_COUNT, cleanSiteTag, cleanSiteTags, letterIconDataUri, siteIconSrc, siteLogoFallback, siteTags, sortSites, type NavGroup, type SiteEntry } from '../../data/groups';
 import { logoForSite, type LocalStore, type SiteDraft } from '../../store/localStore';
+import { useLang } from '../../i18n/useLang';
 import { SiteLogo } from './Card';
 import SiteContextMenu, { siteMenuPosition, type SiteMenuState } from './SiteContextMenu';
 import { SITE_DRAG_PLACEHOLDER_STYLE, useSiteDragSort } from './useSiteDragSort';
@@ -122,6 +123,7 @@ export function SiteForm({
   const [name, setName] = useState(initial?.name ?? '');
   const [url, setUrl] = useState(initial?.url ?? '');
   const [description, setDescription] = useState(initial?.description ?? '');
+  const { t } = useLang();
   // 标签初值（第七十六轮多选）：既有 tags 优先（siteTags 兼容迁移前的旧单字段）；
   // 老站点只有 needVpn 标记时预填 VPN，保存即正式写入 tags
   const [tags, setTags] = useState<string[]>(() => {
@@ -164,10 +166,10 @@ export function SiteForm({
 
   const submit = () => {
     const finalUrl = normalizeUrl(url);
-    if (!name.trim()) return setError('请填网站名称');
-    if (!finalUrl || !finalUrl.includes('.')) return setError('请填有效网址，如 example.com');
-    if (iconMode === 'text' && ![...iconText.trim()].length) return setError('请填写图标文字（1–2 个字）');
-    if (iconMode === 'upload' && !iconImage) return setError('请先选择一张图片作图标');
+    if (!name.trim()) return setError(t('menu.formErrorName'));
+    if (!finalUrl || !finalUrl.includes('.')) return setError(t('menu.formErrorUrl'));
+    if (iconMode === 'text' && ![...iconText.trim()].length) return setError(t('menu.formErrorIconText'));
+    if (iconMode === 'upload' && !iconImage) return setError(t('menu.formErrorIconImage'));
     // auto 模式保存时始终按当前名称/网址重取一次：预览的最后兜底就是这条地址，
     // 保存带上它，预览与落盘才一致（否则存量旧 logo 会把预览的好图标顶掉，出现“预览有标、保存无效”）；
     // 名称/网址变了又没手动重检索时同样重取（与改版前每次保存重算图标的老行为一致）
@@ -199,7 +201,7 @@ export function SiteForm({
           <input
             value={name}
             onChange={(e) => setName(e.target.value)}
-            placeholder="名称，如 豆包"
+            placeholder={t('menu.formNamePlaceholder')}
             maxLength={SITE_NAME_MAX}
             className={`${inputCls} pr-11`}
           />
@@ -207,13 +209,13 @@ export function SiteForm({
             {name.length}/{SITE_NAME_MAX}
           </span>
         </div>
-        <input value={url} onChange={(e) => setUrl(e.target.value)} placeholder="网址 URL，如 doubao.com" className={inputCls} />
+        <input value={url} onChange={(e) => setUrl(e.target.value)} placeholder={t('menu.formUrlPlaceholder')} className={inputCls} />
       </div>
       <div className="relative">
         <input
           value={description}
           onChange={(e) => setDescription(e.target.value)}
-          placeholder="一句介绍"
+          placeholder={t('menu.formDescPlaceholder')}
           maxLength={SITE_DESC_MAX}
           className={`${inputCls} pr-11`}
         />
@@ -238,9 +240,9 @@ export function SiteForm({
         <span className="flex items-center rounded-lg bg-white/5 border border-white/10 overflow-hidden shrink-0">
           {(
             [
-              ['auto', '自动检索'],
-              ['text', '文字'],
-              ['upload', '上传图片'],
+              ['auto', t('menu.formIconAuto')],
+              ['text', t('menu.formIconText')],
+              ['upload', t('menu.formIconUpload')],
             ] as const
           ).map(([m, label]) => (
             <button
@@ -263,7 +265,7 @@ export function SiteForm({
             onClick={() => setAutoLogo(logoForSite(name.trim() || '站点', normalizeUrl(url) || 'https://example.com'))}
             className="flex items-center gap-1 text-[11px] px-2.5 py-1.5 rounded-lg bg-white/8 hover:bg-white/12 text-white/70 transition-colors shrink-0"
           >
-            <RefreshCw size={11} /> 重新检索
+            <RefreshCw size={11} /> {t('menu.formRefetch')}
           </button>
         )}
         {iconMode === 'text' && (
@@ -282,7 +284,7 @@ export function SiteForm({
               const v = e.target.value;
               setIconText(iconTextComposing.current ? v : [...v].slice(0, 2).join(''));
             }}
-            placeholder="1–2 个字，如 AI"
+            placeholder={t('menu.formIconTextPlaceholder')}
             data-icon-text
             className="w-28 shrink-0 bg-white/5 border border-white/15 rounded-xl px-2.5 py-1.5 text-xs outline-none focus:border-white/40 placeholder:text-white/30"
           />
@@ -295,7 +297,7 @@ export function SiteForm({
               onClick={() => iconFileRef.current?.click()}
               className="flex items-center gap-1 text-[11px] px-2.5 py-1.5 rounded-lg bg-white/8 hover:bg-white/12 text-white/70 transition-colors shrink-0"
             >
-              <Upload size={11} /> {iconImage ? '更换图片' : '选择图片'}
+              <Upload size={11} /> {iconImage ? t('menu.formChangeImage') : t('menu.formChooseImage')}
             </button>
             <input
               ref={iconFileRef}
@@ -307,14 +309,14 @@ export function SiteForm({
                 if (f) {
                   void compressIconImage(f).then((dataUrl) => {
                     if (dataUrl) setIconImage(dataUrl);
-                    else setError('这张图片读不了，换一张试试');
+                    else setError(t('menu.formErrorImageRead'));
                   });
                 }
                 e.target.value = '';
               }}
             />
             {iconImage && (
-              <span className="text-[10px] text-emerald-300 shrink-0">已压缩至 {Math.max(1, Math.round(iconImage.length / 1024))}KB</span>
+              <span className="text-[10px] text-emerald-300 shrink-0">{t('menu.formCompressed', { kb: Math.max(1, Math.round(iconImage.length / 1024)) })}</span>
             )}
           </>
         )}
@@ -334,7 +336,7 @@ export function SiteForm({
               commitCustomTag();
             }
           }}
-          placeholder="自定义，回车添加"
+          placeholder={t('menu.formCustomTagPlaceholder')}
           maxLength={SITE_TAG_MAX}
           disabled={tagsFull}
           data-site-tag-input
@@ -360,17 +362,17 @@ export function SiteForm({
           );
         })}
         {tags
-          .filter((t) => !SITE_TAG_PRESETS.some((p) => p.value === t))
-          .map((t) => (
+          .filter((tag) => !SITE_TAG_PRESETS.some((p) => p.value === tag))
+          .map((tag) => (
             <span
-              key={t}
-              data-custom-tag-chip={t}
+              key={tag}
+              data-custom-tag-chip={tag}
               className="flex items-center gap-1 shrink-0 text-[11px] font-semibold px-2 py-1.5 rounded-xl border bg-white/10 text-white/70 border-white/25"
             >
-              {t}
+              {tag}
               <button
                 type="button"
-                aria-label={`移除标签 ${t}`}
+                aria-label={t('menu.formRemoveTag', { tag })}
                 onClick={() => setTags((prev) => prev.filter((x) => x !== t))}
                 className="text-white/50 hover:text-white"
               >
@@ -380,21 +382,21 @@ export function SiteForm({
           ))}
         {tagsFull && (
           <span data-tag-limit-hint className="text-[10px] text-white/35 shrink-0">
-            最多 2 个标签
+            {t('menu.formTagLimit')}
           </span>
         )}
         <label className="flex items-center gap-1.5 text-[11px] text-white/60 shrink-0 cursor-pointer select-none ml-auto">
           <input type="checkbox" checked={pinned} onChange={(e) => setPinned(e.target.checked)} className="accent-amber-400" />
-          置顶
+          {t('menu.formPinned')}
         </label>
       </div>
       {error && <p className="text-[11px] text-red-300">{error}</p>}
       <div className="flex items-center gap-2 pt-0.5">
         <button onClick={submit} className="flex items-center gap-1 text-[11px] font-medium px-3 py-1.5 rounded-lg bg-indigo-500/80 hover:bg-indigo-500 text-white transition-colors">
-          <Check size={12} /> 保存
+          <Check size={12} /> {t('menu.save')}
         </button>
         <button onClick={onCancel} className="flex items-center gap-1 text-[11px] px-3 py-1.5 rounded-lg bg-white/8 hover:bg-white/12 text-white/70 transition-colors">
-          <X size={12} /> 取消
+          <X size={12} /> {t('menu.cancel')}
         </button>
       </div>
     </div>
@@ -429,6 +431,7 @@ function EditableSiteRow({
   /** 点击守卫：刚拖完时吞掉紧随的 click，避免顺带打开站点 */
   guardClick?: () => boolean;
 }) {
+  const { t } = useLang();
   if (editing) {
     return (
       <div className={formSpanCls}>
@@ -467,7 +470,7 @@ function EditableSiteRow({
             {/* 标签徽标（第七十六轮）：从行尾挪到名字正后方、与图钉同区，最多 2 个 */}
             <SiteTagBadges site={site} />
             {site.dead && (
-              <span className="text-[9px] font-medium text-red-300 bg-red-500/15 px-1.5 py-0.5 rounded shrink-0">失效</span>
+              <span className="text-[9px] font-medium text-red-300 bg-red-500/15 px-1.5 py-0.5 rounded shrink-0">{t('menu.dead')}</span>
             )}
           </span>
           <span className="block text-[11px] text-white/45 truncate mt-0.5">{site.description}</span>
@@ -505,6 +508,7 @@ export default function GroupExpandedBody({
   const [editingSiteId, setEditingSiteId] = useState<string | null>(null);
   /** 左滑操作条当前打开的行（第七十三轮）：同列表只开一行 */
   const [swipeOpenId, setSwipeOpenId] = useState<string | null>(null);
+  const { t } = useLang();
 
   // 收起态左滑「编辑」直达：展开体挂载（或请求变更）时打开对应站点的编辑表单
   React.useEffect(() => {
@@ -533,7 +537,7 @@ export default function GroupExpandedBody({
       {/* 站点列表：卡内滚动（data-nodrag：此区域内按下拖动不触发整卡拖拽排序） */}
       <div data-nodrag className="flex-1 min-h-0 overflow-y-auto pr-1 -mr-1">
         {sorted.length === 0 && !addMode && (
-          <p className="text-xs text-white/35 py-6 text-center">这个编组还没有网站，点「增加网站」加上第一个吧</p>
+          <p className="text-xs text-white/35 py-6 text-center">{t('menu.emptyGroupExpanded')}</p>
         )}
         <div
           className="grid grid-cols-1 gap-x-2 content-start min-[480px]:grid-cols-3"
@@ -597,7 +601,7 @@ export default function GroupExpandedBody({
               onClick={() => setAddMode('choice')}
               className="flex items-center justify-center gap-1 px-2 py-[7px] min-h-[48px] rounded-2xl border border-dashed border-white/15 text-[11px] text-white/50 hover:text-white/85 hover:border-white/30 transition-colors"
             >
-              <Plus size={13} /> 增加网站
+              <Plus size={13} /> {t('menu.addSiteChoice')}
             </button>
           )}
         </div>
@@ -609,23 +613,23 @@ export default function GroupExpandedBody({
                 onClick={() => setAddMode('custom')}
                 className="rounded-xl border border-white/10 bg-white/[0.03] hover:border-white/25 px-3 py-2.5 text-left transition-colors"
               >
-                <span className="block text-[12px] font-medium">自定义</span>
-                <span className="block text-[11px] text-white/40 mt-0.5">手动输入名称和网址</span>
+                <span className="block text-[12px] font-medium">{t('menu.addCustom')}</span>
+                <span className="block text-[11px] text-white/40 mt-0.5">{t('menu.addCustomDesc')}</span>
               </button>
               <button
                 data-add-choice-pool
                 onClick={() => setAddMode('pool')}
                 className="rounded-xl border border-indigo-400/40 bg-indigo-500/10 hover:border-indigo-400/70 px-3 py-2.5 text-left transition-colors"
               >
-                <span className="block text-[12px] font-medium">在杂盒里找</span>
-                <span className="block text-[11px] text-white/40 mt-0.5">从导航站里多选加入</span>
+                <span className="block text-[12px] font-medium">{t('menu.findInBox')}</span>
+                <span className="block text-[11px] text-white/40 mt-0.5">{t('menu.addPoolDesc')}</span>
               </button>
             </div>
             <button
               onClick={() => setAddMode(null)}
               className="mt-2 w-full py-1.5 rounded-xl bg-white/10 text-[12px] text-white/70 hover:text-white transition-colors"
             >
-              取消
+              {t('menu.cancel')}
             </button>
           </div>
         )}

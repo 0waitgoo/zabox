@@ -3,6 +3,8 @@ import { motion } from 'motion/react';
 import { Pin, Pencil, Trash2, ChevronDown, ChevronUp } from 'lucide-react';
 import { GROUP_NAME_MAX, siteIconSrc, sortSites, textCharCount, type NavGroup } from '../../data/groups';
 import type { LocalStore } from '../../store/localStore';
+import { useLang } from '../../i18n/useLang';
+import { displayGroupName } from '../../i18n/groupNames';
 import { SiteLogo } from './Card';
 import GroupExpandedBody, { SiteTagBadges } from './GroupExpanded';
 import SwipeableRow from './SwipeableRow';
@@ -45,6 +47,7 @@ export default function GroupListCard({
   heightUnits?: 1 | 2;
   delay?: number;
 }) {
+  const { t, lang } = useLang();
   const sorted = sortSites(group.sites);
   const cols = colSpan === 1 ? 1 : 3;
   /* 收起行数实测填充：行区高度由卡高（桌面网格行高/手机估算高）固定，与内容无关，
@@ -169,16 +172,16 @@ export default function GroupListCard({
               }}
               className="text-[11px] px-2.5 py-1.5 rounded-lg bg-indigo-500/80 text-white shrink-0"
             >
-              保存
+              {t('menu.save')}
             </button>
             <button onClick={() => setRenaming(false)} className="text-[11px] px-2.5 py-1.5 rounded-lg bg-white/10 text-white/70 shrink-0">
-              取消
+              {t('menu.cancel')}
             </button>
           </span>
         ) : (
           <>
             <div className="flex items-center gap-2 min-w-0">
-              <h3 className="font-semibold text-base sm:text-lg tracking-tight truncate">{group.name}</h3>
+              <h3 className="font-semibold text-base sm:text-lg tracking-tight truncate">{displayGroupName(group, lang)}</h3>
               {/* 组名后唯一的小胶囊按钮（第三十/三十一轮最终形态）：收起态 =「展开」、展开态 =「收起」，同位置同样式；
                   「· N 个站点」计数已删，卡底部不再有任何展开/收起条（第十六轮底部渐隐提示条与卡底展开小按钮就此退役） */}
               <button
@@ -191,9 +194,9 @@ export default function GroupListCard({
                 className="flex items-center gap-1 text-[11px] text-white/50 hover:text-white bg-white/5 hover:bg-white/10 border border-white/10 rounded-full px-3 py-1 transition-colors cursor-pointer shrink-0"
               >
                 {expanded ? (
-                  <>收起 <ChevronUp size={13} /></>
+                  <>{t('menu.collapse')} <ChevronUp size={13} /></>
                 ) : (
-                  <>展开 <ChevronDown size={13} /></>
+                  <>{t('menu.expand')} <ChevronDown size={13} /></>
                 )}
               </button>
             </div>
@@ -206,16 +209,16 @@ export default function GroupListCard({
                   }}
                   className="flex items-center gap-1 text-[11px] text-white/45 hover:text-white/80 transition-colors"
                 >
-                  <Pencil size={11} /> 改组名
+                  <Pencil size={11} /> {t('menu.renameGroup')}
                 </button>
                 {confirmDelete ? (
                   <span className="flex items-center gap-1.5 text-[11px]">
-                    <span className="text-red-300">删除整个编组？</span>
+                    <span className="text-red-300">{t('menu.deleteGroupConfirm')}</span>
                     <button onClick={() => store.deleteGroup(group.id)} className="px-2 py-1 rounded-md bg-red-500/80 text-white font-medium">
-                      确认删除
+                      {t('menu.confirmDelete')}
                     </button>
                     <button onClick={() => setConfirmDelete(false)} className="px-2 py-1 rounded-md bg-white/8 text-white/70">
-                      算了
+                      {t('menu.cancelDelete')}
                     </button>
                   </span>
                 ) : (
@@ -223,19 +226,19 @@ export default function GroupListCard({
                     onClick={() => setConfirmDelete(true)}
                     className="flex items-center gap-1 text-[11px] text-white/45 hover:text-red-300 transition-colors"
                   >
-                    <Trash2 size={11} /> 删组
+                    <Trash2 size={11} /> {t('menu.deleteGroup')}
                   </button>
                 )}
                 {/* 形态切换：详细列表（B） ↔ 文件夹式（C） */}
                 <span className="flex items-center rounded-lg bg-white/5 border border-white/10 overflow-hidden">
                   <button
                     onClick={() => store.setGroupDisplay(group.id, 'list')}
-                    title="详细列表卡：在主页原地展开成行式列表"
+                    title={t('menu.displayListTitle')}
                     className={`text-[11px] px-2.5 py-1 transition-colors ${
                       group.display === 'list' ? 'bg-indigo-500/70 text-white font-medium' : 'text-white/50 hover:text-white/85'
                     }`}
                   >
-                    详细列表
+                    {t('menu.displayList')}
                   </button>
                   <button
                     onClick={() => {
@@ -244,12 +247,12 @@ export default function GroupListCard({
                       if (expanded) onToggleExpand(group);
                       store.setGroupDisplay(group.id, 'stack');
                     }}
-                    title="文件夹式卡：紧凑堆叠卡，点开弹窗看图标"
+                    title={t('menu.displayStackTitle')}
                     className={`text-[11px] px-2.5 py-1 transition-colors ${
                       group.display === 'stack' ? 'bg-indigo-500/70 text-white font-medium' : 'text-white/50 hover:text-white/85'
                     }`}
                   >
-                    文件夹式
+                    {t('menu.displayStack')}
                   </button>
                 </span>
                 {/* 失效链接汇总提示已按用户要求删除（第二十九轮）：站点行自身的「失效」徽标保留 */}

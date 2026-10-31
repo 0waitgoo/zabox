@@ -28,6 +28,7 @@ import {
 } from '../../data/traditionalColors';
 import { closeColorsWorkspace, openColorsWorkspace, useColorsWorkspace } from '../../store/colorsWorkspace';
 import { removeSavedPalette, savePalette, toggleFavorite, useColorsData } from '../../store/colorsData';
+import { useLang } from '../../i18n/useLang';
 import type { WidgetTint } from '../../store/localStore';
 import { Card, CardIconBadge } from './Card';
 
@@ -104,6 +105,7 @@ export default function ColorsCard({
 }) {
   const ws = useColorsWorkspace();
   const colorsData = useColorsData();
+  const { t } = useLang();
   const [everOpened, setEverOpened] = useState(ws.open);
   useEffect(() => {
     if (ws.open) setEverOpened(true);
@@ -120,7 +122,7 @@ export default function ColorsCard({
   const copyColor = (c: TraditionalColor, format: ColorFormat) => {
     const value = colorValueOf(c, format);
     void copyText(value).then((ok) => {
-      if (ok) showToast(`已复制 ${c.name} ${value}`, c.hex);
+      if (ok) showToast(t('colors.copiedColor', { name: c.name, value }), c.hex);
     });
   };
 
@@ -168,7 +170,7 @@ export default function ColorsCard({
   const copyPalette = (name: string, colors: TraditionalColor[]) => {
     const text = colors.map((c) => colorValueOf(c, format)).join(', ');
     void copyText(text).then((ok) => {
-      if (ok) showToast(`已复制整组「${name}」`);
+      if (ok) showToast(t('colors.copiedGroup', { name }));
     });
   };
 
@@ -179,7 +181,7 @@ export default function ColorsCard({
   const saveRandom = () => {
     const name = `我的配色${colorsData.savedPalettes.length + 1}`;
     savePalette(name, randomSet.map((c) => c.name));
-    showToast(`已存为「${name}」`);
+    showToast(t('colors.savedAs', { name }));
   };
 
   /* ---------- 子渲染 ---------- */
@@ -197,7 +199,7 @@ export default function ColorsCard({
       >
         <button
           type="button"
-          aria-label={`复制 ${c.name}`}
+          aria-label={t('colors.copyColor', { name: c.name })}
           onClick={() => copyColor(c, format)}
           onPointerDown={(e) => {
             if (e.pointerType === 'touch') {
@@ -215,7 +217,7 @@ export default function ColorsCard({
         <button
           type="button"
           data-color-fav={c.name}
-          aria-label={isFav ? `取消收藏 ${c.name}` : `收藏 ${c.name}`}
+          aria-label={isFav ? t('colors.unfavColor', { name: c.name }) : t('colors.favColor', { name: c.name })}
           onClick={(e) => {
             e.stopPropagation();
             toggleFavorite(c.name);
@@ -238,7 +240,7 @@ export default function ColorsCard({
           key={c.name}
           type="button"
           data-color-band={c.name}
-          aria-label={`复制 ${c.name}`}
+          aria-label={t('colors.copyColor', { name: c.name })}
           onClick={() => copyColor(c, opts?.hexOnly ? 'hex' : format)}
           className={`relative flex-1 min-w-0 rounded-lg ring-1 ring-black/20 transition-transform hover:scale-[1.02] ${opts?.bandClass ?? ''}`}
           style={{ backgroundColor: c.hex }}
@@ -257,7 +259,7 @@ export default function ColorsCard({
   );
 
   const formatSwitch = (
-    <div className="flex rounded-lg border border-white/12 bg-white/[0.04] p-0.5 shrink-0" role="tablist" aria-label="色值格式">
+    <div className="flex rounded-lg border border-white/12 bg-white/[0.04] p-0.5 shrink-0" role="tablist" aria-label={t('colors.formatAria')}>
       {FORMAT_OPTIONS.map((f) => (
         <button
           key={f.id}
@@ -278,7 +280,7 @@ export default function ColorsCard({
 
   return (
     <Card
-      title="中式色卡"
+      title={t('widget.nameColors')}
       icon={
         <CardIconBadge className="bg-[#9d2933] text-white">
           <Palette size={14} />
@@ -296,7 +298,7 @@ export default function ColorsCard({
             className="flex items-center gap-1 rounded-lg px-2 py-1 text-[11px] text-white/50 transition-colors hover:bg-white/10 hover:text-white shrink-0"
           >
             <X size={12} />
-            收起
+            {t('task.collapse')}
           </button>
         ) : (
           <div className="flex items-center gap-1 shrink-0">
@@ -310,7 +312,7 @@ export default function ColorsCard({
               className="flex items-center gap-1 rounded-lg px-2 py-1 text-[11px] text-white/50 transition-colors hover:bg-white/10 hover:text-white"
             >
               {swapped ? <RotateCcw size={12} /> : <Shuffle size={12} />}
-              {swapped ? '回当日' : '换一组'}
+              {swapped ? t('colors.backToToday') : t('colors.swapGroup')}
             </button>
             <button
               type="button"
@@ -321,7 +323,7 @@ export default function ColorsCard({
               }}
               className="rounded-lg px-2 py-1 text-[11px] text-white/50 transition-colors hover:bg-white/10 hover:text-white"
             >
-              展开
+              {t('task.expand')}
             </button>
           </div>
         )
@@ -338,7 +340,7 @@ export default function ColorsCard({
               {facePalette.name}
             </span>
             {colSpan === 2 && <span className="text-[11px] text-white/40 truncate">{facePalette.note}</span>}
-            {!swapped && <span className="ml-auto text-[10px] text-white/35 shrink-0">当日配色</span>}
+            {!swapped && <span className="ml-auto text-[10px] text-white/35 shrink-0">{t('colors.todayPalette')}</span>}
           </div>
           {renderBands(faceColors, { labels: colSpan === 2, hexOnly: true, bandClass: 'min-h-[52px]', rootClass: 'flex-1' })}
 
@@ -356,7 +358,7 @@ export default function ColorsCard({
                   {todayColor.name}
                   <span className="ml-2 text-xs font-normal opacity-75">{todayColor.pinyin}</span>
                 </span>
-                <span className="block text-xs opacity-80 mt-0.5">{colorValueOf(todayColor, 'hex')} · 当日一色</span>
+                <span className="block text-xs opacity-80 mt-0.5">{colorValueOf(todayColor, 'hex')} · {t('colors.todayColor')}</span>
               </span>
             </button>
           )}
@@ -364,7 +366,7 @@ export default function ColorsCard({
           {/* 2 栏 × 2 高：收藏速览 */}
           {colSpan === 2 && heightUnits === 2 && (
             <div className="mt-3 shrink-0">
-              <p className="text-[11px] text-white/40 mb-1.5">收藏速览</p>
+              <p className="text-[11px] text-white/40 mb-1.5">{t('colors.favsGlance')}</p>
               {recentFavs.length > 0 ? (
                 <div className="flex gap-1.5">
                   {recentFavs.map((c) => (
@@ -372,7 +374,7 @@ export default function ColorsCard({
                       key={c.name}
                       type="button"
                       data-color-band={c.name}
-                      aria-label={`复制 ${c.name}`}
+                      aria-label={t('colors.copyColor', { name: c.name })}
                       onClick={() => copyColor(c, 'hex')}
                       className="h-10 flex-1 min-w-0 rounded-lg ring-1 ring-black/20 flex items-end justify-center pb-1 transition-transform hover:scale-[1.03]"
                       style={{ backgroundColor: c.hex }}
@@ -384,7 +386,7 @@ export default function ColorsCard({
                   ))}
                 </div>
               ) : (
-                <p className="text-xs text-white/35">还没有收藏，展开色卡在色墙里点 ☆ 就能把喜欢的色摆在这里</p>
+                <p className="text-xs text-white/35">{t('colors.favsGlanceEmpty')}</p>
               )}
             </div>
           )}
@@ -394,12 +396,12 @@ export default function ColorsCard({
         {everOpened && (
           <div data-colors-workspace className={`flex-1 min-h-0 flex-col ${ws.open ? 'flex' : 'hidden'}`}>
             <div className="flex items-center gap-2 shrink-0 flex-wrap">
-              <div className="flex rounded-lg border border-white/12 bg-white/[0.04] p-0.5" role="tablist" aria-label="色卡页签">
+              <div className="flex rounded-lg border border-white/12 bg-white/[0.04] p-0.5" role="tablist" aria-label={t('colors.tabsAria')}>
                 {(
                   [
-                    { id: 'wall', label: '色墙' },
-                    { id: 'palettes', label: '配色' },
-                    { id: 'favs', label: '收藏' },
+                    { id: 'wall', label: t('colors.tabWall') },
+                    { id: 'palettes', label: t('colors.tabPalettes') },
+                    { id: 'favs', label: t('colors.tabFavs') },
                   ] as const
                 ).map((t) => (
                   <button
@@ -438,7 +440,7 @@ export default function ColorsCard({
                             : 'bg-white/[0.04] text-white/55 border-white/10 hover:bg-white/[0.08] hover:text-white'
                         }`}
                       >
-                        {f}
+                        {f === '全部' ? t('colors.allFamilies') : f}
                       </button>
                     ))}
                     <label className="ml-auto flex items-center gap-1.5 rounded-lg border border-white/10 bg-white/[0.04] px-2 py-1 min-w-0">
@@ -447,7 +449,7 @@ export default function ColorsCard({
                         data-colors-search
                         value={query}
                         onChange={(e) => setQuery(e.target.value)}
-                        placeholder="搜色名 / 拼音 / HEX"
+                        placeholder={t('colors.searchPlaceholder')}
                         className="w-28 sm:w-36 bg-transparent text-xs text-white/85 placeholder:text-white/30 outline-none"
                       />
                     </label>
@@ -461,7 +463,7 @@ export default function ColorsCard({
                         <p className="text-sm font-medium text-white/90 leading-tight">
                           {detail.name}
                           <span className="ml-2 text-xs font-normal text-white/45">{detail.pinyin}</span>
-                          <span className="ml-2 text-xs font-normal text-white/45">{detail.family}系</span>
+                          <span className="ml-2 text-xs font-normal text-white/45">{t('colors.familyLine', { family: detail.family })}</span>
                         </p>
                         <div className="mt-1 flex flex-wrap gap-x-4 gap-y-0.5">
                           {FORMAT_OPTIONS.map((f) => (
@@ -481,7 +483,7 @@ export default function ColorsCard({
                       <button
                         type="button"
                         data-color-fav={detail.name}
-                        aria-label={colorsData.favorites.includes(detail.name) ? `取消收藏 ${detail.name}` : `收藏 ${detail.name}`}
+                        aria-label={colorsData.favorites.includes(detail.name) ? t('colors.unfavColor', { name: detail.name }) : t('colors.favColor', { name: detail.name })}
                         onClick={() => toggleFavorite(detail.name)}
                         className="self-start flex h-7 w-7 items-center justify-center rounded-lg bg-white/[0.05] border border-white/10 text-white/70 hover:text-white shrink-0"
                       >
@@ -495,12 +497,12 @@ export default function ColorsCard({
                   )}
 
                   <p className="mt-2 text-[11px] text-white/35" data-colors-wall-count>
-                    共 {wallColors.length} 色
+                    {t('colors.wallCount', { n: wallColors.length })}
                   </p>
                   <div className="mt-1.5 grid grid-cols-3 sm:grid-cols-5 gap-1.5 pb-1">
                     {wallColors.map((c) => renderCell(c))}
                   </div>
-                  {wallColors.length === 0 && <p className="py-8 text-center text-xs text-white/35">没有找到这个色，换个关键词试试</p>}
+                  {wallColors.length === 0 && <p className="py-8 text-center text-xs text-white/35">{t('colors.wallEmpty')}</p>}
                 </div>
               )}
 
@@ -509,8 +511,8 @@ export default function ColorsCard({
                   {/* 随机配色（借鉴 Coolors 锁定玩法，色池只用 158 传统色） */}
                   <div className="rounded-2xl border border-white/10 bg-white/[0.03] p-3">
                     <div className="flex items-center gap-2">
-                      <p className="text-sm font-medium text-white/90">随机配色</p>
-                      <span className="text-[11px] text-white/35">锁住喜欢的色，再抽其余</span>
+                      <p className="text-sm font-medium text-white/90">{t('colors.randomTitle')}</p>
+                      <span className="text-[11px] text-white/35">{t('colors.randomHint')}</span>
                       <span className="ml-auto" />
                       <button
                         type="button"
@@ -519,7 +521,7 @@ export default function ColorsCard({
                         className="flex items-center gap-1 rounded-lg bg-indigo-500/85 hover:bg-indigo-500 px-2.5 py-1.5 text-xs text-white font-medium transition-colors"
                       >
                         <Shuffle size={12} />
-                        随机一组
+                        {t('colors.rollRandom')}
                       </button>
                       <button
                         type="button"
@@ -527,7 +529,7 @@ export default function ColorsCard({
                         onClick={saveRandom}
                         className="rounded-lg bg-white/[0.05] border border-white/10 px-2.5 py-1.5 text-xs text-white/70 hover:bg-white/[0.09] hover:text-white transition-colors"
                       >
-                        存为我的配色
+                        {t('colors.saveRandom')}
                       </button>
                     </div>
                     <div className="mt-2.5 flex gap-1 h-16">
@@ -536,7 +538,7 @@ export default function ColorsCard({
                           <button
                             type="button"
                             data-random-band={c.name}
-                            aria-label={`复制 ${c.name}`}
+                            aria-label={t('colors.copyColor', { name: c.name })}
                             onClick={() => copyColor(c, format)}
                             className="h-full w-full rounded-lg ring-1 ring-black/20 flex items-end justify-center pb-1 transition-transform hover:scale-[1.02]"
                             style={{ backgroundColor: c.hex }}
@@ -548,7 +550,7 @@ export default function ColorsCard({
                           <button
                             type="button"
                             data-random-lock={i}
-                            aria-label={locks[i] ? `解锁第 ${i + 1} 色` : `锁定第 ${i + 1} 色`}
+                            aria-label={locks[i] ? t('colors.unlockN', { n: i + 1 }) : t('colors.lockN', { n: i + 1 })}
                             onClick={() => setLocks((prev) => prev.map((v, j) => (j === i ? !v : v)))}
                             className={`absolute right-1 top-1 flex h-5 w-5 items-center justify-center rounded-full bg-black/35 text-white transition-opacity ${
                               locks[i] ? 'opacity-100' : 'opacity-0 group-hover/lock:opacity-100'
@@ -576,7 +578,7 @@ export default function ColorsCard({
                             className="flex items-center gap-1 rounded-lg bg-white/[0.05] border border-white/10 px-2.5 py-1.5 text-xs text-white/70 hover:bg-white/[0.09] hover:text-white transition-colors shrink-0"
                           >
                             <Copy size={12} />
-                            复制整组
+                            {t('colors.copyGroup')}
                           </button>
                         </div>
                         <div className="mt-2.5 h-14">{renderBands(colors, { labels: true, rootClass: 'h-full' })}</div>
@@ -590,15 +592,15 @@ export default function ColorsCard({
                 <div className="pb-1">
                   {favColors.length === 0 && colorsData.savedPalettes.length === 0 ? (
                     <div className="py-10 text-center">
-                      <p className="text-sm text-white/50">还没有收藏的色</p>
-                      <p className="mt-1 text-xs text-white/35">在色墙里点色格右上角的 ☆，就能把喜欢的传统色收进来</p>
+                      <p className="text-sm text-white/50">{t('colors.favsEmpty')}</p>
+                      <p className="mt-1 text-xs text-white/35">{t('colors.favsEmptyHint')}</p>
                       <button
                         type="button"
                         data-favs-goto-wall
                         onClick={() => setTab('wall')}
                         className="mt-4 rounded-lg bg-indigo-500/85 hover:bg-indigo-500 px-3 py-2 text-xs text-white font-medium transition-colors"
                       >
-                        去色墙逛逛
+                        {t('colors.gotoWall')}
                       </button>
                     </div>
                   ) : (
@@ -606,7 +608,7 @@ export default function ColorsCard({
                       {favColors.length > 0 && (
                         <>
                           <div className="flex items-center gap-2">
-                            <p className="text-sm font-medium text-white/90">收藏的色</p>
+                            <p className="text-sm font-medium text-white/90">{t('colors.favColors')}</p>
                             <span className="ml-auto" />
                             <button
                               type="button"
@@ -614,13 +616,13 @@ export default function ColorsCard({
                               onClick={() => {
                                 const text = favColors.map((c) => colorValueOf(c, 'hex')).join(', ');
                                 void copyText(text).then((ok) => {
-                                  if (ok) showToast(`已复制全部 ${favColors.length} 个收藏 HEX`);
+                                  if (ok) showToast(t('colors.copiedAllFavs', { n: favColors.length }));
                                 });
                               }}
                               className="flex items-center gap-1 rounded-lg bg-white/[0.05] border border-white/10 px-2.5 py-1.5 text-xs text-white/70 hover:bg-white/[0.09] hover:text-white transition-colors"
                             >
                               <Copy size={12} />
-                              复制全部收藏 HEX
+                              {t('colors.copyAllFavs')}
                             </button>
                           </div>
                           <div className="mt-2 grid grid-cols-3 sm:grid-cols-5 gap-1.5">
@@ -630,7 +632,7 @@ export default function ColorsCard({
                       )}
                       {colorsData.savedPalettes.length > 0 && (
                         <div className="mt-4 flex flex-col gap-2.5">
-                          <p className="text-sm font-medium text-white/90">我的配色</p>
+                          <p className="text-sm font-medium text-white/90">{t('colors.myPalettes')}</p>
                           {colorsData.savedPalettes.map((p, i) => {
                             const colors = p.colors.map(colorByName).filter((c): c is TraditionalColor => !!c);
                             return (
@@ -645,12 +647,12 @@ export default function ColorsCard({
                                     className="flex items-center gap-1 rounded-lg bg-white/[0.05] border border-white/10 px-2.5 py-1.5 text-xs text-white/70 hover:bg-white/[0.09] hover:text-white transition-colors"
                                   >
                                     <Copy size={12} />
-                                    复制整组
+                                    {t('colors.copyGroup')}
                                   </button>
                                   <button
                                     type="button"
                                     data-saved-palette-remove={p.name}
-                                    aria-label={`删除 ${p.name}`}
+                                    aria-label={t('colors.deletePalette', { name: p.name })}
                                     onClick={() => removeSavedPalette(i)}
                                     className="flex h-7 w-7 items-center justify-center rounded-lg bg-white/[0.05] border border-white/10 text-white/55 hover:text-white"
                                   >

@@ -32,7 +32,7 @@ import PresetMenu from './PresetMenu';
 import { TopLogo, TopNav } from '../Sidebar';
 import { closeToolsWorkspace, useToolsWorkspace } from '../../store/toolsWorkspace';
 import { closeColorsWorkspace, useColorsWorkspace } from '../../store/colorsWorkspace';
-import { WIDGET_DEFINITIONS, widgetDefOf } from './widgetRegistry';
+import { WIDGET_DEFINITIONS, widgetDefOf, widgetDisplayName } from './widgetRegistry';
 import GroupListCard from './GroupListCard';
 import GroupStackCard, { StackGroupIcon } from './GroupStackCard';
 import GroupPanel from './GroupPanel';
@@ -41,6 +41,8 @@ import ComboPanel from './ComboPanel';
 import WidgetStackCard from './WidgetStackCard';
 import { vivid } from './WidgetTint';
 import useLongPressMenu from './useLongPressMenu';
+import { useLang } from '../../i18n/useLang';
+import { displayGroupName } from '../../i18n/groupNames';
 
 /**
  * V2 新主页（第三轮修订 + 第五轮拖拽排序 + 第八轮顶栏一行对齐）
@@ -71,6 +73,7 @@ function TintColorRow({
   onPick: (hex: string) => void;
 }) {
   const lower = value.toLowerCase();
+  const { t } = useLang();
   return (
     <div className="pb-2">
       <div className="flex items-center gap-2 pb-1.5">
@@ -78,7 +81,7 @@ function TintColorRow({
         <label
           className="relative h-6 w-9 shrink-0 cursor-pointer overflow-hidden rounded-md border border-white/25"
           style={{ backgroundColor: lower }}
-          title="点开取色器自选颜色"
+          title={t('home.pickColorTitle')}
         >
           <input
             type="color"
@@ -125,6 +128,7 @@ function findScrollAncestor(el: HTMLElement): HTMLElement | null {
 export default function HomePage({ onNavigate, store }: { onNavigate: (page: string) => void; store: LocalStore }) {
   /* 原位长按触发右键菜单（第七十轮）：合成 contextmenu 事件走既有三层右键路由 */
   useLongPressMenu();
+  const { t, lang } = useLang();
   const { groups, widgets, widgetLayouts, groupLayouts } = store.data;
   /* 文件工具工作区状态（第八十六轮）：打开时本页要把文件工具卡（或含它的摞）
    * 的栏位高度抬高；状态本体在 toolsWorkspace store。原顶栏扳手定位已于
@@ -372,20 +376,26 @@ export default function HomePage({ onNavigate, store }: { onNavigate: (page: str
     : null;
   const sizeMenuTitle = sizeMenu
     ? sizeMenu.kind === 'widget'
-      ? `${widgetDefOf(sizeMenu.id).name} · 组件尺寸`
+      ? t('home.sizeWidget', { name: widgetDisplayName(widgetDefOf(sizeMenu.id), t) })
       : sizeMenu.kind === 'combo'
         ? (() => {
             const c = validCombos.find((cc) => cc.id === sizeMenu.id);
-            const names = c ? c.groupIds.map((gid) => groups.find((g) => g.id === gid)?.name ?? '').join(' + ') : '';
-            return `${names} · 组合尺寸`;
+            const names = c ? c.groupIds.map((gid) => {
+              const g = groups.find((gr) => gr.id === gid);
+              return g ? displayGroupName(g, lang) : '';
+            }).join(' + ') : '';
+            return t('home.sizeCombo', { names });
           })()
         : sizeMenu.kind === 'wstack'
           ? (() => {
               const s = validWidgetStacks.find((ss) => ss.id === sizeMenu.id);
-              const names = s ? s.widgetIds.map((wid) => widgetDefOf(wid).name).join(' + ') : '';
-              return `${names} · 组件摞`;
+              const names = s ? s.widgetIds.map((wid) => widgetDisplayName(widgetDefOf(wid), t)).join(' + ') : '';
+              return t('home.sizeWstack', { names });
             })()
-          : `${groups.find((g) => g.id === sizeMenu.id)?.name ?? ''} · 编组尺寸`
+          : (() => {
+              const g = groups.find((gr) => gr.id === sizeMenu.id);
+              return t('home.sizeGroup', { name: g ? displayGroupName(g, lang) : '' });
+            })()
     : '';
   const applySizeMenuLayout = (patch: Partial<WidgetLayout>) => {
     if (!sizeMenu) return;
@@ -1587,10 +1597,10 @@ export default function HomePage({ onNavigate, store }: { onNavigate: (page: str
                   <div className="m-2 w-[calc(100%-16px)] rounded-xl bg-[#17171d]/95 border border-white/15 px-3 py-2">
                     <p className="text-[11px] font-medium text-white/85 text-center">
                       {mergeUi.full
-                        ? `已满（最多 ${WIDGET_STACK_MAX} 个），松开取消合并`
+                        ? t('home.mergeFull', { max: WIDGET_STACK_MAX })
                         : mergeUi.kind === 'widget'
-                          ? '松开合并组件'
-                          : '松开合并文件夹'}
+                          ? t('home.mergeWidget')
+                          : t('home.mergeFolder')}
                     </p>
                     <div className="mt-1.5 h-1 rounded-full bg-white/10 overflow-hidden">
                       <div
@@ -1611,7 +1621,7 @@ export default function HomePage({ onNavigate, store }: { onNavigate: (page: str
         <div style={tileStyle(TILE_ADD_KEY)}>
           <button data-add-widget-tile onClick={() => onNavigate('store')} className={dashedTileCls}>
             <LayoutGrid size={18} />
-            添加组件
+            {t('home.addWidget')}
           </button>
         </div>
 
@@ -1619,12 +1629,12 @@ export default function HomePage({ onNavigate, store }: { onNavigate: (page: str
         <div style={tileStyle(TILE_NEW_KEY)}>
           <button onClick={() => setShowNewGroup(true)} className={dashedTileCls}>
             <FolderPlus size={18} />
-            新建编组
+            {t('menu.newGroup')}
           </button>
         </div>
       </div>
 
-      <p className="text-center text-[11px] text-white/25 pt-8 pb-2">继续向下滚动 · 编组与组件都存在本机，增删改刷新不丢 · 卡片可按住拖动排序 · 组件与编组可右键改尺寸</p>
+      <p className="text-center text-[11px] text-white/25 pt-8 pb-2">{t('home.footerHint')}</p>
 
       {/* 拖拽中的浮动卡片快照：跟随指针，带抬升阴影 */}
       {dragSnap && (
@@ -1647,11 +1657,11 @@ export default function HomePage({ onNavigate, store }: { onNavigate: (page: str
                 <p className={`text-[11px] font-medium text-center ${chargeUi.ready ? 'text-indigo-300' : 'text-white/75'}`}>
                   {chargeUi.ready
                     ? chargeUi.kind === 'widget'
-                      ? '可合并组件：压住另一张组件卡松手即合并'
-                      : '可合并文件夹：压住另一张文件夹卡松手即合并'
+                      ? t('home.chargeReadyWidget')
+                      : t('home.chargeReadyFolder')
                     : chargeUi.kind === 'widget'
-                      ? '充能中…保持拖动，满 2 秒可合并组件'
-                      : '充能中…保持拖动，满 2 秒可合并文件夹'}
+                      ? t('home.chargeWidget')
+                      : t('home.chargeFolder')}
                 </p>
                 <div className="mt-1.5 h-1 rounded-full bg-white/10 overflow-hidden">
                   <div
@@ -1711,7 +1721,7 @@ export default function HomePage({ onNavigate, store }: { onNavigate: (page: str
             style={{ left: sizeMenu.x, top: sizeMenu.y }}
           >
             <p className="px-1 pb-2 text-[11px] font-medium text-white/60">{sizeMenuTitle}</p>
-            <p className="px-1 pb-1 text-[10px] tracking-wider text-white/40 uppercase">宽度</p>
+            <p className="px-1 pb-1 text-[10px] tracking-wider text-white/40 uppercase">{t('home.sizeWidth')}</p>
             <div className="flex gap-1 pb-2.5">
               {sizeMenuColOptions.map((n) => {
                 const selected = sizeMenuLayout.colSpan === n;
@@ -1724,12 +1734,12 @@ export default function HomePage({ onNavigate, store }: { onNavigate: (page: str
                     }`}
                   >
                     {selected && <Check size={12} />}
-                    {n} 栏
+                    {t('home.sizeCols', { n })}
                   </button>
                 );
               })}
             </div>
-            <p className="px-1 pb-1 text-[10px] tracking-wider text-white/40 uppercase">高度</p>
+            <p className="px-1 pb-1 text-[10px] tracking-wider text-white/40 uppercase">{t('home.sizeHeight')}</p>
             <div className="flex gap-1">
               {sizeMenuHeightOptions.map((n) => {
                 const selected = sizeMenuLayout.heightUnits === n;
@@ -1774,7 +1784,7 @@ export default function HomePage({ onNavigate, store }: { onNavigate: (page: str
                       onClick={() => setTintPanelFor(panelOpen ? null : key)}
                       className="w-full flex items-center justify-center gap-1.5 py-1.5 rounded-lg text-xs bg-white/5 text-white/70 hover:bg-white/10 hover:text-white transition-colors"
                     >
-                      <Palette size={12} /> 换个底色
+                      <Palette size={12} /> {t('home.changeTint')}
                       <ChevronDown
                         size={12}
                         className={`transition-transform ${panelOpen ? 'rotate-180' : ''}`}
@@ -1792,14 +1802,14 @@ export default function HomePage({ onNavigate, store }: { onNavigate: (page: str
                         />
                         <TintColorRow
                           slot="from"
-                          label="起点色"
+                          label={t('home.tintFrom')}
                           value={from}
                           swatches={WIDGET_TINTS.map((t) => t.from)}
                           onPick={(hex) => store.setWidgetTintCustom(key, hex, to)}
                         />
                         <TintColorRow
                           slot="to"
-                          label="终点色"
+                          label={t('home.tintTo')}
                           value={to}
                           swatches={WIDGET_TINTS.map((t) => t.to)}
                           onPick={(hex) => store.setWidgetTintCustom(key, from, hex)}
@@ -1810,14 +1820,14 @@ export default function HomePage({ onNavigate, store }: { onNavigate: (page: str
                             onClick={reroll}
                             className="flex-1 py-1.5 rounded-lg text-xs bg-white/5 text-white/70 hover:bg-white/10 hover:text-white transition-colors"
                           >
-                            随机一款
+                            {t('home.tintRandom')}
                           </button>
                           <button
                             data-tint-reset
                             onClick={reroll}
                             className="flex-1 py-1.5 rounded-lg text-xs bg-white/5 text-white/70 hover:bg-white/10 hover:text-white transition-colors"
                           >
-                            恢复默认
+                            {t('home.tintReset')}
                           </button>
                         </div>
                       </div>
@@ -1837,7 +1847,7 @@ export default function HomePage({ onNavigate, store }: { onNavigate: (page: str
                   }}
                   className="w-full flex items-center justify-center gap-1.5 py-1.5 rounded-lg text-xs bg-white/5 text-white/70 hover:bg-white/10 hover:text-white transition-colors"
                 >
-                  <Unlink size={12} /> 拆分组合
+                  <Unlink size={12} /> {t('home.splitCombo')}
                 </button>
               </>
             )}
@@ -1857,7 +1867,7 @@ export default function HomePage({ onNavigate, store }: { onNavigate: (page: str
                       }}
                       className="w-full flex items-center justify-center gap-1.5 py-1.5 rounded-lg text-xs bg-white/5 text-white/70 hover:bg-white/10 hover:text-white transition-colors"
                     >
-                      <LogOut size={12} /> 移出「{widgetDefOf(stack.activeWidgetId).name}」
+                      <LogOut size={12} /> {t('home.extractWidget', { name: widgetDisplayName(widgetDefOf(stack.activeWidgetId), t) })}
                     </button>
                     <button
                       data-wstack-split
@@ -1867,7 +1877,7 @@ export default function HomePage({ onNavigate, store }: { onNavigate: (page: str
                       }}
                       className="mt-1 w-full flex items-center justify-center gap-1.5 py-1.5 rounded-lg text-xs bg-white/5 text-white/70 hover:bg-white/10 hover:text-white transition-colors"
                     >
-                      <Unlink size={12} /> 拆分组件摞
+                      <Unlink size={12} /> {t('home.splitWstack')}
                     </button>
                   </>
                 );
@@ -1875,12 +1885,12 @@ export default function HomePage({ onNavigate, store }: { onNavigate: (page: str
             {/* 计划卡专属：卡面样式切换（列表式/焦点式，按卡片存 cardFaceStyles） */}
             {sizeMenu.kind === 'widget' && sizeMenu.id === 'task' && (
               <>
-                <p className="px-1 pt-2.5 pb-1 text-[10px] tracking-wider text-white/40 uppercase">卡面样式</p>
+                <p className="px-1 pt-2.5 pb-1 text-[10px] tracking-wider text-white/40 uppercase">{t('home.faceStyle')}</p>
                 <div className="flex gap-1">
                   {(
                     [
-                      { id: 'list', label: '列表式' },
-                      { id: 'focus', label: '焦点式' },
+                      { id: 'list', label: t('home.faceList') },
+                      { id: 'focus', label: t('home.faceFocus') },
                     ] as { id: CardFaceStyle; label: string }[]
                   ).map((s) => {
                     const selected = cardFaceStyleOf(store.data.cardFaceStyles, widgetCardKey('task')) === s.id;
@@ -1926,7 +1936,7 @@ export default function HomePage({ onNavigate, store }: { onNavigate: (page: str
               }}
               className="w-full flex items-center gap-2 px-2.5 py-2 rounded-lg text-left text-xs text-white/80 hover:bg-white/8 hover:text-white transition-colors"
             >
-              <FolderPlus size={14} className="text-white/45" /> 新建编组
+              <FolderPlus size={14} className="text-white/45" /> {t('menu.newGroup')}
             </button>
             <button
               data-blank-add-widget
@@ -1936,7 +1946,7 @@ export default function HomePage({ onNavigate, store }: { onNavigate: (page: str
               }}
               className="w-full flex items-center gap-2 px-2.5 py-2 rounded-lg text-left text-xs text-white/80 hover:bg-white/8 hover:text-white transition-colors"
             >
-              <LayoutGrid size={14} className="text-white/45" /> 添加组件
+              <LayoutGrid size={14} className="text-white/45" /> {t('home.addWidget')}
             </button>
           </motion.div>
         )}
@@ -1964,7 +1974,7 @@ export default function HomePage({ onNavigate, store }: { onNavigate: (page: str
               className="rounded-[24px] bg-[#17171d] border border-white/10 w-full max-w-sm p-4 shadow-2xl shadow-black/60"
             >
               <div className="flex items-center justify-between mb-3">
-                <h3 className="font-semibold text-sm">新建编组</h3>
+                <h3 className="font-semibold text-sm">{t('menu.newGroup')}</h3>
                 <button onClick={() => setShowNewGroup(false)} className="p-1.5 rounded-lg text-white/50 hover:text-white hover:bg-white/10">
                   <X size={15} />
                 </button>
@@ -1974,7 +1984,7 @@ export default function HomePage({ onNavigate, store }: { onNavigate: (page: str
                   value={newGroupName}
                   onChange={(e) => setNewGroupName(e.target.value)}
                   onKeyDown={(e) => e.key === 'Enter' && createGroup()}
-                  placeholder="编组名称，如 影视娱乐"
+                  placeholder={t('menu.newGroupNamePlaceholder')}
                   autoFocus
                   maxLength={GROUP_NAME_MAX}
                   data-group-name-input
@@ -1984,7 +1994,7 @@ export default function HomePage({ onNavigate, store }: { onNavigate: (page: str
                   {textCharCount(newGroupName)}/{GROUP_NAME_MAX}
                 </span>
               </div>
-              <p className="text-[11px] text-white/45 mt-3.5 mb-2">编组形态（之后也能在组内切换）</p>
+              <p className="text-[11px] text-white/45 mt-3.5 mb-2">{t('menu.newGroupDisplayHint')}</p>
               <div className="grid grid-cols-2 gap-2">
                 <button
                   onClick={() => setNewGroupDisplay('list')}
@@ -1995,10 +2005,10 @@ export default function HomePage({ onNavigate, store }: { onNavigate: (page: str
                   }`}
                 >
                   <span className={`flex items-center gap-1.5 text-[13px] font-semibold ${newGroupDisplay === 'list' ? 'text-indigo-200' : ''}`}>
-                    <List size={14} /> 详细列表
+                    <List size={14} /> {t('menu.displayList')}
                   </span>
                   <span className="block text-[11px] text-white/45 leading-relaxed mt-1.5">
-                    图标 + 名称 + 介绍成行展示，点开在主页原地向下拉开
+                    {t('menu.newGroupDisplayListDesc')}
                   </span>
                 </button>
                 <button
@@ -2010,10 +2020,10 @@ export default function HomePage({ onNavigate, store }: { onNavigate: (page: str
                   }`}
                 >
                   <span className={`flex items-center gap-1.5 text-[13px] font-semibold ${newGroupDisplay === 'stack' ? 'text-indigo-200' : ''}`}>
-                    <Folder size={14} /> 文件夹式
+                    <Folder size={14} /> {t('menu.displayStack')}
                   </span>
                   <span className="block text-[11px] text-white/45 leading-relaxed mt-1.5">
-                    紧凑的小卡像文件夹，点开弹窗看组内图标
+                    {t('menu.newGroupDisplayStackDesc')}
                   </span>
                 </button>
               </div>
@@ -2022,7 +2032,7 @@ export default function HomePage({ onNavigate, store }: { onNavigate: (page: str
                 disabled={!newGroupName.trim()}
                 className="mt-3.5 w-full py-2 rounded-xl bg-indigo-500/80 hover:bg-indigo-500 disabled:opacity-40 text-white text-sm font-medium transition-colors"
               >
-                创建并添加网站
+                {t('menu.newGroupCreate')}
               </button>
             </motion.div>
           </motion.div>

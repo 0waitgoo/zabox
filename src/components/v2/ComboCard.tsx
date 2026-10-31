@@ -1,6 +1,8 @@
 import React from 'react';
 import type { NavGroup } from '../../data/groups';
 import type { ComboItem, LocalStore } from '../../store/localStore';
+import { useLang } from '../../i18n/useLang';
+import { displayGroupName } from '../../i18n/groupNames';
 import { StackCardFrame, StackGroupIcon, StackSiteTiles } from './GroupStackCard';
 
 /**
@@ -36,6 +38,7 @@ export default function ComboCard({
   compactTabs?: boolean;
 }) {
   const active = groups.find((g) => g.id === combo.activeGroupId) ?? groups[0];
+  const { t, lang } = useLang();
 
   const switchTab = (e: React.MouseEvent, groupId: string) => {
     e.stopPropagation();
@@ -48,7 +51,7 @@ export default function ComboCard({
       tabEars={[groups[0].tabColor ?? '', groups[1].tabColor ?? '']}
       onClick={() => onOpen(combo)}
       delay={delay}
-      ariaLabel={`组合卡：${groups[0].name} 与 ${groups[1].name}`}
+      ariaLabel={t('menu.comboLabel', { a: displayGroupName(groups[0], lang), b: displayGroupName(groups[1], lang) })}
       rootProps={{ 'data-combo-card': combo.id }}
     >
       {/* 双 tab 头（第四十五轮：整段头部可点）：头部区（分隔线以上，含卡身上沿内边距）
@@ -60,7 +63,7 @@ export default function ComboCard({
           <button
             key={g.id}
             type="button"
-            aria-label={`切换到「${g.name}」`}
+            aria-label={t('menu.switchToGroup', { name: displayGroupName(g, lang) })}
             data-combo-tab-hit={g.id}
             data-combo-tab-drag=""
             data-combo-id={combo.id}
@@ -88,7 +91,7 @@ export default function ComboCard({
                       compactTabs ? 'text-[13px] whitespace-nowrap' : 'text-[14px] truncate'
                     }`}
                   >
-                    {g.name}
+                    {displayGroupName(g, lang)}
                   </span>
                 </div>
               </React.Fragment>

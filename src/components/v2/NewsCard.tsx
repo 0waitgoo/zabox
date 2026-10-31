@@ -2,6 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { Newspaper, ChevronRight, RefreshCw } from 'lucide-react';
 import { fetchNews, type NewsItem } from '../../services/api';
 import type { WidgetTint } from '../../store/localStore';
+import { useLang } from '../../i18n/useLang';
 import { Card, CardIconBadge } from './Card';
 
 /** A 型 · AI 资讯卡：接现有新闻接口，露头条 + 热门榜，点击进资讯页 */
@@ -17,6 +18,7 @@ export default function NewsCard({
 }) {
   const [news, setNews] = useState<NewsItem[]>([]);
   const [loading, setLoading] = useState(true);
+  const { t, lang } = useLang();
   const [retry, setRetry] = useState(0);
 
   useEffect(() => {
@@ -39,7 +41,7 @@ export default function NewsCard({
 
   return (
     <Card
-      title="AI 资讯"
+      title={t('nav.newsCardTitle')}
       icon={
         <CardIconBadge className="bg-pink-500 text-white">
           <Newspaper size={14} />
@@ -47,7 +49,7 @@ export default function NewsCard({
       }
       right={
         <span className="flex items-center gap-0.5 text-[11px] text-white/40">
-          进入资讯页 <ChevronRight size={12} />
+          {t('nav.newsCardOpen')} <ChevronRight size={12} />
         </span>
       }
       onClick={() => onNavigate('news')}
@@ -64,7 +66,7 @@ export default function NewsCard({
           {/* 头条 */}
           <div className="shrink-0">
             <div className="flex items-center gap-2 text-[11px] text-white/50 mb-1.5">
-              <span className="text-pink-300 font-semibold tracking-wide">今日最热</span>
+              <span className="text-pink-300 font-semibold tracking-wide">{t('nav.newsCardHottest')}</span>
               <span>{headline.source}</span>
               <span className="w-1 h-1 rounded-full bg-white/30" />
               <span className="text-indigo-300">{headline.category}</span>
@@ -76,7 +78,7 @@ export default function NewsCard({
           </div>
           {/* 热门榜 */}
           <div className="mt-3 pt-3 border-t border-white/10 flex-1 min-h-0 overflow-hidden">
-            <p className="text-[10px] font-medium tracking-wider text-white/35 uppercase mb-2">热门榜单</p>
+            <p className="text-[10px] font-medium tracking-wider text-white/35 uppercase mb-2">{t('nav.newsCardHotList')}</p>
             <div className="space-y-1">
               {hotList.map((item, idx) => (
                 <button
@@ -92,7 +94,7 @@ export default function NewsCard({
                   </span>
                   <span className="flex-1 text-xs sm:text-[13px] text-white/75 truncate">{item.title}</span>
                   <span className="text-[10px] text-white/35 shrink-0">
-                    {new Date(item.publishedAt).toLocaleDateString('zh-CN', { month: '2-digit', day: '2-digit' })}
+                    {new Date(item.publishedAt).toLocaleDateString(lang === 'en' ? 'en-US' : 'zh-CN', { month: '2-digit', day: '2-digit' })}
                   </span>
                 </button>
               ))}
@@ -101,11 +103,11 @@ export default function NewsCard({
         </div>
       ) : (
         <div className="flex-1 flex flex-col gap-2 items-center justify-center text-sm text-white/40">
-          <span>资讯暂时不可用</span>
+          <span>{t('nav.newsCardUnavailable')}</span>
           <button type="button" className="text-indigo-300 hover:text-indigo-200" onClick={(e) => {
             e.stopPropagation();
             setRetry((value) => value + 1);
-          }}>点此重试</button>
+          }}>{t('nav.newsCardRetry')}</button>
         </div>
       )}
     </Card>

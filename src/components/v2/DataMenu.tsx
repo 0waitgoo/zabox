@@ -3,6 +3,7 @@ import { Database, Download, Upload, RotateCcw, Save, FolderOpen, RefreshCw, X, 
 import { AnimatePresence, motion } from 'motion/react';
 import { IS_EXTENSION_BUILD } from '../../services/apiBase';
 import type { LocalStore } from '../../store/localStore';
+import { useLang } from '../../i18n/useLang';
 import {
   beginOAuthState,
   buildOAuthAuthorizeUrl,
@@ -65,12 +66,59 @@ import { parseWetabData } from '../../data/wetab';
 import type { NavGroup } from '../../data/groups';
 
 /**
+ * 同步模块（githubSync/giteeSync）返回的中文错误文案 → 当前语言。
+ * 模块本身保持中文原文（桌面版 PlanSyncBar 直接展示 res.message，改文案会串味），
+ * 这里只在渲染时查表翻译；未收录的（如服务端原样返回的文案）原样显示。
+ * 状态 state 里存的仍是原文，401 判定（isGhUnauthorized/isGiteeUnauthorized）不受影响。
+ */
+function translateSyncText(
+  t: (key: string, vars?: Record<string, string | number>) => string,
+  raw: string,
+): string {
+  const exact: Record<string, string> = {
+    '登录状态无效或已过期，请重新登录（401）': 'sync.unauthorized',
+    'GitHub 拒绝访问：权限不足或触发限流（403）': 'sync.forbiddenGh',
+    'Gitee 拒绝访问：权限不足或触发限流（403）': 'sync.forbiddenGe',
+    '网络错误，无法连接 GitHub': 'sync.networkGh',
+    '网络错误，无法连接 Gitee': 'sync.networkGe',
+    '仓库不存在或无权访问': 'sync.repoMissing',
+    'GitHub 返回的文件格式异常（可能路径指向文件夹）': 'sync.badFormatGh',
+    'Gitee 返回的文件格式异常（可能路径指向文件夹）': 'sync.badFormatGe',
+    '云端文件不是有效的 JSON 数据': 'sync.badJson',
+    '网络错误，无法完成 GitHub 登录，请重试': 'sync.loginNetworkGh',
+    '网络错误，无法完成 Gitee 登录，请重试': 'sync.loginNetworkGe',
+    '服务端未配置 GitHub 登录': 'sync.loginNotConfiguredGh',
+    '服务端未配置 Gitee 登录': 'sync.loginNotConfiguredGe',
+    'GitHub 登录失败：授权码已失效或被拒绝，请重新登录': 'sync.loginFailedGh',
+    'Gitee 登录失败：授权码已失效或被拒绝，请重新登录': 'sync.loginFailedGe',
+    'GitHub 未返回账号信息，请重新登录': 'sync.noAccountGh',
+    'Gitee 未返回账号信息，请重新登录': 'sync.noAccountGe',
+    '网络错误，创建同步仓库失败': 'sync.createNetwork',
+    'GitHub 未返回新文件 sha': 'sync.noShaGh',
+    'Gitee 未返回新文件 sha': 'sync.noShaGe',
+    'GitHub 返回格式异常': 'sync.badResponseGh',
+    'Gitee 返回格式异常': 'sync.badResponseGe',
+    '网络错误，无法刷新 Gitee 登录': 'sync.refreshNetwork',
+    'Gitee 登录已过期，请重新登录': 'sync.loginExpired',
+  };
+  const key = exact[raw];
+  if (key) return t(key);
+  const http = /^(GitHub|Gitee) 请求失败（(\d+)）$/.exec(raw);
+  if (http) return t('sync.httpFailed', { provider: http[1], status: http[2] });
+  const create = /^创建同步仓库失败（(\d+)），请稍后再试$/.exec(raw);
+  if (create) return t('sync.createFailed', { status: create[1] });
+  return raw;
+}
+
+
+/**
  * 「数据」入口：放在搜索区旁，不显眼。
  * 本地优先方案的数据自救通道：JSON 导出（下载）/ 导入（校验后恢复）/ 恢复默认，
  * 以及第十四轮的「保存到本地文件」：设置一次默认保存文件后，可点击保存或开自动保存
  * （数据一变化就自动写回该文件）；句柄存 IndexedDB，内容与导出 JSON 完全同一格式。
  */
 export default function DataMenu({ store }: { store: LocalStore }) {
+  const { t } = useLang();
   const [open, setOpen] = useState(false);
   const [message, setMessage] = useState<{ ok: boolean; text: string } | null>(null);
   const [confirmReset, setConfirmReset] = useState(false);
@@ -128,20 +176,20 @@ export default function DataMenu({ store }: { store: LocalStore }) {
   const doWrite = async (h: FsFileHandle, request: boolean, auto: boolean): Promise<void> => {
     if (writingRef.current) return;
     writingRef.current = true;
-    setSaveStatus({ kind: 'saving', text: auto ? '自动保存中…' : '保存中…' });
+    setSaveStatus({ kind: 'saving', text: auto ? t('data.savingAuto') : t('data.saving') });
     try {
       const res = await writeToFile(h, serializeData(), request);
       if (res === 'ok') {
         const now = Date.now();
         setMeta((m) => ({ ...m, lastSavedAt: now }));
-        setSaveStatus({ kind: 'ok', text: `${auto ? '已自动保存' : '已保存'} · ${formatSavedTime(now)}` });
+        setSaveStatus({ kind: 'ok', text: t(auto ? 'data.savedAuto' : 'data.saved', { time: formatSavedTime(now) }) });
       } else if (res === 'denied') {
         setSaveStatus({
           kind: 'denied',
-          text: auto ? '自动保存失败：文件权限已失效' : '保存失败：没有写入权限',
+          text: auto ? t('data.saveDeniedAuto') : t('data.saveDenied'),
         });
       } else {
-        setSaveStatus({ kind: 'error', text: '保存失败，请重试' });
+        setSaveStatus({ kind: 'error', text: t('data.saveFailed') });
       }
     } finally {
       writingRef.current = false;
@@ -165,7 +213,7 @@ export default function DataMenu({ store }: { store: LocalStore }) {
   }, [store.data, supported]);
 
   const pickAndSetFile = async (): Promise<FsFileHandle | null> => {
-    const h = await pickDataFile();
+    const h = await pickDataFile(t('data.filePickerDesc'));
     if (!h) return null;
     await persistHandle(h);
     setHandle(h);
@@ -300,14 +348,14 @@ export default function DataMenu({ store }: { store: LocalStore }) {
   ): boolean => {
     updateGhMeta({ lastSha: sha, baseUpdatedAt: remoteUpdatedAt, lastSyncedAt: Date.now() });
     if (!storeRef.current.importData(remoteData)) {
-      setGhStatus({ kind: 'error', text: '云端数据结构不对，无法导入' });
+      setGhStatus({ kind: 'error', text: t('data.remoteBadStructure') });
       return false;
     }
     if (widgetStorage) {
       restoreWidgetStorage(widgetStorage);
       reloadColorsData();
     }
-    setGhStatus({ kind: 'ok', text: `已同步 · ${formatSavedTime(Date.now())}` });
+    setGhStatus({ kind: 'ok', text: t('data.syncedAt', { time: formatSavedTime(Date.now()) }) });
     return true;
   };
 
@@ -315,14 +363,14 @@ export default function DataMenu({ store }: { store: LocalStore }) {
     const cfg = ghCfg();
     if (!cfg || ghBusyRef.current) return;
     ghBusyRef.current = true;
-    setGhStatus({ kind: 'syncing', text: '正在推送到 GitHub…' });
+    setGhStatus({ kind: 'syncing', text: t('data.pushingGh') });
     try {
       const snapshot = dataRef.current;
       const text = JSON.stringify(packDataEnvelope(snapshot), null, 2);
       const res = await ghPutFile(cfg, text, ghMetaRef.current.lastSha);
       if (res.kind === 'ok') {
         updateGhMeta({ lastSha: res.sha, baseUpdatedAt: snapshot.updatedAt, lastSyncedAt: Date.now() });
-        setGhStatus({ kind: 'ok', text: `已同步 · ${formatSavedTime(Date.now())}` });
+        setGhStatus({ kind: 'ok', text: t('data.syncedAt', { time: formatSavedTime(Date.now()) }) });
         return;
       }
       if (res.kind === 'error') {
@@ -340,15 +388,15 @@ export default function DataMenu({ store }: { store: LocalStore }) {
         const retry = await ghPutFile(cfg, text, null);
         if (retry.kind === 'ok') {
           updateGhMeta({ lastSha: retry.sha, baseUpdatedAt: snapshot.updatedAt, lastSyncedAt: Date.now() });
-          setGhStatus({ kind: 'ok', text: `已同步 · ${formatSavedTime(Date.now())}` });
+          setGhStatus({ kind: 'ok', text: t('data.syncedAt', { time: formatSavedTime(Date.now()) }) });
         } else {
-          setGhStatus({ kind: 'conflict', text: '同步冲突：云端状态异常，请选择以哪边为准' });
+          setGhStatus({ kind: 'conflict', text: t('data.conflictCloudState') });
         }
         return;
       }
       if (remote.updatedAt > dataRef.current.updatedAt) {
         if (applyRemote(remote.data, remote.sha, remote.updatedAt, remote.widgetStorage)) {
-          setGhStatus({ kind: 'ok', text: '云端有更新，已拉取云端数据' });
+          setGhStatus({ kind: 'ok', text: t('data.remoteNewerPulled') });
         }
         return;
       }
@@ -356,10 +404,10 @@ export default function DataMenu({ store }: { store: LocalStore }) {
       const retry = await ghPutFile(cfg, serializeData(), remote.sha);
       if (retry.kind === 'ok') {
         updateGhMeta({ lastSha: retry.sha, baseUpdatedAt: dataRef.current.updatedAt, lastSyncedAt: Date.now() });
-        setGhStatus({ kind: 'ok', text: `已同步 · ${formatSavedTime(Date.now())}` });
+        setGhStatus({ kind: 'ok', text: t('data.syncedAt', { time: formatSavedTime(Date.now()) }) });
       } else {
         updateGhMeta({ lastSha: remote.sha });
-        setGhStatus({ kind: 'conflict', text: '同步冲突：本地与云端都有新变化，请选择以哪边为准' });
+        setGhStatus({ kind: 'conflict', text: t('data.conflictBothChanged') });
       }
     } finally {
       ghBusyRef.current = false;
@@ -370,12 +418,12 @@ export default function DataMenu({ store }: { store: LocalStore }) {
     const cfg = ghCfg();
     if (!cfg || ghBusyRef.current) return;
     ghBusyRef.current = true;
-    setGhStatus({ kind: 'syncing', text: '正在从 GitHub 拉取…' });
+    setGhStatus({ kind: 'syncing', text: t('data.pullingGh') });
     try {
       const res = await ghGetFile(cfg);
       if (res.kind === 'missing') {
         updateGhMeta({ lastSha: null });
-        setGhStatus({ kind: 'missing', text: '云端尚无数据文件' });
+        setGhStatus({ kind: 'missing', text: t('data.cloudEmpty') });
         return;
       }
       if (res.kind === 'error') {
@@ -388,13 +436,13 @@ export default function DataMenu({ store }: { store: LocalStore }) {
         applyRemote(res.data, res.sha, res.updatedAt, res.widgetStorage);
       } else if (res.updatedAt < localUpdatedAt) {
         updateGhMeta({ lastSha: res.sha, baseUpdatedAt: res.updatedAt });
-        setGhStatus({ kind: 'ok', text: '本地数据较新，正在推送…' });
+        setGhStatus({ kind: 'ok', text: t('data.localNewerPushing') });
         ghBusyRef.current = false;
         await pushToGithub();
         return;
       } else {
         updateGhMeta({ lastSha: res.sha, baseUpdatedAt: res.updatedAt, lastSyncedAt: Date.now() });
-        setGhStatus({ kind: 'ok', text: `已同步 · ${formatSavedTime(Date.now())}` });
+        setGhStatus({ kind: 'ok', text: t('data.syncedAt', { time: formatSavedTime(Date.now()) }) });
       }
     } finally {
       ghBusyRef.current = false;
@@ -406,7 +454,7 @@ export default function DataMenu({ store }: { store: LocalStore }) {
     const cfg = ghCfg();
     if (!cfg || ghBusyRef.current) return;
     ghBusyRef.current = true;
-    setGhStatus({ kind: 'syncing', text: '正在以本地数据覆盖云端…' });
+    setGhStatus({ kind: 'syncing', text: t('data.overwritingCloud') });
     try {
       const remote = await ghGetFile(cfg);
       if (remote.kind === 'error') {
@@ -418,9 +466,9 @@ export default function DataMenu({ store }: { store: LocalStore }) {
       const res = await ghPutFile(cfg, JSON.stringify(packDataEnvelope(snapshot), null, 2), sha);
       if (res.kind === 'ok') {
         updateGhMeta({ lastSha: res.sha, baseUpdatedAt: snapshot.updatedAt, lastSyncedAt: Date.now() });
-        setGhStatus({ kind: 'ok', text: `已同步 · ${formatSavedTime(Date.now())}` });
+        setGhStatus({ kind: 'ok', text: t('data.syncedAt', { time: formatSavedTime(Date.now()) }) });
       } else if (res.kind === 'conflict') {
-        setGhStatus({ kind: 'conflict', text: '同步冲突：云端仍在变化，请稍后再试' });
+        setGhStatus({ kind: 'conflict', text: t('data.conflictCloudChanging') });
       } else {
         setGhStatus({ kind: 'error', text: res.message });
       }
@@ -486,14 +534,14 @@ export default function DataMenu({ store }: { store: LocalStore }) {
   ): boolean => {
     updateGeMeta({ lastSha: sha, baseUpdatedAt: remoteUpdatedAt, lastSyncedAt: Date.now() });
     if (!storeRef.current.importData(remoteData)) {
-      setGeStatus({ kind: 'error', text: '云端数据结构不对，无法导入' });
+      setGeStatus({ kind: 'error', text: t('data.remoteBadStructure') });
       return false;
     }
     if (widgetStorage) {
       restoreWidgetStorage(widgetStorage);
       reloadColorsData();
     }
-    setGeStatus({ kind: 'ok', text: `已同步 · ${formatSavedTime(Date.now())}` });
+    setGeStatus({ kind: 'ok', text: t('data.syncedAt', { time: formatSavedTime(Date.now()) }) });
     return true;
   };
 
@@ -502,14 +550,14 @@ export default function DataMenu({ store }: { store: LocalStore }) {
     const cfg = await geFreshCfg();
     if (!cfg) return;
     geBusyRef.current = true;
-    setGeStatus({ kind: 'syncing', text: '正在推送到 Gitee…' });
+    setGeStatus({ kind: 'syncing', text: t('data.pushingGe') });
     try {
       const snapshot = dataRef.current;
       const text = JSON.stringify(packDataEnvelope(snapshot), null, 2);
       const res = await gePutWithRefresh(cfg, text, geMetaRef.current.lastSha);
       if (res.kind === 'ok') {
         updateGeMeta({ lastSha: res.sha, baseUpdatedAt: snapshot.updatedAt, lastSyncedAt: Date.now() });
-        setGeStatus({ kind: 'ok', text: `已同步 · ${formatSavedTime(Date.now())}` });
+        setGeStatus({ kind: 'ok', text: t('data.syncedAt', { time: formatSavedTime(Date.now()) }) });
         return;
       }
       if (res.kind === 'error') {
@@ -527,15 +575,15 @@ export default function DataMenu({ store }: { store: LocalStore }) {
         const retry = await gePutWithRefresh(cfg, text, null);
         if (retry.kind === 'ok') {
           updateGeMeta({ lastSha: retry.sha, baseUpdatedAt: snapshot.updatedAt, lastSyncedAt: Date.now() });
-          setGeStatus({ kind: 'ok', text: `已同步 · ${formatSavedTime(Date.now())}` });
+          setGeStatus({ kind: 'ok', text: t('data.syncedAt', { time: formatSavedTime(Date.now()) }) });
         } else {
-          setGeStatus({ kind: 'conflict', text: '同步冲突：云端状态异常，请选择以哪边为准' });
+          setGeStatus({ kind: 'conflict', text: t('data.conflictCloudState') });
         }
         return;
       }
       if (remote.updatedAt > dataRef.current.updatedAt) {
         if (applyRemoteGe(remote.data, remote.sha, remote.updatedAt, remote.widgetStorage)) {
-          setGeStatus({ kind: 'ok', text: '云端有更新，已拉取云端数据' });
+          setGeStatus({ kind: 'ok', text: t('data.remoteNewerPulled') });
         }
         return;
       }
@@ -543,10 +591,10 @@ export default function DataMenu({ store }: { store: LocalStore }) {
       const retry = await gePutWithRefresh(cfg, serializeData(), remote.sha);
       if (retry.kind === 'ok') {
         updateGeMeta({ lastSha: retry.sha, baseUpdatedAt: dataRef.current.updatedAt, lastSyncedAt: Date.now() });
-        setGeStatus({ kind: 'ok', text: `已同步 · ${formatSavedTime(Date.now())}` });
+        setGeStatus({ kind: 'ok', text: t('data.syncedAt', { time: formatSavedTime(Date.now()) }) });
       } else {
         updateGeMeta({ lastSha: remote.sha });
-        setGeStatus({ kind: 'conflict', text: '同步冲突：本地与云端都有新变化，请选择以哪边为准' });
+        setGeStatus({ kind: 'conflict', text: t('data.conflictBothChanged') });
       }
     } finally {
       geBusyRef.current = false;
@@ -558,12 +606,12 @@ export default function DataMenu({ store }: { store: LocalStore }) {
     const cfg = await geFreshCfg();
     if (!cfg) return;
     geBusyRef.current = true;
-    setGeStatus({ kind: 'syncing', text: '正在从 Gitee 拉取…' });
+    setGeStatus({ kind: 'syncing', text: t('data.pullingGe') });
     try {
       const res = await geGetWithRefresh(cfg);
       if (res.kind === 'missing') {
         updateGeMeta({ lastSha: null });
-        setGeStatus({ kind: 'missing', text: '云端尚无数据文件' });
+        setGeStatus({ kind: 'missing', text: t('data.cloudEmpty') });
         return;
       }
       if (res.kind === 'error') {
@@ -576,13 +624,13 @@ export default function DataMenu({ store }: { store: LocalStore }) {
         applyRemoteGe(res.data, res.sha, res.updatedAt, res.widgetStorage);
       } else if (res.updatedAt < localUpdatedAt) {
         updateGeMeta({ lastSha: res.sha, baseUpdatedAt: res.updatedAt });
-        setGeStatus({ kind: 'ok', text: '本地数据较新，正在推送…' });
+        setGeStatus({ kind: 'ok', text: t('data.localNewerPushing') });
         geBusyRef.current = false;
         await pushToGitee();
         return;
       } else {
         updateGeMeta({ lastSha: res.sha, baseUpdatedAt: res.updatedAt, lastSyncedAt: Date.now() });
-        setGeStatus({ kind: 'ok', text: `已同步 · ${formatSavedTime(Date.now())}` });
+        setGeStatus({ kind: 'ok', text: t('data.syncedAt', { time: formatSavedTime(Date.now()) }) });
       }
     } finally {
       geBusyRef.current = false;
@@ -595,7 +643,7 @@ export default function DataMenu({ store }: { store: LocalStore }) {
     const cfg = await geFreshCfg();
     if (!cfg) return;
     geBusyRef.current = true;
-    setGeStatus({ kind: 'syncing', text: '正在以本地数据覆盖云端…' });
+    setGeStatus({ kind: 'syncing', text: t('data.overwritingCloud') });
     try {
       const remote = await geGetWithRefresh(cfg);
       if (remote.kind === 'error') {
@@ -607,9 +655,9 @@ export default function DataMenu({ store }: { store: LocalStore }) {
       const res = await gePutWithRefresh(cfg, JSON.stringify(packDataEnvelope(snapshot), null, 2), sha);
       if (res.kind === 'ok') {
         updateGeMeta({ lastSha: res.sha, baseUpdatedAt: snapshot.updatedAt, lastSyncedAt: Date.now() });
-        setGeStatus({ kind: 'ok', text: `已同步 · ${formatSavedTime(Date.now())}` });
+        setGeStatus({ kind: 'ok', text: t('data.syncedAt', { time: formatSavedTime(Date.now()) }) });
       } else if (res.kind === 'conflict') {
-        setGeStatus({ kind: 'conflict', text: '同步冲突：云端仍在变化，请稍后再试' });
+        setGeStatus({ kind: 'conflict', text: t('data.conflictCloudChanging') });
       } else {
         setGeStatus({ kind: 'error', text: res.message });
       }
@@ -662,7 +710,7 @@ export default function DataMenu({ store }: { store: LocalStore }) {
     } catch {
       // 存不下也继续：跳转本身能完成重登
     }
-    setGhStatus({ kind: 'syncing', text: 'GitHub 登录已过期，正在重新登录…' });
+    setGhStatus({ kind: 'syncing', text: t('data.reloginGh') });
     const state = beginOAuthState();
     window.location.href = buildOAuthAuthorizeUrl(cid, state);
     return true;
@@ -681,10 +729,10 @@ export default function DataMenu({ store }: { store: LocalStore }) {
     setOpen(true);
     const expected = consumeOAuthState();
     if (!expected || !returnedState || returnedState !== expected) {
-      setGhStatus({ kind: 'error', text: 'GitHub 登录校验失败（state 不符），请重新登录' });
+      setGhStatus({ kind: 'error', text: t('data.oauthStateMismatchGh') });
       return;
     }
-    setGhStatus({ kind: 'syncing', text: '正在完成 GitHub 登录…' });
+    setGhStatus({ kind: 'syncing', text: t('data.completingLoginGh') });
     const exchanged = await exchangeOAuthCode(code);
     if ('error' in exchanged) {
       setGhStatus({ kind: 'error', text: exchanged.error });
@@ -713,7 +761,7 @@ export default function DataMenu({ store }: { store: LocalStore }) {
       baseUpdatedAt: 0,
       lastSyncedAt: null,
     });
-    setGhStatus({ kind: 'ok', text: `已登录 GitHub（${user.login}），同步已开启` });
+    setGhStatus({ kind: 'ok', text: t('data.loggedInGh', { login: user.login }) });
     await pullFromGithub();
   };
 
@@ -729,7 +777,7 @@ export default function DataMenu({ store }: { store: LocalStore }) {
     const token = patToken.trim();
     if (!token || ghBusyRef.current) return;
     ghBusyRef.current = true;
-    setGhStatus({ kind: 'syncing', text: '正在验证令牌…' });
+    setGhStatus({ kind: 'syncing', text: t('data.verifyingToken') });
     try {
       const user = await ghGetUser(token);
       if ('error' in user) {
@@ -755,7 +803,7 @@ export default function DataMenu({ store }: { store: LocalStore }) {
         lastSyncedAt: null,
       });
       setPatToken('');
-      setGhStatus({ kind: 'ok', text: `已连接 GitHub（${user.login}），同步已开启` });
+      setGhStatus({ kind: 'ok', text: t('data.connectedGh', { login: user.login }) });
     } finally {
       ghBusyRef.current = false;
     }
@@ -789,7 +837,7 @@ export default function DataMenu({ store }: { store: LocalStore }) {
     } catch {
       // 存不下也继续
     }
-    setGeStatus({ kind: 'syncing', text: 'Gitee 登录已过期，正在重新登录…' });
+    setGeStatus({ kind: 'syncing', text: t('data.reloginGe') });
     const state = beginGiteeOAuthState();
     window.location.href = buildGiteeOAuthAuthorizeUrl(cid, state, giteeRedirectUri());
     return true;
@@ -808,10 +856,10 @@ export default function DataMenu({ store }: { store: LocalStore }) {
     setOpen(true);
     const expected = consumeGiteeOAuthState();
     if (!expected || !returnedState || returnedState !== expected) {
-      setGeStatus({ kind: 'error', text: 'Gitee 登录校验失败（state 不符），请重新登录' });
+      setGeStatus({ kind: 'error', text: t('data.oauthStateMismatchGe') });
       return;
     }
-    setGeStatus({ kind: 'syncing', text: '正在完成 Gitee 登录…' });
+    setGeStatus({ kind: 'syncing', text: t('data.completingLoginGe') });
     const exchanged = await exchangeGiteeOAuthCode(code, giteeRedirectUri());
     if ('error' in exchanged) {
       setGeStatus({ kind: 'error', text: exchanged.error });
@@ -845,7 +893,7 @@ export default function DataMenu({ store }: { store: LocalStore }) {
     setProvider('gitee');
     providerRef.current = 'gitee';
     saveSyncProvider('gitee');
-    setGeStatus({ kind: 'ok', text: `已登录 Gitee（${user.login}），同步已开启` });
+    setGeStatus({ kind: 'ok', text: t('data.loggedInGe', { login: user.login }) });
     await pullFromGitee();
   };
 
@@ -870,7 +918,7 @@ export default function DataMenu({ store }: { store: LocalStore }) {
     const token = gePatToken.trim();
     if (!token || geBusyRef.current) return;
     geBusyRef.current = true;
-    setGeStatus({ kind: 'syncing', text: '正在验证令牌…' });
+    setGeStatus({ kind: 'syncing', text: t('data.verifyingToken') });
     try {
       const user = await geGetUser(token);
       if ('error' in user) {
@@ -898,7 +946,7 @@ export default function DataMenu({ store }: { store: LocalStore }) {
         lastSyncedAt: null,
       });
       setGePatToken('');
-      setGeStatus({ kind: 'ok', text: `已连接 Gitee（${user.login}），同步已开启` });
+      setGeStatus({ kind: 'ok', text: t('data.connectedGe', { login: user.login }) });
     } finally {
       geBusyRef.current = false;
     }
@@ -931,7 +979,7 @@ export default function DataMenu({ store }: { store: LocalStore }) {
         remote.updatedAt !== dataRef.current.updatedAt
       ) {
         updateGeMeta({ lastSha: remote.sha });
-        setGeStatus({ kind: 'conflict', text: '本地与 Gitee 云端都有未同步的变化，请选择以哪边为准' });
+        setGeStatus({ kind: 'conflict', text: t('data.divergedGe') });
         return;
       }
       await pullFromGitee();
@@ -956,7 +1004,7 @@ export default function DataMenu({ store }: { store: LocalStore }) {
       remote.updatedAt !== dataRef.current.updatedAt
     ) {
       updateGhMeta({ lastSha: remote.sha });
-      setGhStatus({ kind: 'conflict', text: '本地与 GitHub 云端都有未同步的变化，请选择以哪边为准' });
+      setGhStatus({ kind: 'conflict', text: t('data.divergedGh') });
       return;
     }
     await pullFromGithub();
@@ -1049,7 +1097,7 @@ export default function DataMenu({ store }: { store: LocalStore }) {
     a.download = `ainav-data-${new Date().toISOString().slice(0, 10)}.json`;
     a.click();
     URL.revokeObjectURL(url);
-    setMessage({ ok: true, text: '已导出 JSON 文件' });
+    setMessage({ ok: true, text: t('data.exportedJson') });
   };
 
   const importFile = async (file: File) => {
@@ -1063,12 +1111,12 @@ export default function DataMenu({ store }: { store: LocalStore }) {
           restoreWidgetStorage(widgetStorage);
           reloadColorsData();
         }
-        setMessage({ ok: true, text: '导入成功，数据已恢复' });
+        setMessage({ ok: true, text: t('data.importOk') });
       } else {
-        setMessage({ ok: false, text: '导入失败：文件结构不对，请用本应用导出的 JSON' });
+        setMessage({ ok: false, text: t('data.importBadStructure') });
       }
     } catch {
-      setMessage({ ok: false, text: '导入失败：不是有效的 JSON 文件' });
+      setMessage({ ok: false, text: t('data.importBadJson') });
     }
   };
 
@@ -1082,13 +1130,13 @@ export default function DataMenu({ store }: { store: LocalStore }) {
       const parsed: unknown = JSON.parse(await file.text());
       const converted = parseWetabData(parsed);
       if (!converted) {
-        setMessage({ ok: false, text: '导入失败：不是 .data 导出文件' });
+        setMessage({ ok: false, text: t('data.wetabNotData') });
         return;
       }
       setPendingWetab(converted);
       setMessage(null);
     } catch {
-      setMessage({ ok: false, text: '导入失败：不是有效的 .data 文件' });
+      setMessage({ ok: false, text: t('data.wetabBadFile') });
     }
   };
 
@@ -1099,7 +1147,9 @@ export default function DataMenu({ store }: { store: LocalStore }) {
     setPendingWetab(null);
     setMessage({
       ok: true,
-      text: `已替换为导入的数据：${r.groups} 组 ${r.sites} 站${skipped ? `，跳过 ${skipped} 个（重复/无效/小组件）` : ''}`,
+      text:
+        t('data.wetabApplied', { groups: r.groups, sites: r.sites }) +
+        (skipped ? t('data.wetabSkipped', { skipped }) : ''),
     });
   };
 
@@ -1147,11 +1197,11 @@ export default function DataMenu({ store }: { store: LocalStore }) {
           setMessage(null);
           setConfirmReset(false);
         }}
-        title="数据：导出 / 导入 / 恢复默认"
+        title={t('data.menuTitle')}
         className="card-glass-surface h-12 sm:h-13 px-2.5 sm:px-3 rounded-2xl border border-white/[0.07] text-white/45 hover:text-white/85 hover:border-white/15 flex items-center gap-1.5 text-xs transition-colors"
       >
         <Database size={15} />
-        <span className="hidden sm:inline">数据</span>
+        <span className="hidden sm:inline">{t('data.menuLabel')}</span>
       </button>
 
       <AnimatePresence>
@@ -1165,13 +1215,13 @@ export default function DataMenu({ store }: { store: LocalStore }) {
             className="absolute right-0 top-full mt-2 w-64 max-h-[82vh] overflow-y-auto rounded-3xl bg-[#17171d] border border-white/15 p-2 shadow-2xl shadow-black/70 z-50"
           >
             <p className="px-3 pt-2 pb-1 text-[10px] text-white/35 leading-relaxed">
-              数据保存在本机浏览器里。导出备份、换设备时导入即可恢复。
+              {t('data.intro')}
             </p>
             <button onClick={exportJson} className={itemCls}>
-              <Download size={14} className="text-white/45" /> 导出 JSON
+              <Download size={14} className="text-white/45" /> {t('data.exportJson')}
             </button>
             <button onClick={() => fileRef.current?.click()} className={itemCls}>
-              <Upload size={14} className="text-white/45" /> 导入 JSON
+              <Upload size={14} className="text-white/45" /> {t('data.importJson')}
             </button>
             <input
               ref={fileRef}
@@ -1185,13 +1235,12 @@ export default function DataMenu({ store }: { store: LocalStore }) {
               }}
             />
             <button onClick={() => wetabFileRef.current?.click()} className={itemCls} data-wetab-import>
-              <FolderOpen size={14} className="text-white/45" /> 导入 (.data)
+              <FolderOpen size={14} className="text-white/45" /> {t('data.importWetab')}
             </button>
             {pendingWetab && (
               <div className="px-3 py-2" data-wetab-confirm-box>
                 <p className="text-[11px] text-amber-300 mb-2">
-                  将替换现有全部编组为导入的 {pendingWetabCounts?.groups ?? 0} 组
-                  {pendingWetabCounts?.sites ?? 0} 站，现有编组、组合与排版会清空，待办/计划/小组件不动，确定？
+                  {t('data.wetabConfirm', { groups: pendingWetabCounts?.groups ?? 0, sites: pendingWetabCounts?.sites ?? 0 })}
                 </p>
                 <div className="flex gap-2">
                   <button
@@ -1199,14 +1248,14 @@ export default function DataMenu({ store }: { store: LocalStore }) {
                     className="text-[11px] px-2.5 py-1.5 rounded-lg bg-indigo-500/80 text-white font-medium"
                     data-wetab-confirm
                   >
-                    确认导入
+                    {t('data.confirmImport')}
                   </button>
                   <button
                     onClick={() => setPendingWetab(null)}
                     className="text-[11px] px-2.5 py-1.5 rounded-lg bg-white/8 text-white/70"
                     data-wetab-cancel
                   >
-                    算了
+                    {t('data.neverMind')}
                   </button>
                 </div>
               </div>
@@ -1224,26 +1273,26 @@ export default function DataMenu({ store }: { store: LocalStore }) {
             />
             {confirmReset ? (
               <div className="px-3 py-2">
-                <p className="text-[11px] text-red-300 mb-2">恢复默认会清掉你全部增删改，确定？</p>
+                <p className="text-[11px] text-red-300 mb-2">{t('data.resetConfirm')}</p>
                 <div className="flex gap-2">
                   <button
                     onClick={() => {
                       store.resetData();
                       setConfirmReset(false);
-                      setMessage({ ok: true, text: '已恢复默认数据' });
+                      setMessage({ ok: true, text: t('data.resetDone') });
                     }}
                     className="text-[11px] px-2.5 py-1.5 rounded-lg bg-red-500/80 text-white font-medium"
                   >
-                    确认恢复
+                    {t('data.confirmReset')}
                   </button>
                   <button onClick={() => setConfirmReset(false)} className="text-[11px] px-2.5 py-1.5 rounded-lg bg-white/8 text-white/70">
-                    算了
+                    {t('data.neverMind')}
                   </button>
                 </div>
               </div>
             ) : (
               <button onClick={() => setConfirmReset(true)} className={itemCls}>
-                <RotateCcw size={14} className="text-white/45" /> 恢复默认数据
+                <RotateCcw size={14} className="text-white/45" /> {t('data.resetData')}
               </button>
             )}
             {message && (
@@ -1252,24 +1301,24 @@ export default function DataMenu({ store }: { store: LocalStore }) {
 
             {/* ---- 本地文件保存（第十四轮）：设置一次保存文件，之后点击保存 / 变化自动保存都写回它 ---- */}
             <div className="mt-1 border-t border-white/8 px-3 pt-2.5 pb-1">
-              <p className="text-[10px] font-medium text-white/50 tracking-wide">本地文件保存</p>
+              <p className="text-[10px] font-medium text-white/50 tracking-wide">{t('data.localFileHeading')}</p>
               {supported ? (
                 <>
                   {handle ? (
                     <>
                       <p className="mt-1.5 text-[11px] text-white/70 break-all">
-                        保存文件：<span className="text-white/90">{meta.fileName || handle.name}</span>
+                        {t('data.saveFileLabel')}<span className="text-white/90">{meta.fileName || handle.name}</span>
                       </p>
                       <div className="mt-1 -mx-3">
                         <button onClick={() => void manualSave()} className={itemCls}>
-                          <Save size={14} className="text-white/45" /> 保存到文件
+                          <Save size={14} className="text-white/45" /> {t('data.saveToFile')}
                         </button>
                         <div className="flex">
                           <button onClick={() => void pickAndSetFile()} className={`${itemCls} w-auto flex-1`}>
-                            <RefreshCw size={14} className="text-white/45" /> 更换
+                            <RefreshCw size={14} className="text-white/45" /> {t('data.replaceFile')}
                           </button>
                           <button onClick={() => void clearFile()} className={`${itemCls} w-auto flex-1`}>
-                            <X size={14} className="text-white/45" /> 取消设置
+                            <X size={14} className="text-white/45" /> {t('data.clearFileSetting')}
                           </button>
                         </div>
                       </div>
@@ -1277,7 +1326,7 @@ export default function DataMenu({ store }: { store: LocalStore }) {
                   ) : (
                     <div className="mt-1 -mx-3">
                       <button onClick={() => void pickAndSetFile()} className={itemCls}>
-                        <FolderOpen size={14} className="text-white/45" /> 设置保存文件
+                        <FolderOpen size={14} className="text-white/45" /> {t('data.setSaveFile')}
                       </button>
                     </div>
                   )}
@@ -1286,7 +1335,7 @@ export default function DataMenu({ store }: { store: LocalStore }) {
                     disabled={!handle}
                     className={`mt-1 w-full flex items-center justify-between py-1.5 text-xs ${handle ? 'text-white/75' : 'text-white/30 cursor-not-allowed'}`}
                   >
-                    <span>数据变化自动保存</span>
+                    <span>{t('data.autoSave')}</span>
                     <span
                       className={`relative h-4.5 w-8 rounded-full transition-colors ${meta.autoSave && handle ? 'bg-violet-500' : 'bg-white/15'}`}
                     >
@@ -1311,30 +1360,30 @@ export default function DataMenu({ store }: { store: LocalStore }) {
                       {saveStatus.text}
                       {saveStatus.kind === 'denied' && handle && (
                         <button onClick={() => void reauthorize()} className="ml-1.5 underline underline-offset-2 text-amber-300">
-                          重新授权
+                          {t('data.reauthorize')}
                         </button>
                       )}
                     </p>
                   )}
                   {!saveStatus && meta.lastSavedAt && handle && (
-                    <p className="pb-1 text-[11px] text-white/40">上次保存 · {formatSavedTime(meta.lastSavedAt)}</p>
+                    <p className="pb-1 text-[11px] text-white/40">{t('data.lastSaved', { time: formatSavedTime(meta.lastSavedAt) })}</p>
                   )}
                 </>
               ) : (
                 <>
                   <div className="mt-1 -mx-3">
                     <button onClick={() => void manualSave()} className={itemCls}>
-                      <Save size={14} className="text-white/45" /> 保存到文件
+                      <Save size={14} className="text-white/45" /> {t('data.saveToFile')}
                     </button>
                   </div>
                   <div className={itemDisabledCls}>
-                    <span className="flex-1">数据变化自动保存</span>
+                    <span className="flex-1">{t('data.autoSave')}</span>
                     <span className="relative h-4.5 w-8 rounded-full bg-white/10">
                       <span className="absolute top-0.5 left-0.5 h-3.5 w-3.5 rounded-full bg-white/50" />
                     </span>
                   </div>
                   <p className="pb-1 text-[10px] text-white/35 leading-relaxed">
-                    当前浏览器不支持直接写本地文件，「保存到文件」将以下载方式保存；自动保存需 Chrome / Edge。
+                    {t('data.noFsAccess')}
                   </p>
                 </>
               )}
@@ -1344,7 +1393,7 @@ export default function DataMenu({ store }: { store: LocalStore }) {
                  同一时间只一条在跑；网站版一键登录（OAuth，仓库固定 ainav-data），
                  扩展构建走方案 B 粘贴令牌（OAuth 回跳不可用），仓库约定与 OAuth 相同 ---- */}
             <div className="mt-1 border-t border-white/8 px-3 pt-2.5 pb-1">
-              <p className="text-[10px] font-medium text-white/50 tracking-wide">云同步</p>
+              <p className="text-[10px] font-medium text-white/50 tracking-wide">{t('data.cloudSync')}</p>
               <div className="mt-1.5 flex gap-1.5" data-sync-provider-tabs>
                 <button
                   onClick={() => void switchProvider('github')}
@@ -1361,21 +1410,21 @@ export default function DataMenu({ store }: { store: LocalStore }) {
               </div>
               {provider === 'github' && (
                 <>
-              <p className="mt-2 text-[10px] font-medium text-white/50 tracking-wide">GitHub 同步</p>
+              <p className="mt-2 text-[10px] font-medium text-white/50 tracking-wide">{t('data.githubSyncHeading')}</p>
               {isGhLoggedIn ? (
                 <>
                   <p className="mt-1.5 text-[11px] text-white/70 break-all">
-                    {isPatLoggedIn ? '已连接 GitHub（令牌）：' : '已登录 GitHub：'}
+                    {isPatLoggedIn ? t('data.connectedGhToken') : t('data.loggedInGhLabel')}
                     <span className="text-white/90">{ghMeta.oauthLogin || ghMeta.owner}</span>
                   </p>
                   <p className="mt-0.5 text-[11px] text-white/40 break-all">
-                    同步仓库（固定）：{ghMeta.owner}/{ghMeta.repo} · {ghMeta.branch} · {ghMeta.path}
+                    {t('data.fixedRepo')}{ghMeta.owner}/{ghMeta.repo} · {ghMeta.branch} · {ghMeta.path}
                   </p>
                   <button
                     onClick={toggleGhEnabled}
                     className="mt-1 w-full flex items-center justify-between py-1.5 text-xs text-white/75"
                   >
-                    <span>开启同步（打开自动拉取、变化自动推送）</span>
+                    <span>{t('data.enableSync')}</span>
                     <span className={`relative h-4.5 w-8 shrink-0 rounded-full transition-colors ${ghMeta.enabled ? 'bg-violet-500' : 'bg-white/15'}`}>
                       <span className={`absolute top-0.5 h-3.5 w-3.5 rounded-full bg-white transition-all ${ghMeta.enabled ? 'left-4' : 'left-0.5'}`} />
                     </span>
@@ -1383,13 +1432,13 @@ export default function DataMenu({ store }: { store: LocalStore }) {
                   <div className="mt-0.5 -mx-3">
                     <div className="flex">
                       <button onClick={() => void pullFromGithub()} className={`${itemCls} w-auto flex-1`}>
-                        <Download size={14} className="text-white/45" /> 立即拉取
+                        <Download size={14} className="text-white/45" /> {t('data.pullNow')}
                       </button>
                       <button onClick={() => void pushToGithub()} className={`${itemCls} w-auto flex-1`}>
-                        <Upload size={14} className="text-white/45" /> 立即推送
+                        <Upload size={14} className="text-white/45" /> {t('data.pushNow')}
                       </button>
                       <button onClick={logoutOAuth} className={`${itemCls} w-auto flex-1`}>
-                        <LogOut size={14} className="text-white/45" /> 退出登录
+                        <LogOut size={14} className="text-white/45" /> {t('data.logout')}
                       </button>
                     </div>
                   </div>
@@ -1398,7 +1447,7 @@ export default function DataMenu({ store }: { store: LocalStore }) {
                       onClick={() => void pushToGithub()}
                       className="mt-1 w-full px-3 py-2 rounded-xl bg-violet-500/80 text-white text-xs font-medium hover:bg-violet-500 transition-colors"
                     >
-                      把本机数据首次推送上去
+                      {t('data.firstPush')}
                     </button>
                   )}
                   {ghStatus?.kind === 'conflict' && (
@@ -1407,22 +1456,22 @@ export default function DataMenu({ store }: { store: LocalStore }) {
                         onClick={() => void pullFromGithub({ forceApply: true })}
                         className="flex-1 px-2.5 py-1.5 rounded-lg bg-white/8 text-white/80 text-[11px] hover:bg-white/12 transition-colors"
                       >
-                        以云端为准
+                        {t('data.useCloud')}
                       </button>
                       <button
                         onClick={() => void forcePushLocal()}
                         className="flex-1 px-2.5 py-1.5 rounded-lg bg-violet-500/80 text-white text-[11px] font-medium hover:bg-violet-500 transition-colors"
                       >
-                        以本地为准
+                        {t('data.useLocal')}
                       </button>
                     </div>
                   )}
                   <p className={`pb-1 pt-1 text-[11px] leading-relaxed ${ghStatus ? ghStatusTextCls(ghStatus.kind) : 'text-white/40'}`}>
                     {ghStatus
-                      ? ghStatus.text
+                      ? translateSyncText(t, ghStatus.text)
                       : ghMeta.lastSyncedAt
-                        ? `上次同步 · ${formatSavedTime(ghMeta.lastSyncedAt)}`
-                        : '未连接'}
+                        ? t('data.lastSynced', { time: formatSavedTime(ghMeta.lastSyncedAt) })
+                        : t('data.notConnected')}
                   </p>
                   {ghStatus?.kind === 'error' && isGhUnauthorized(ghStatus.text) && (
                     <button
@@ -1430,7 +1479,7 @@ export default function DataMenu({ store }: { store: LocalStore }) {
                       disabled={!oauthClientId}
                       className="mt-1 w-full flex items-center justify-center gap-2 px-3 py-2 rounded-xl bg-violet-500/80 text-white text-xs font-medium hover:bg-violet-500 transition-colors disabled:bg-white/10 disabled:text-white/35 disabled:cursor-not-allowed"
                     >
-                      <LogIn size={14} /> 重新登录（不用先退出）
+                      <LogIn size={14} /> {t('data.reloginNoLogout')}
                     </button>
                   )}
                 </>
@@ -1441,7 +1490,7 @@ export default function DataMenu({ store }: { store: LocalStore }) {
                     type="password"
                     value={patToken}
                     onChange={(e) => setPatToken(e.target.value)}
-                    placeholder="粘贴 GitHub 令牌（ghp_… / github_pat_…）"
+                    placeholder={t('data.pasteGhToken')}
                     autoComplete="off"
                     className="mt-2 w-full px-3 py-2 rounded-xl bg-white/6 border border-white/12 text-xs text-white placeholder:text-white/30 outline-none focus:border-violet-400/60"
                   />
@@ -1450,18 +1499,17 @@ export default function DataMenu({ store }: { store: LocalStore }) {
                     disabled={!patToken.trim()}
                     className="mt-2 w-full flex items-center justify-center gap-2 px-3 py-2 rounded-xl bg-violet-500/80 text-white text-xs font-medium hover:bg-violet-500 transition-colors disabled:bg-white/10 disabled:text-white/35 disabled:cursor-not-allowed"
                   >
-                    <KeyRound size={14} /> 连接并同步
+                    <KeyRound size={14} /> {t('data.connectAndSync')}
                   </button>
                   <p className="mt-1 text-[10px] text-white/35 leading-relaxed">
-                    扩展版无法用 GitHub 一键登录，请粘贴令牌连接：GitHub 设置 → Developer settings → Personal access
-                    tokens 生成（需 repo 权限）。连接后自动使用你账号下的私有仓库 ainav-data 同步；令牌只存本机，绝不上传。
+                    {t('data.extGhNote')}
                   </p>
                   {ghStatus && (
                     <p className={`pt-1 text-[11px] leading-relaxed ${ghStatusTextCls(ghStatus.kind)}`}>
                       {ghStatus.kind === 'error' || ghStatus.kind === 'conflict' ? (
                         <AlertTriangle size={11} className="inline mr-1 -mt-0.5" />
                       ) : null}
-                      {ghStatus.text}
+                      {translateSyncText(t, ghStatus.text)}
                     </p>
                   )}
                 </>
@@ -1472,15 +1520,15 @@ export default function DataMenu({ store }: { store: LocalStore }) {
                     disabled={!oauthClientId}
                     className="mt-2 w-full flex items-center justify-center gap-2 px-3 py-2 rounded-xl bg-violet-500/80 text-white text-xs font-medium hover:bg-violet-500 transition-colors disabled:bg-white/10 disabled:text-white/35 disabled:cursor-not-allowed"
                   >
-                    <LogIn size={14} /> 使用 GitHub 登录
+                    <LogIn size={14} /> {t('data.loginWithGh')}
                   </button>
                   {oauthClientId === null ? (
-                    <p className="mt-1 text-[10px] text-white/35 leading-relaxed">服务端未配置 GitHub 登录。</p>
+                    <p className="mt-1 text-[10px] text-white/35 leading-relaxed">{t('data.serverNoGh')}</p>
                   ) : oauthClientId === undefined ? (
-                    <p className="mt-1 text-[10px] text-white/35 leading-relaxed">正在检查 GitHub 登录配置…</p>
+                    <p className="mt-1 text-[10px] text-white/35 leading-relaxed">{t('data.checkingGhConfig')}</p>
                   ) : (
                     <p className="mt-1 text-[10px] text-white/35 leading-relaxed">
-                      登录后自动在你的账号下创建私有仓库 ainav-data 并同步，不用填任何配置；每台设备登录一次即可。
+                      {t('data.loginAutoNote')}
                     </p>
                   )}
                   {ghStatus && (
@@ -1488,7 +1536,7 @@ export default function DataMenu({ store }: { store: LocalStore }) {
                       {ghStatus.kind === 'error' || ghStatus.kind === 'conflict' ? (
                         <AlertTriangle size={11} className="inline mr-1 -mt-0.5" />
                       ) : null}
-                      {ghStatus.text}
+                      {translateSyncText(t, ghStatus.text)}
                     </p>
                   )}
                 </>
@@ -1500,14 +1548,14 @@ export default function DataMenu({ store }: { store: LocalStore }) {
               {isGeLoggedIn ? (
                 <>
                   <p className="mt-1.5 text-[11px] text-white/70 break-all">
-                    {isGePatLoggedIn ? '已连接 Gitee（令牌）：' : '已登录 Gitee：'}
+                    {isGePatLoggedIn ? t('data.connectedGeToken') : t('data.loggedInGeLabel')}
                     <span className="text-white/90">{geMeta.oauthLogin || geMeta.owner}</span>
                   </p>
                   <button
                     onClick={toggleGeEnabled}
                     className="mt-1 w-full flex items-center justify-between py-1.5 text-xs text-white/75"
                   >
-                    <span>开启同步（打开自动拉取、变化自动推送）</span>
+                    <span>{t('data.enableSync')}</span>
                     <span className={`relative h-4.5 w-8 shrink-0 rounded-full transition-colors ${geMeta.enabled ? 'bg-violet-500' : 'bg-white/15'}`}>
                       <span className={`absolute top-0.5 h-3.5 w-3.5 rounded-full bg-white transition-all ${geMeta.enabled ? 'left-4' : 'left-0.5'}`} />
                     </span>
@@ -1515,13 +1563,13 @@ export default function DataMenu({ store }: { store: LocalStore }) {
                   <div className="mt-0.5 -mx-3">
                     <div className="flex">
                       <button onClick={() => void pullFromGitee()} className={`${itemCls} w-auto flex-1`}>
-                        <Download size={14} className="text-white/45" /> 立即拉取
+                        <Download size={14} className="text-white/45" /> {t('data.pullNow')}
                       </button>
                       <button onClick={() => void pushToGitee()} className={`${itemCls} w-auto flex-1`}>
-                        <Upload size={14} className="text-white/45" /> 立即推送
+                        <Upload size={14} className="text-white/45" /> {t('data.pushNow')}
                       </button>
                       <button onClick={logoutGiteeOAuth} className={`${itemCls} w-auto flex-1`}>
-                        <LogOut size={14} className="text-white/45" /> 退出登录
+                        <LogOut size={14} className="text-white/45" /> {t('data.logout')}
                       </button>
                     </div>
                   </div>
@@ -1530,7 +1578,7 @@ export default function DataMenu({ store }: { store: LocalStore }) {
                       onClick={() => void pushToGitee()}
                       className="mt-1 w-full px-3 py-2 rounded-xl bg-violet-500/80 text-white text-xs font-medium hover:bg-violet-500 transition-colors"
                     >
-                      把本机数据首次推送上去
+                      {t('data.firstPush')}
                     </button>
                   )}
                   {geStatus?.kind === 'conflict' && (
@@ -1539,22 +1587,22 @@ export default function DataMenu({ store }: { store: LocalStore }) {
                         onClick={() => void pullFromGitee({ forceApply: true })}
                         className="flex-1 px-2.5 py-1.5 rounded-lg bg-white/8 text-white/80 text-[11px] hover:bg-white/12 transition-colors"
                       >
-                        以云端为准
+                        {t('data.useCloud')}
                       </button>
                       <button
                         onClick={() => void forcePushLocalGe()}
                         className="flex-1 px-2.5 py-1.5 rounded-lg bg-violet-500/80 text-white text-[11px] font-medium hover:bg-violet-500 transition-colors"
                       >
-                        以本地为准
+                        {t('data.useLocal')}
                       </button>
                     </div>
                   )}
                   <p className={`pb-1 pt-1 text-[11px] leading-relaxed ${geStatus ? ghStatusTextCls(geStatus.kind) : 'text-white/40'}`}>
                     {geStatus
-                      ? geStatus.text
+                      ? translateSyncText(t, geStatus.text)
                       : geMeta.lastSyncedAt
-                        ? `上次同步 · ${formatSavedTime(geMeta.lastSyncedAt)}`
-                        : '未连接'}
+                        ? t('data.lastSynced', { time: formatSavedTime(geMeta.lastSyncedAt) })
+                        : t('data.notConnected')}
                   </p>
                   {geStatus?.kind === 'error' && isGiteeUnauthorized(geStatus.text) && (
                     <button
@@ -1562,7 +1610,7 @@ export default function DataMenu({ store }: { store: LocalStore }) {
                       disabled={!giteeOauthClientId}
                       className="mt-1 w-full flex items-center justify-center gap-2 px-3 py-2 rounded-xl bg-violet-500/80 text-white text-xs font-medium hover:bg-violet-500 transition-colors disabled:bg-white/10 disabled:text-white/35 disabled:cursor-not-allowed"
                     >
-                      <LogIn size={14} /> 重新登录（不用先退出）
+                      <LogIn size={14} /> {t('data.reloginNoLogout')}
                     </button>
                   )}
                 </>
@@ -1573,7 +1621,7 @@ export default function DataMenu({ store }: { store: LocalStore }) {
                     type="password"
                     value={gePatToken}
                     onChange={(e) => setGePatToken(e.target.value)}
-                    placeholder="粘贴 Gitee 令牌"
+                    placeholder={t('data.pasteGeToken')}
                     autoComplete="off"
                     className="mt-2 w-full px-3 py-2 rounded-xl bg-white/6 border border-white/12 text-xs text-white placeholder:text-white/30 outline-none focus:border-violet-400/60"
                   />
@@ -1582,17 +1630,17 @@ export default function DataMenu({ store }: { store: LocalStore }) {
                     disabled={!gePatToken.trim()}
                     className="mt-2 w-full flex items-center justify-center gap-2 px-3 py-2 rounded-xl bg-violet-500/80 text-white text-xs font-medium hover:bg-violet-500 transition-colors disabled:bg-white/10 disabled:text-white/35 disabled:cursor-not-allowed"
                   >
-                    <KeyRound size={14} /> 连接并同步
+                    <KeyRound size={14} /> {t('data.connectAndSync')}
                   </button>
                   <p className="mt-1 text-[10px] text-white/35 leading-relaxed">
-                    扩展版无法用 Gitee 一键登录，请粘贴令牌连接：Gitee 设置 → 私人令牌 生成（需 projects 权限）。连接后自动使用你账号下的私有仓库 ainav-data 同步；令牌只存本机，绝不上传。
+                    {t('data.extGeNote')}
                   </p>
                   {geStatus && (
                     <p className={`pt-1 text-[11px] leading-relaxed ${ghStatusTextCls(geStatus.kind)}`}>
                       {geStatus.kind === 'error' || geStatus.kind === 'conflict' ? (
                         <AlertTriangle size={11} className="inline mr-1 -mt-0.5" />
                       ) : null}
-                      {geStatus.text}
+                      {translateSyncText(t, geStatus.text)}
                     </p>
                   )}
                 </>
@@ -1603,15 +1651,15 @@ export default function DataMenu({ store }: { store: LocalStore }) {
                     disabled={!giteeOauthClientId}
                     className="mt-2 w-full flex items-center justify-center gap-2 px-3 py-2 rounded-xl bg-violet-500/80 text-white text-xs font-medium hover:bg-violet-500 transition-colors disabled:bg-white/10 disabled:text-white/35 disabled:cursor-not-allowed"
                   >
-                    <LogIn size={14} /> 使用 Gitee 登录
+                    <LogIn size={14} /> {t('data.loginWithGe')}
                   </button>
                   {giteeOauthClientId === null ? (
-                    <p className="mt-1 text-[10px] text-white/35 leading-relaxed">服务端未配置 Gitee 登录。</p>
+                    <p className="mt-1 text-[10px] text-white/35 leading-relaxed">{t('data.serverNoGe')}</p>
                   ) : giteeOauthClientId === undefined ? (
-                    <p className="mt-1 text-[10px] text-white/35 leading-relaxed">正在检查 Gitee 登录配置…</p>
+                    <p className="mt-1 text-[10px] text-white/35 leading-relaxed">{t('data.checkingGeConfig')}</p>
                   ) : (
                     <p className="mt-1 text-[10px] text-white/35 leading-relaxed">
-                      登录后自动在你的账号下创建私有仓库 ainav-data 并同步，不用填任何配置；每台设备登录一次即可。
+                      {t('data.loginAutoNote')}
                     </p>
                   )}
                   {geStatus && (
@@ -1619,7 +1667,7 @@ export default function DataMenu({ store }: { store: LocalStore }) {
                       {geStatus.kind === 'error' || geStatus.kind === 'conflict' ? (
                         <AlertTriangle size={11} className="inline mr-1 -mt-0.5" />
                       ) : null}
-                      {geStatus.text}
+                      {translateSyncText(t, geStatus.text)}
                     </p>
                   )}
                 </>

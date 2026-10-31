@@ -3,6 +3,8 @@ import { AnimatePresence, motion } from 'motion/react';
 import { X } from 'lucide-react';
 import type { NavGroup } from '../../data/groups';
 import type { ComboItem, LocalStore } from '../../store/localStore';
+import { useLang } from '../../i18n/useLang';
+import { displayGroupName } from '../../i18n/groupNames';
 import { GroupPanelSection } from './GroupPanel';
 
 /**
@@ -29,6 +31,7 @@ export default function ComboPanel({
   onBecomeList: (group: NavGroup) => void;
 }) {
   const open = combo !== null && groups !== null;
+  const { t, lang } = useLang();
 
   useEffect(() => {
     if (!open) return;
@@ -60,14 +63,14 @@ export default function ComboPanel({
           >
             {/* 弹窗头：组合标题 + 两组名 + 统一关闭 */}
             <div className="px-5 sm:px-6 pt-5 pb-1 shrink-0 flex items-center gap-2.5">
-              <h3 className="font-semibold text-base sm:text-lg tracking-tight">组合卡</h3>
+              <h3 className="font-semibold text-base sm:text-lg tracking-tight">{t('menu.comboCard')}</h3>
               <span className="text-xs text-white/40 truncate">
-                {groups[0].name} + {groups[1].name}
+                {displayGroupName(groups[0], lang)} + {displayGroupName(groups[1], lang)}
               </span>
               <button
                 onClick={onClose}
                 className="w-8 h-8 rounded-full bg-white/5 hover:bg-white/15 flex items-center justify-center text-white/60 hover:text-white transition-colors shrink-0 ml-auto"
-                aria-label="关闭"
+                aria-label={t('menu.close')}
               >
                 <X size={16} />
               </button>

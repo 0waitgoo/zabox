@@ -1,4 +1,5 @@
 import { Pin, PinOff } from 'lucide-react';
+import { useLang } from '../../i18n/useLang';
 
 export default function PinButton({ pinned, busy, light, onToggle }: {
   pinned: boolean;
@@ -6,7 +7,8 @@ export default function PinButton({ pinned, busy, light, onToggle }: {
   light: boolean;
   onToggle: () => void;
 }) {
-  const label = pinned ? '取消置顶' : '窗口置顶';
+  const { t } = useLang();
+  const label = pinned ? t('menu.pinOff') : t('menu.pinOn');
   return (
     <button type="button" title={label} aria-label={label} aria-pressed={pinned}
       disabled={busy} onClick={onToggle}

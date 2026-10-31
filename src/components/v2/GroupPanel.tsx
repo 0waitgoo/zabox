@@ -3,6 +3,8 @@ import { AnimatePresence, motion } from 'motion/react';
 import { X, Pin, Plus, Trash2, Check } from 'lucide-react';
 import { GROUP_NAME_MAX, GROUP_TAB_COLORS, siteIconSrc, siteTags, sortSites, textCharCount, type NavGroup, type SiteEntry } from '../../data/groups';
 import type { LocalStore } from '../../store/localStore';
+import { useLang } from '../../i18n/useLang';
+import { displayGroupName } from '../../i18n/groupNames';
 import { SiteLogo } from './Card';
 import { SiteForm, SiteTagBadges } from './GroupExpanded';
 import SiteContextMenu, { siteMenuPosition, type SiteMenuState } from './SiteContextMenu';
@@ -89,6 +91,13 @@ export function GroupPanelSection({
   const [renaming, setRenaming] = useState(false);
   const [groupName, setGroupName] = useState(group.name);
   const [confirmDelete, setConfirmDelete] = useState(false);
+  const { t, lang } = useLang();
+  /** 小角颜色名（种子数据在 groups.ts）：显示层按键映射，未命中回落原名 */
+  const tabColorName = (value: string, fallback: string): string => {
+    const key = `menu.tabColor.${value}`;
+    const translated = t(key);
+    return translated === key ? fallback : translated;
+  };
   /** 就地改名（第六十七轮）：Esc 取消后输入框失焦不能再把名字存回去，用 ref 标记本次已取消 */
   const renameCancelRef = useRef(false);
   const startRename = () => {
@@ -163,10 +172,10 @@ export function GroupPanelSection({
               <div className="flex items-baseline gap-2.5 min-w-0">
                 <h3
                   onClick={startRename}
-                  title="点击改名"
+                  title={t('menu.renameHint')}
                   className="text-lg sm:text-xl font-bold tracking-tight truncate cursor-pointer"
                 >
-                  {group.name}
+                  {displayGroupName(group, lang)}
                 </h3>
               </div>
               {/* 操作控件簇（第四十七轮）：形态切换 / 删组整簇移到行最右端右对齐，
@@ -176,26 +185,26 @@ export function GroupPanelSection({
               <span className="flex items-center rounded-lg bg-white/5 border border-white/10 overflow-hidden shrink-0">
                 <button
                   onClick={() => switchDisplay('list')}
-                  title="详细列表卡：在主页原地展开成行式列表"
+                  title={t('menu.displayListTitle')}
                   className={`text-[11px] px-2.5 py-1 transition-colors ${
                     group.display === 'list' ? 'bg-indigo-500/70 text-white font-medium' : 'text-white/50 hover:text-white/85'
                   }`}
                 >
-                  详细列表
+                  {t('menu.displayList')}
                 </button>
                 <button
                   onClick={() => switchDisplay('stack')}
-                  title="文件夹式卡：紧凑堆叠卡，点开弹窗看图标"
+                  title={t('menu.displayStackTitle')}
                   className={`text-[11px] px-2.5 py-1 transition-colors ${
                     group.display === 'stack' ? 'bg-indigo-500/70 text-white font-medium' : 'text-white/50 hover:text-white/85'
                   }`}
                 >
-                  文件夹式
+                  {t('menu.displayStack')}
                 </button>
               </span>
               {confirmDelete ? (
                 <span className="flex items-center gap-1.5 text-[11px]">
-                  <span className="text-red-300">删除整个编组？</span>
+                  <span className="text-red-300">{t('menu.deleteGroupConfirm')}</span>
                   <button
                     onClick={() => {
                       store.deleteGroup(group.id);
@@ -203,17 +212,17 @@ export function GroupPanelSection({
                     }}
                     className="px-2 py-1 rounded-md bg-red-500/80 text-white font-medium"
                   >
-                    确认删除
+                    {t('menu.confirmDelete')}
                   </button>
                   <button onClick={() => setConfirmDelete(false)} className="px-2 py-1 rounded-md bg-white/10 text-white/70">
-                    算了
+                    {t('menu.cancelDelete')}
                   </button>
                 </span>
               ) : (
                 <button
                   onClick={() => setConfirmDelete(true)}
-                  title="删组"
-                  aria-label="删组"
+                  title={t('menu.deleteGroup')}
+                  aria-label={t('menu.deleteGroup')}
                   className="w-8 h-8 rounded-full flex items-center justify-center text-white/50 hover:text-red-300 hover:bg-white/10 transition-colors shrink-0"
                 >
                   <Trash2 size={16} />
@@ -228,7 +237,7 @@ export function GroupPanelSection({
               className={`w-8 h-8 rounded-full bg-white/5 hover:bg-white/15 flex items-center justify-center text-white/60 hover:text-white transition-colors shrink-0 ${
                 renaming ? 'ml-auto' : ''
               }`}
-              aria-label="关闭"
+              aria-label={t('menu.close')}
             >
               <X size={16} />
             </button>
@@ -241,7 +250,7 @@ export function GroupPanelSection({
             {/* 第六十七轮：「小角颜色」文字标签按用户要求删除，只留颜色圆点 */}
             <button
               type="button"
-              title="默认（同色灰）"
+              title={t('menu.defaultTabColor')}
               data-tab-color=""
               onClick={() => store.setGroupTabColor(group.id, '')}
               className={`w-5 h-5 rounded-full bg-[#26262e] border flex items-center justify-center transition-transform hover:scale-110 ${
@@ -256,7 +265,7 @@ export function GroupPanelSection({
                 <button
                   key={c.value}
                   type="button"
-                  title={c.name}
+                  title={tabColorName(c.value, c.name)}
                   data-tab-color={c.value}
                   onClick={() => store.setGroupTabColor(group.id, c.value)}
                   className={`w-5 h-5 rounded-full flex items-center justify-center transition-transform hover:scale-110 ${
@@ -294,7 +303,7 @@ export function GroupPanelSection({
 
         {siteDrag.items.length === 0 && !showForm && (
           <div className="pt-10 pb-4 text-center text-sm text-white/40">
-            这个编组还没有网站，点下方「+ 添加网站」加上第一个吧
+            {t('menu.emptyGroupPanel')}
           </div>
         )}
         {/* 网格（含「+ 添加网站」瓷砖）空态也要渲染（第一百轮修复）：此前空态走三元另一支，
@@ -342,7 +351,7 @@ export function GroupPanelSection({
                   <span className={`text-[11px] font-medium w-full text-center truncate ${site.dead ? 'text-white/45' : 'text-white/85'}`}>
                     {site.name}
                   </span>
-                  {site.dead && <span className="text-[8px] font-medium text-red-300 bg-red-500/15 px-1 py-px rounded">失效</span>}
+                  {site.dead && <span className="text-[8px] font-medium text-red-300 bg-red-500/15 px-1 py-px rounded">{t('menu.dead')}</span>}
                 </button>
               </div>
             ))}
@@ -356,7 +365,7 @@ export function GroupPanelSection({
               className="flex flex-col items-center justify-center gap-1.5 p-3 rounded-2xl border border-dashed border-white/20 text-white/55 hover:text-white hover:border-indigo-400/50 hover:bg-indigo-500/10 transition-colors min-h-[86px]"
             >
               <Plus size={20} />
-              <span className="text-[11px] font-medium">添加网站</span>
+              <span className="text-[11px] font-medium">{t('menu.addSite')}</span>
             </button>
           </div>
         )}

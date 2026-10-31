@@ -176,6 +176,49 @@ export function extractJson(text: string): unknown {
   throw new Error('AI 返回的不是合法 JSON，换句话再试一次');
 }
 
+/* ---------------- 补图标：AI 找官网 Logo 地址 ---------------- */
+
+/** AI 找 Logo 的系统提示：只要 JSON、只要已知站点的官方图标直链，不知道就空数组，绝不编地址 */
+const ICON_LOGO_SYSTEM = `你是网站品牌图标助手。用户会给一批网站（id、名称、网址），这些站的 favicon 探测都失败了。你只输出一个 JSON 对象，不要解释、不要 markdown。格式：{"logos":[{"id":"网站 id","urls":["https://…图标直链"]}]}。规则：urls 只能是该网站官方的 Logo/图标文件直链（官网 favicon、logo.svg/png、官方 CDN 品牌图优先）；每个站最多 3 个，按把握从高到低排；不知道官方地址的站不要列出、不要猜、不要编；不要返回搜索引擎、截图服务或第三方聚合站的地址；不要返回 data: 地址。`;
+
+export interface IconLogoSite {
+  id: string;
+  name: string;
+  url: string;
+}
+
+export function buildIconLogoMessages(sites: IconLogoSite[]): ChatMessage[] {
+  const list = sites.map((s) => `${s.name}（id:${s.id}）${s.url}`).join('\n');
+  return [
+    { role: 'system', content: ICON_LOGO_SYSTEM },
+    { role: 'user', content: `找不到图标的网站：\n${list}` },
+  ];
+}
+
+/** 解析 AI 返回：只收已知 id、只收 http(s) 直链（去重、每站最多 3 个）；非法结构一律返回空表 */
+export function resolveIconLogoPlan(raw: unknown, knownIds: Set<string>): Map<string, string[]> {
+  const out = new Map<string, string[]>();
+  if (!raw || typeof raw !== 'object' || Array.isArray(raw)) return out;
+  const logos = (raw as { logos?: unknown }).logos;
+  if (!Array.isArray(logos)) return out;
+  for (const entry of logos) {
+    if (!entry || typeof entry !== 'object' || Array.isArray(entry)) continue;
+    const id = (entry as { id?: unknown }).id;
+    const urls = (entry as { urls?: unknown }).urls;
+    if (typeof id !== 'string' || !knownIds.has(id) || !Array.isArray(urls)) continue;
+    const clean: string[] = [];
+    for (const u of urls) {
+      if (typeof u !== 'string') continue;
+      const t = u.trim();
+      if (!/^https?:\/\//i.test(t) || t.length > 2048 || clean.includes(t)) continue;
+      clean.push(t);
+      if (clean.length >= 3) break;
+    }
+    if (clean.length > 0) out.set(id, clean);
+  }
+  return out;
+}
+
 /* ---------------- 一键分类 ---------------- */
 
 const CATEGORIZE_SYSTEM = `你是杂盒网站整理助手。用户会给一句话意图和现有编组与站点清单。你只输出一个 JSON 对象，不要解释、不要 markdown。格式：{"newGroups":[{"name":"新组名"}],"moves":[{"siteId":"站点的 id","target":"目标组 id，或 new:新组名"}]}。规则：只移动与用户意图相关的站点，不相关的站点一个都不动、不列出；target 只能是清单里已有的组 id，或 new:新组名（新组名不超过 8 个字）；不要编造站点 id、组 id、站点名；不要删除任何组或站点；如果意图与现有分组无关或无法判断，返回空 moves（newGroups 也为空），不要硬凑。`;

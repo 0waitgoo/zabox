@@ -30,3 +30,33 @@ export function displayGroupName(group: { id: string; name: string }, lang: Lang
   if (mapped && group.name === mapped.zh) return lang === 'en' ? mapped.en : group.name;
   return group.name;
 }
+
+/** 导航池分类名翻译（同口径：仅翻译种子池自带的分类名，未知分类原样显示） */
+const POOL_CATEGORY_NAMES: Record<string, string> = {
+  聊天机器人: 'Chatbots',
+  图像生成: 'Image Generation',
+  AI图片处理: 'AI Image Processing',
+  视频生成: 'Video Generation',
+  音频生成: 'Audio Generation',
+  编程工具: 'Coding Tools',
+  Agent工具: 'Agent Tools',
+  AI写作: 'AI Writing',
+  AI翻译: 'AI Translation',
+  AI设计: 'AI Design',
+  设计素材: 'Design Assets',
+  设计灵感: 'Design Inspiration',
+  配色字体: 'Colors & Fonts',
+  AI办公: 'AI Office',
+  AI开放平台: 'AI Platforms',
+  视频: 'Videos',
+  二次元: 'Anime & Comics',
+  音乐: 'Music',
+  阅读: 'Reading',
+  游戏: 'Games',
+  娱乐: 'Entertainment',
+};
+
+export function displayPoolCategory(category: string, lang: Lang): string {
+  if (lang === 'en') return POOL_CATEGORY_NAMES[category] ?? category;
+  return category;
+}

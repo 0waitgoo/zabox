@@ -4,6 +4,8 @@
  * 两个子功能共用一句话输入：
  * - 一键分类：按用户意图把现有网站分到对应组（只产出方案，逐项勾选/改目标组后点应用才落盘）；
  * - 一键搜集网站：按用户意图搜集网站候选（逐项勾选、选目标组后点加入才落盘）。
+ * 补图标不走 AI、不需口令：点一下扫描当前页显示字标的站，逐个试本站 favicon，
+ * 找到的列出预览、逐项勾选后点应用才写回 site.logo（见 services/iconFill）。
  * 绝不静默改分组与站点；应用走 store 现有方法（moveSite/addSite/addGroup），
  * 应用后主页布局自动保存为「我的」预设，内置预设模板本身不动。
  * `active` 为 false 时只藏起整理条（display:none，不卸载）：输入内容保留在
@@ -14,6 +16,8 @@ import { useEffect, useRef, useState } from 'react';
 import { AnimatePresence, motion } from 'motion/react';
 import { Settings, Sparkles, X } from 'lucide-react';
 import type { LocalStore } from '../../store/localStore';
+import { useLang } from '../../i18n/useLang';
+import { scanIconFill, type IconFillHit } from '../../services/iconFill';
 import {
   buildCategorizeMessages,
   buildCollectMessages,
@@ -32,7 +36,7 @@ import {
   type SiteAiProvider,
 } from '../../services/siteAi';
 
-type Mode = 'categorize' | 'collect';
+type Mode = 'categorize' | 'collect' | 'icons';
 type Phase = 'idle' | 'thinking' | 'error' | 'review' | 'done';
 
 interface MoveEdit {
@@ -94,6 +98,13 @@ export default function SiteAiAssistant({
   const [newGroupName, setNewGroupName] = useState('');
   const [doneText, setDoneText] = useState('');
   const abortRef = useRef<AbortController | null>(null);
+  /* 补图标（不走 AI）：扫描进度与待确认结果 */
+  const [iconHits, setIconHits] = useState<IconFillHit[]>([]);
+  const [checkedHitIds, setCheckedHitIds] = useState<Set<string>>(new Set());
+  const [iconProgress, setIconProgress] = useState<{ done: number; total: number } | null>(null);
+  const [iconNotFound, setIconNotFound] = useState(0);
+  const iconScanRunRef = useRef(0);
+  const { t } = useLang();
 
   const groups = store.data.groups;
 
@@ -114,8 +125,50 @@ export default function SiteAiAssistant({
   const closePanel = () => {
     abortRef.current?.abort();
     abortRef.current = null;
+    iconScanRunRef.current++;
     setOpen(false);
     setPhase('idle');
+  };
+
+  /** 补图标：打开面板即开始扫描（不需 AI 口令）；面板关闭则丢弃本次扫描结果 */
+  const runIconScan = async () => {
+    const runId = ++iconScanRunRef.current;
+    setPhase('thinking');
+    setStatus('');
+    setIconHits([]);
+    setCheckedHitIds(new Set());
+    setIconProgress({ done: 0, total: 0 });
+    setIconNotFound(0);
+    try {
+      const res = await scanIconFill(store.data.groups, undefined, (done, total) => {
+        if (iconScanRunRef.current === runId) setIconProgress({ done, total });
+      });
+      if (iconScanRunRef.current !== runId) return;
+      setIconHits(res.hits);
+      setCheckedHitIds(new Set(res.hits.map((h) => h.siteId)));
+      setIconNotFound(res.notFound);
+      setIconProgress({ done: res.scanned, total: res.scanned });
+      setPhase('review');
+    } catch {
+      if (iconScanRunRef.current !== runId) return;
+      setPhase('error');
+      setStatus('扫描被中断，请重新扫描');
+    }
+  };
+
+  const openIconsPanel = () => {
+    setMode('icons');
+    setView('work');
+    setPanelIntent(input);
+    setOpen(true);
+    void runIconScan();
+  };
+
+  const applyIcons = () => {
+    const picked = iconHits.filter((h) => checkedHitIds.has(h.siteId));
+    for (const h of picked) store.updateSiteLogo(h.groupId, h.siteId, h.logo);
+    setDoneText(t('ai.fillDone', { n: picked.length }));
+    setPhase('done');
   };
 
   const run = async () => {
@@ -321,7 +374,7 @@ export default function SiteAiAssistant({
         {!compactBar && (
           <div className="flex items-center gap-2 shrink-0">
             <Sparkles size={18} className="text-indigo-300" />
-            <span className="text-sm font-semibold text-white/90">AI 整理</span>
+            <span className="text-sm font-semibold text-white/90">{t('ai.title')}</span>
           </div>
         )}
         <input
@@ -332,7 +385,7 @@ export default function SiteAiAssistant({
           onKeyDown={(e) => {
             if (e.key === 'Enter') openPanel('categorize');
           }}
-          placeholder="一句话，让 AI 帮你整理网站… 比如：把 AI 绘画的网站归到一组 / 找几个免费商用图库"
+          placeholder={t('ai.placeholder')}
           className={`${inputCls} ${compactBar ? 'flex-[1_1_140px] min-w-0' : 'flex-1'}`}
         />
         <div className="flex gap-2 shrink-0">
@@ -341,19 +394,27 @@ export default function SiteAiAssistant({
             onClick={() => openPanel('categorize')}
             className={compactBar ? 'px-2.5 py-1.5 rounded-xl bg-indigo-500/80 hover:bg-indigo-500 text-white text-xs font-medium transition-colors shrink-0' : btnPrimary}
           >
-            一键分类
+            {t('ai.categorize')}
           </button>
           <button
             data-site-ai-collect
             onClick={() => openPanel('collect')}
             className={compactBar ? 'px-2.5 py-1.5 rounded-xl bg-white/8 hover:bg-white/12 text-white/80 text-xs transition-colors shrink-0' : btnGhost}
           >
-            搜集网站
+            {t('ai.collect')}
+          </button>
+          <button
+            data-site-ai-icons
+            onClick={openIconsPanel}
+            title={t('ai.fillNote')}
+            className={compactBar ? 'px-2.5 py-1.5 rounded-xl bg-white/8 hover:bg-white/12 text-white/80 text-xs transition-colors shrink-0' : btnGhost}
+          >
+            {t('ai.fillIcons')}
           </button>
           <button
             data-site-ai-settings
             onClick={() => openPanel(mode, true)}
-            title="AI 设置（服务商与口令，只存本机）"
+            title={t('ai.settingsTitle')}
             className="p-2 rounded-xl bg-white/8 hover:bg-white/12 text-white/70 transition-colors"
           >
             <Settings size={16} />
@@ -382,16 +443,18 @@ export default function SiteAiAssistant({
               <div className="flex items-center justify-between px-4 pt-4 pb-2 shrink-0">
                 <h3 className="font-semibold text-sm flex items-center gap-2">
                   <Sparkles size={15} className="text-indigo-300" />
-                  {mode === 'categorize' ? '一键分类' : '一键搜集网站'}
+                  {mode === 'categorize' ? t('ai.categorize') : mode === 'collect' ? t('ai.collectAction') : t('ai.fillTitle')}
                 </h3>
                 <div className="flex items-center gap-1">
+                  {mode !== 'icons' && (
                   <button
                     onClick={() => setView(view === 'settings' ? 'work' : 'settings')}
-                    title="AI 设置"
+                    title={t('ai.settings')}
                     className="p-1.5 rounded-lg text-white/50 hover:text-white hover:bg-white/10"
                   >
                     <Settings size={15} />
                   </button>
+                  )}
                   <button
                     onClick={closePanel}
                     aria-label="关闭"
@@ -507,6 +570,7 @@ export default function SiteAiAssistant({
                   </div>
                 ) : (
                   <div className="flex flex-col gap-3">
+                    {mode !== 'icons' && (
                     <div className="flex gap-2">
                       <input
                         data-site-ai-intent
@@ -536,11 +600,28 @@ export default function SiteAiAssistant({
                         </button>
                       )}
                     </div>
+                    )}
+                    {mode === 'icons' && (
+                      <p className="text-[11px] text-white/45 leading-relaxed">{t('ai.fillNote')}</p>
+                    )}
                     {status && phase !== 'done' && <p className="text-[11px] text-white/50">{status}</p>}
-                    {phase === 'thinking' && (
+                    {phase === 'thinking' && mode === 'icons' && iconProgress && (
+                      <p className="text-[11px] text-indigo-300">
+                        {t('ai.fillScanning', { done: iconProgress.done, total: iconProgress.total })}
+                      </p>
+                    )}
+                    {phase === 'thinking' && mode !== 'icons' && (
                       <p className="text-[11px] text-indigo-300">AI 正在看你的分组…稍等一下</p>
                     )}
-                    {phase === 'error' && (
+                    {phase === 'error' && mode === 'icons' && (
+                      <div className="rounded-xl bg-red-500/10 border border-red-400/30 px-3 py-2">
+                        <p className="text-xs text-red-200">{status}</p>
+                        <button onClick={() => void runIconScan()} className={`${btnGhost} mt-2`}>
+                          {t('ai.fillRescan')}
+                        </button>
+                      </div>
+                    )}
+                    {phase === 'error' && mode !== 'icons' && (
                       <div className="rounded-xl bg-red-500/10 border border-red-400/30 px-3 py-2">
                         <p className="text-xs text-red-200">{status}</p>
                         <button onClick={run} className={`${btnGhost} mt-2`}>
@@ -714,6 +795,60 @@ export default function SiteAiAssistant({
                       </>
                     )}
 
+                    {phase === 'review' && mode === 'icons' && (
+                      <>
+                        {iconHits.length === 0 ? (
+                          <p className="text-xs text-white/45">{t('ai.fillNone')}</p>
+                        ) : (
+                          <>
+                            <p className="text-xs text-white/70">
+                              {t('ai.fillFound', { found: iconHits.length, missing: iconNotFound })}
+                            </p>
+                            <div className="flex flex-col gap-1">
+                              {iconHits.map((h) => (
+                                <div key={h.siteId} className="flex items-center gap-2 rounded-xl bg-white/[0.03] border border-white/10 px-2.5 py-2">
+                                  <input
+                                    type="checkbox"
+                                    data-site-ai-icon-row={h.siteId}
+                                    checked={checkedHitIds.has(h.siteId)}
+                                    onChange={(e) =>
+                                      setCheckedHitIds((prev) => {
+                                        const next = new Set(prev);
+                                        if (e.target.checked) next.add(h.siteId);
+                                        else next.delete(h.siteId);
+                                        return next;
+                                      })
+                                    }
+                                    className="shrink-0 accent-indigo-500"
+                                  />
+                                  <img
+                                    src={h.logo}
+                                    alt=""
+                                    className="w-8 h-8 rounded-lg object-contain bg-white/5 shrink-0"
+                                    onError={(e) => {
+                                      e.currentTarget.style.visibility = 'hidden';
+                                    }}
+                                  />
+                                  <span className="flex-1 min-w-0 truncate text-xs">
+                                    {h.siteName}
+                                    <span className="text-white/35">（{h.groupName}）</span>
+                                  </span>
+                                </div>
+                              ))}
+                            </div>
+                            {checkedHitIds.size > 0 && (
+                              <button data-site-ai-apply-icons onClick={applyIcons} className={btnPrimary}>
+                                {t('ai.fillApply', { n: checkedHitIds.size })}
+                              </button>
+                            )}
+                          </>
+                        )}
+                        <button onClick={() => void runIconScan()} className={btnGhost}>
+                          {t('ai.fillRescan')}
+                        </button>
+                      </>
+                    )}
+
                     {phase === 'done' && (
                       <div className="rounded-xl bg-emerald-500/10 border border-emerald-400/30 px-3 py-2">
                         <p className="text-xs text-emerald-200">{doneText}</p>
@@ -726,6 +861,10 @@ export default function SiteAiAssistant({
                           </button>
                           <button
                             onClick={() => {
+                              if (mode === 'icons') {
+                                void runIconScan();
+                                return;
+                              }
                               setPhase('idle');
                               setPlan(null);
                               setCollect(null);
@@ -733,7 +872,7 @@ export default function SiteAiAssistant({
                             }}
                             className={btnGhost}
                           >
-                            再来一句
+                            {mode === 'icons' ? t('ai.fillRescan') : '再来一句'}
                           </button>
                         </div>
                       </div>

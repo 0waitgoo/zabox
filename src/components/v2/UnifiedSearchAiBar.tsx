@@ -14,6 +14,7 @@ import { useState } from 'react';
 import { Search, Sparkles } from 'lucide-react';
 import type { NavGroup } from '../../data/groups';
 import type { LocalStore } from '../../store/localStore';
+import { useLang } from '../../i18n/useLang';
 import StickySearch from './StickySearch';
 import SiteAiAssistant from './SiteAiAssistant';
 
@@ -29,6 +30,7 @@ export default function UnifiedSearchAiBar({
   store: LocalStore;
 }) {
   const [mode, setMode] = useState<TopBarMode>('search');
+  const { t } = useLang();
 
   const switchCls = (isActive: boolean) =>
     `flex items-center gap-1 rounded-full px-2 sm:px-2.5 py-1.5 text-xs font-medium transition-colors ${
@@ -39,7 +41,7 @@ export default function UnifiedSearchAiBar({
     <div data-topbar-mode={mode} className="flex flex-1 min-w-0 items-center gap-2">
       <div
         role="tablist"
-        aria-label="顶栏模式：搜索或 AI 整理"
+        aria-label={t('topbar.modeAria')}
         data-topbar-mode-switch
         className="flex shrink-0 items-center gap-0.5 rounded-full border border-white/10 bg-white/5 p-0.5"
       >
@@ -47,27 +49,27 @@ export default function UnifiedSearchAiBar({
           type="button"
           role="tab"
           aria-selected={mode === 'search'}
-          aria-label="搜索模式"
-          title="搜索网站、编组（⌘K）"
+          aria-label={t('topbar.searchMode')}
+          title={t('topbar.searchTitle')}
           data-topbar-mode-search
           onClick={() => setMode('search')}
           className={switchCls(mode === 'search')}
         >
           <Search size={13} />
-          搜索
+          {t('topbar.search')}
         </button>
         <button
           type="button"
           role="tab"
           aria-selected={mode === 'ai'}
-          aria-label="AI 整理模式"
-          title="AI 整理：一键分类 / 搜集网站"
+          aria-label={t('topbar.aiMode')}
+          title={t('topbar.aiTitle')}
           data-topbar-mode-ai
           onClick={() => setMode('ai')}
           className={switchCls(mode === 'ai')}
         >
           <Sparkles size={13} />
-          AI<span className="hidden sm:inline">整理</span>
+          AI<span className="hidden sm:inline">{t('topbar.aiOrganize')}</span>
         </button>
       </div>
 

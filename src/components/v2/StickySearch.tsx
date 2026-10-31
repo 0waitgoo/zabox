@@ -3,6 +3,7 @@ import { Search, LayoutGrid, CornerDownLeft } from 'lucide-react';
 import { AnimatePresence, motion } from 'motion/react';
 import { siteIconSrc, type NavGroup } from '../../data/groups';
 import { searchAll } from '../../utils/search';
+import { useLang } from '../../i18n/useLang';
 import { SiteLogo } from './Card';
 
 /**
@@ -29,6 +30,7 @@ export default function StickySearch({
   const [query, setQuery] = useState('');
   const [open, setOpen] = useState(false);
   const [activeIndex, setActiveIndex] = useState(-1);
+  const { t } = useLang();
   const listId = useId();
   const inputRef = useRef<HTMLInputElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
@@ -121,7 +123,7 @@ export default function StickySearch({
           <input
             ref={inputRef}
             role="combobox"
-            aria-label="搜索网站和编组"
+            aria-label={t('search.aria')}
             aria-expanded={open && !!query.trim()}
             aria-controls={open && query.trim() ? listId : undefined}
             aria-autocomplete="list"
@@ -147,7 +149,7 @@ export default function StickySearch({
               }
               if (e.key === 'Tab') setOpen(false);
             }}
-            placeholder="搜索网站、编组…试试拼音首字母或别名，如 db / gpt"
+            placeholder={t('search.placeholder')}
             className="flex-1 bg-transparent outline-none text-sm sm:text-base placeholder:text-white/35 min-w-0"
           />
           {query ? (
@@ -155,7 +157,7 @@ export default function StickySearch({
               onClick={() => { setQuery(''); setActiveIndex(-1); inputRef.current?.focus(); }}
               className="text-white/40 hover:text-white text-xs shrink-0 px-1"
             >
-              清除
+              {t('search.clear')}
             </button>
           ) : (
             <kbd className="hidden sm:flex items-center gap-0.5 text-[10px] text-white/40 bg-white/5 border border-white/10 rounded-md px-1.5 py-0.5 shrink-0">
@@ -169,7 +171,7 @@ export default function StickySearch({
             <motion.div
               id={listId}
               role="listbox"
-              aria-label="搜索结果"
+              aria-label={t('search.resultsAria')}
               initial={{ opacity: 0, y: 6 }}
               animate={{ opacity: 1, y: 0 }}
               exit={{ opacity: 0, y: 6 }}
@@ -177,12 +179,12 @@ export default function StickySearch({
               className="absolute left-0 right-0 top-full mt-2 rounded-3xl bg-[#17171d] border border-white/15 p-2 shadow-2xl shadow-black/70 max-h-[60vh] overflow-y-auto z-50"
             >
               {!hasResults && (
-                <div className="px-4 py-6 text-center text-sm text-white/55">没有找到相关站点或编组</div>
+                <div className="px-4 py-6 text-center text-sm text-white/55">{t('search.empty')}</div>
               )}
 
               {results.groups.length > 0 && (
                 <div className="mb-1">
-                  <p className="px-3 pt-2 pb-1 text-[10px] font-medium tracking-wider text-white/50 uppercase">编组</p>
+                  <p className="px-3 pt-2 pb-1 text-[10px] font-medium tracking-wider text-white/50 uppercase">{t('search.groupsHeading')}</p>
                   {results.groups.map((group, index) => (
                     <button
                       id={`${listId}-${index}`}
@@ -202,7 +204,7 @@ export default function StickySearch({
                       </span>
                       <span className="flex-1 min-w-0">
                         <span className="block text-sm font-medium truncate">{group.name}</span>
-                        <span className="block text-[11px] text-white/55">{group.sites.length} 个站点 · 点击展开编组</span>
+                        <span className="block text-[11px] text-white/55">{t('search.sitesInGroup', { n: group.sites.length })}</span>
                       </span>
                     </button>
                   ))}
@@ -211,7 +213,7 @@ export default function StickySearch({
 
               {results.sites.length > 0 && (
                 <div>
-                  <p className="px-3 pt-2 pb-1 text-[10px] font-medium tracking-wider text-white/50 uppercase">站点 · 回车直达第一个</p>
+                  <p className="px-3 pt-2 pb-1 text-[10px] font-medium tracking-wider text-white/50 uppercase">{t('search.sitesHeading')}</p>
                   {results.sites.map(({ site, group, matchedAlias }, index) => (
                     <button
                       id={`${listId}-${results.groups.length + index}`}
@@ -233,7 +235,7 @@ export default function StickySearch({
                             </span>
                           )}
                           {site.dead && (
-                            <span className="text-[9px] font-medium text-red-300 bg-red-500/15 px-1.5 py-0.5 rounded shrink-0">失效</span>
+                            <span className="text-[9px] font-medium text-red-300 bg-red-500/15 px-1.5 py-0.5 rounded shrink-0">{t('search.invalid')}</span>
                           )}
                         </span>
                         <span className="block text-[11px] text-white/55 truncate">{site.description}</span>

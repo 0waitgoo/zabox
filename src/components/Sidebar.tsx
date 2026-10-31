@@ -1,5 +1,36 @@
 import React from 'react';
 import { Compass } from 'lucide-react';
+import { useLang, setLang } from '../i18n/useLang';
+import type { Lang } from '../i18n/strings';
+
+/** 语言切换（2026-10-31）：顶栏左上角 CN / EN 分段钮，切全站界面语言；只存本机。 */
+export function LangToggle() {
+  const { lang, t } = useLang();
+  const segCls = (isActive: boolean) =>
+    `px-2 py-1 rounded-full text-[11px] font-semibold leading-none transition-colors ${
+      isActive ? 'bg-white text-black shadow' : 'text-white/55 hover:text-white'
+    }`;
+  return (
+    <div
+      data-lang-toggle
+      role="group"
+      aria-label={t('topbar.lang')}
+      className="flex shrink-0 items-center gap-0.5 rounded-full border border-white/10 bg-white/5 p-0.5"
+    >
+      {(['zh', 'en'] as Lang[]).map((l) => (
+        <button
+          key={l}
+          type="button"
+          aria-pressed={lang === l}
+          onClick={() => setLang(l)}
+          className={segCls(lang === l)}
+        >
+          {l === 'zh' ? 'CN' : 'EN'}
+        </button>
+      ))}
+    </div>
+  );
+}
 
 /**
  * 顶栏 LOGO（第六十四轮）：用户提供的 public/logo.svg（白色图形），置于顶栏最左端，
@@ -7,11 +38,12 @@ import { Compass } from 'lucide-react';
  * 主页与子页面两处顶栏共用同一组件渲染，位置/尺寸不漂移。
  */
 export function TopLogo({ onClick }: { onClick: () => void }) {
+  const { t } = useLang();
   return (
     <button
       onClick={onClick}
-      title="杂盒 ZaBox · 回到主页"
-      aria-label="杂盒 ZaBox · 回到主页"
+      title={t('topbar.homeTitle')}
+      aria-label={t('topbar.homeTitle')}
       className="shrink-0 flex items-center justify-center transition-opacity duration-300 opacity-90 hover:opacity-100"
     >
       <img src="/logo.svg" alt="" draggable={false} className="h-7 sm:h-[30px] w-auto block select-none" />
@@ -45,15 +77,17 @@ export function TopNav({
    * 注入 <PresetMenu store={store} />；文件工具卡与商店入口不受影响，仍在主页上 */
   presetsNode?: React.ReactNode;
 }) {
+  const { t } = useLang();
   return (
     <nav className="flex items-center gap-1.5 sm:gap-2">
       <NavItem
         icon={<Compass size={20} />}
-        label="AI 导航"
+        label={t('topbar.navAi')}
         active={currentPage === 'nav'}
         onClick={() => onPageChange('nav')}
       />
       {presetsNode}
+      <LangToggle />
     </nav>
   );
 }

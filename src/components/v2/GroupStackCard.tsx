@@ -4,6 +4,8 @@ import { groupIcon, siteIconSrc, sortSites, type NavGroup, type SiteEntry } from
 import type { LocalStore } from '../../store/localStore';
 import { cachedIconSrc, nextFallbackIconSrc, storeIconSrc } from './Card';
 import { useSiteDragSort } from './useSiteDragSort';
+import { useLang } from '../../i18n/useLang';
+import { displayGroupName } from '../../i18n/groupNames';
 
 /**
  * C 型 · 编组堆叠卡（默认 1 栏 × 1X）——「极简文件夹」卡面（第十二轮，用户在第三轮线稿中选定方案四）
@@ -165,11 +167,38 @@ export function StackGroupIcon({ group, size = 30 }: { group: NavGroup; size?: n
  * gap 同为全形态统一常量 16px（横向与纵向同值）：1 栏卡面 5 个图标恰好排满一整行——
  * 4 个图标间隙恒为 16px，两侧各 17px 只是卡身自带的 16px 内边距 + 1px 边框、无额外分配；
  * 5 个/行只是这套常量在 1 栏宽下的自然结果，不是排布规则；更宽的卡每行个数由卡宽自然决定。
+ * 2026-10-31 拉伸：上限会让宽卡每行末尾剩出空位（2 栏卡约一个瓷砖宽），useStretchedTileSize
+ * 把该行剩余空位摊进瓷砖宽度（行数不变），名字少截断；1 栏卡剩余≈0，尺寸与原来一致。
  */
 const FACE_TILE_VARS = {
   '--face-tile-size': 'min(60.4px, calc((100cqw - 64px) / 5))',
   '--face-tile-gap': '16px',
 } as React.CSSProperties;
+
+/**
+ * 行拉伸尺寸（2026-10-31）：实测图标区宽 W，先按上限尺寸算一行可容纳数 n，
+ * 再把 (W − (n−1)×gap) / n 作为瓷砖边长——行尾不再留空，宽卡瓷砖随之变宽。
+ * 测不到宽度时返回 null，调用方回落 CSS 公式。
+ */
+function useStretchedTileSize(zoneRef: React.RefObject<HTMLDivElement | null>) {
+  const [size, setSize] = React.useState<number | null>(null);
+  React.useEffect(() => {
+    const el = zoneRef.current;
+    if (!el) return;
+    const update = () => {
+      const w = el.clientWidth;
+      if (!w) return;
+      const base = Math.min(60.4, (w - 64) / 5);
+      const n = Math.max(1, Math.floor((w + 16 + 0.5) / (base + 16)));
+      setSize((w - (n - 1) * 16) / n);
+    };
+    update();
+    const ro = new ResizeObserver(update);
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, [zoneRef]);
+  return size;
+}
 
 /** 单个站点瓷砖（圆角块 + 铺满的站点图标 + 下方名字，名字字号与弹窗瓷砖一致 11px；
  * 尺寸走全形态统一变量；点击直达并阻止冒泡；
@@ -278,7 +307,9 @@ export function StackSiteTiles({
 }) {
   const sorted = sortSites(group.sites);
   const zoneRef = React.useRef<HTMLDivElement | null>(null);
+  const { t } = useLang();
   const fitCount = useRowFitCount(zoneRef, heightUnits === 1);
+  const stretched = useStretchedTileSize(zoneRef);
   const visible = heightUnits === 1 ? sorted.slice(0, fitCount) : sorted;
   // 卡面瓷砖跨组拖拽（与 B 卡收起网格同规则：随时按住都可拖，拖到别的组卡松手即 moveSite；
   // 组合卡 active 组瓷砖同样走这里；弹窗（GroupPanel）内瓷砖不接——弹窗盖住目标卡，拖不出去）
@@ -296,14 +327,14 @@ export function StackSiteTiles({
       data-cross-source
       onPointerDown={crossDrag.onContainerPointerDown}
       onDragStart={crossDrag.onContainerDragStart}
-      style={FACE_TILE_VARS}
+      style={{ ...FACE_TILE_VARS, ...(stretched ? { '--face-tile-size': `${stretched}px` } : {}) }}
       className={`flex-1 min-h-0 flex pt-3 relative ${
         /* 1x：补 pb-3 与 pt-3 对称，单行在整个图标区（含内边距）内真正垂直居中；水平靠左（第六十三轮） */
         heightUnits === 1 ? 'items-center justify-start pb-3' : 'items-start justify-start'
       }`}
     >
       {group.sites.length === 0 ? (
-        <span className="text-[11px] text-white/35">点开添加第一个网站</span>
+        <span className="text-[11px] text-white/35">{t('card.emptyStack')}</span>
       ) : heightUnits === 1 ? (
         <div
           data-tiles-flow
@@ -352,13 +383,14 @@ export default function GroupStackCard({
   /** 右键布局高度（卡面排布已全形态统一为同一常量流式排布，此值只决定卡高） */
   heightUnits?: 1 | 2;
 }) {
+  const { lang, t } = useLang();
   return (
-    <StackCardFrame tabColor={group.tabColor ?? ''} onClick={() => onOpen(group)} delay={delay} ariaLabel={`${group.name} 编组`}>
+    <StackCardFrame tabColor={group.tabColor ?? ''} onClick={() => onOpen(group)} delay={delay} ariaLabel={t('card.groupLabel', { name: displayGroupName(group, lang) })}>
       {/* 标题行：组图标瓷砖 + 组名；右侧小字「N 个站点」 */}
       <div className="flex items-center gap-2.5 min-w-0">
         <StackGroupIcon group={group} />
-        <h3 className="flex-1 min-w-0 font-bold text-[15px] tracking-tight truncate">{group.name}</h3>
-        <span className="text-[11px] text-white/40 shrink-0">{group.sites.length} 个站点</span>
+        <h3 className="flex-1 min-w-0 font-bold text-[15px] tracking-tight truncate">{displayGroupName(group, lang)}</h3>
+        <span className="text-[11px] text-white/40 shrink-0">{t('card.siteCount', { n: group.sites.length })}</span>
       </div>
 
       {/* 口线：标题行下的一条分隔线，暗示文件夹的开口 */}

@@ -4,7 +4,15 @@ import { AnimatePresence, motion } from 'motion/react';
 import { siteIconSrc, type NavGroup } from '../../data/groups';
 import { searchAll } from '../../utils/search';
 import { useLang } from '../../i18n/useLang';
+import { displayGroupName } from '../../i18n/groupNames';
 import { SiteLogo } from './Card';
+
+/** 网页搜索引擎：回车默认引擎跟随界面语言（CN→百度，EN→Google），下拉底部两行始终可点 */
+type WebEngine = 'baidu' | 'google';
+const webSearchUrl = (engine: WebEngine, q: string): string =>
+  engine === 'baidu'
+    ? `https://www.baidu.com/s?wd=${encodeURIComponent(q)}`
+    : `https://www.google.com/search?q=${encodeURIComponent(q)}`;
 
 /**
  * 搜索（吸顶由 HomePage 的 sticky 容器负责，本组件只管搜索本身）。
@@ -30,7 +38,8 @@ export default function StickySearch({
   const [query, setQuery] = useState('');
   const [open, setOpen] = useState(false);
   const [activeIndex, setActiveIndex] = useState(-1);
-  const { t } = useLang();
+  const { lang, t } = useLang();
+  const defaultEngine: WebEngine = lang === 'en' ? 'google' : 'baidu';
   const listId = useId();
   const inputRef = useRef<HTMLInputElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
@@ -89,6 +98,12 @@ export default function StickySearch({
     setOpen(false);
   };
 
+  const openWebSearch = (engine: WebEngine) => {
+    const q = query.trim();
+    if (!q) return;
+    openSite(webSearchUrl(engine, q));
+  };
+
   const handleEnter = () => {
     if (open && activeIndex >= 0 && activeIndex < resultCount) {
       const group = results.groups[activeIndex];
@@ -98,12 +113,8 @@ export default function StickySearch({
       } else openSite(results.sites[activeIndex - results.groups.length].site.url);
       return;
     }
-    const first = results.sites[0];
-    if (first) openSite(first.site.url);
-    else if (results.groups[0]) {
-      onOpenGroup(results.groups[0]);
-      setOpen(false);
-    }
+    /* 未选中本地结果：回车跳网页搜索（默认引擎跟随语言），不再直达第一个本地站点 */
+    openWebSearch(defaultEngine);
   };
 
   return (
@@ -203,7 +214,7 @@ export default function StickySearch({
                         <LayoutGrid size={15} />
                       </span>
                       <span className="flex-1 min-w-0">
-                        <span className="block text-sm font-medium truncate">{group.name}</span>
+                        <span className="block text-sm font-medium truncate">{displayGroupName(group, lang)}</span>
                         <span className="block text-[11px] text-white/55">{t('search.sitesInGroup', { n: group.sites.length })}</span>
                       </span>
                     </button>
@@ -231,7 +242,7 @@ export default function StickySearch({
                           <span className="text-sm font-medium truncate">{site.name}</span>
                           {matchedAlias && (
                             <span className="text-[9px] font-medium text-indigo-300 bg-indigo-500/20 px-1.5 py-0.5 rounded shrink-0">
-                              别名 · {matchedAlias}
+                              {t('search.alias', { alias: matchedAlias })}
                             </span>
                           )}
                           {site.dead && (
@@ -241,13 +252,36 @@ export default function StickySearch({
                         <span className="block text-[11px] text-white/55 truncate">{site.description}</span>
                       </span>
                       <span className="text-[11px] text-white/45 shrink-0 hidden sm:flex items-center gap-1">
-                        {group.name}
+                        {displayGroupName(group, lang)}
                         <CornerDownLeft size={11} className="opacity-0 group-hover/item:opacity-60" />
                       </span>
                     </button>
                   ))}
                 </div>
               )}
+
+              <div className="mt-1 border-t border-white/10 pt-1">
+                <p className="px-3 pt-1.5 pb-1 text-[10px] font-medium tracking-wider text-white/50 uppercase">{t('search.webHeading')}</p>
+                {(['baidu', 'google'] as WebEngine[]).map((engine) => (
+                  <button
+                    key={engine}
+                    onClick={() => openWebSearch(engine)}
+                    className="w-full flex items-center gap-3 px-3 py-2 rounded-2xl hover:bg-white/8 text-left transition-colors"
+                  >
+                    <span className="w-8 h-8 rounded-lg bg-white/8 text-white/70 flex items-center justify-center shrink-0">
+                      <Search size={15} />
+                    </span>
+                    <span className="flex-1 min-w-0 truncate text-sm">
+                      {t('search.searchOn', { engine: engine === 'baidu' ? 'Baidu' : 'Google', q: query.trim() })}
+                    </span>
+                    {engine === defaultEngine && (
+                      <span className="text-[9px] font-medium text-emerald-300 bg-emerald-500/15 px-1.5 py-0.5 rounded shrink-0">
+                        {t('search.defaultEngine')}
+                      </span>
+                    )}
+                  </button>
+                ))}
+              </div>
             </motion.div>
           )}
         </AnimatePresence>

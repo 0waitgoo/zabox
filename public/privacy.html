@@ -4,7 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>隐私说明 · 杂盒 ZaBox</title>
-<meta name="description" content="杂盒 ZaBox 隐私说明：个人数据只存本地、不收集、不上传；仅拉取公共资讯；可选 GitHub 同步走用户自己的仓库。">
+<meta name="description" content="杂盒 ZaBox 隐私说明：个人数据只存本地、不收集、不上传；仅拉取公共资讯；可选云同步走用户自己的仓库。">
 <style>
   * { margin: 0; padding: 0; box-sizing: border-box; }
   body {
@@ -35,8 +35,8 @@
   <h2>二、联网只做一件事：拉取公共内容</h2>
   <p>产品仅从 https://zahe.hiitun.top 拉取面向所有用户的公共内容数据（AI 资讯、热门话题、AI 软件榜），用于在页面上展示。拉取请求是普通的只读请求，不携带你的个人数据、浏览记录或任何身份标识。</p>
 
-  <h2>三、可选的 GitHub 同步（由你主动开启）</h2>
-  <p>如你选择开启 GitHub 同步，你的数据将通过 GitHub 官方接口直接写入你自己账号下的私有仓库，同步过程不经过开发者的服务器。你填写的 GitHub 令牌只保存在本地浏览器中，不会发送给开发者或任何第三方。不开启同步时，产品不会访问 GitHub。</p>
+  <h2>三、可选的云同步（GitHub / Gitee，由你主动开启）</h2>
+  <p>如你选择开启云同步，你的数据将通过 GitHub 或 Gitee 官方接口直接写入你自己账号下的私有仓库（固定为 ainav-data），同步过程不经过开发者的服务器。你的登录令牌只保存在本地浏览器中，不会发送给开发者或任何第三方；Gitee 令牌一天过期，刷新时刷新请求经本站服务端接口转发给 Gitee（服务端不保存令牌）。不开启同步时，产品不会访问 GitHub 或 Gitee。</p>
 
   <h2>四、文件工具全本地处理</h2>
   <p>文件工具（PDF / 图片转换等）全部在你的浏览器本地运行，你选择的文件不会上传到任何服务器。</p>

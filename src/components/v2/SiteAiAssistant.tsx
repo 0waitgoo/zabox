@@ -798,7 +798,11 @@ export default function SiteAiAssistant({
                     {phase === 'review' && mode === 'icons' && (
                       <>
                         {iconHits.length === 0 ? (
-                          <p className="text-xs text-white/45">{t('ai.fillNone')}</p>
+                          <p className="text-xs text-white/45">
+                            {iconNotFound > 0
+                              ? t('ai.fillNotFound', { scanned: iconProgress?.total ?? 0, missing: iconNotFound })
+                              : t('ai.fillNone')}
+                          </p>
                         ) : (
                           <>
                             <p className="text-xs text-white/70">

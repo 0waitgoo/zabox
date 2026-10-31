@@ -1497,15 +1497,11 @@ export default function DataMenu({ store }: { store: LocalStore }) {
               )}
               {provider === 'gitee' && (
                 <>
-              <p className="mt-2 text-[10px] font-medium text-white/50 tracking-wide">Gitee 同步</p>
               {isGeLoggedIn ? (
                 <>
                   <p className="mt-1.5 text-[11px] text-white/70 break-all">
                     {isGePatLoggedIn ? '已连接 Gitee（令牌）：' : '已登录 Gitee：'}
                     <span className="text-white/90">{geMeta.oauthLogin || geMeta.owner}</span>
-                  </p>
-                  <p className="mt-0.5 text-[11px] text-white/40 break-all">
-                    同步仓库（固定）：{geMeta.owner}/{geMeta.repo} · {geMeta.branch} · {geMeta.path}
                   </p>
                   <button
                     onClick={toggleGeEnabled}

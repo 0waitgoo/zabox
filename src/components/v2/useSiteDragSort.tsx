@@ -54,7 +54,7 @@ export function useSiteDragSort({
   groupId?: string;
   /** 跨组移动落盘（siteId, targetGroupId） */
   onMoveToGroup?: (siteId: string, targetGroupId: string) => void;
-  /** 只做跨组移动、不做组内排序（B 卡收起网格） */
+  /** 只做跨组移动、不做组内排序（暂无调用方保留：B 卡收起网格现已用排序实例兼跨组） */
   crossGroupOnly?: boolean;
 }) {
   const [previewIds, setPreviewIds] = useState<string[] | null>(null);

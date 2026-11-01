@@ -1,4 +1,4 @@
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { motion } from 'motion/react';
 import { Pin, Pencil, Trash2, ChevronDown, ChevronUp, Check } from 'lucide-react';
 import { GROUP_NAME_MAX, siteIconSrc, sortSites, textCharCount, type NavGroup } from '../../data/groups';
@@ -7,7 +7,7 @@ import { useLang } from '../../i18n/useLang';
 import { displayGroupName } from '../../i18n/groupNames';
 import { SiteLogo } from './Card';
 import GroupExpandedBody, { SiteTagBadges } from './GroupExpanded';
-import { useSiteDragSort } from './useSiteDragSort';
+import { SITE_DRAG_PLACEHOLDER_STYLE, useSiteDragSort } from './useSiteDragSort';
 
 /**
  * B 型 · 编组列表卡（收起态占格由右键布局决定：默认 2 栏 × 2x）
@@ -79,14 +79,49 @@ export default function GroupListCard({
   // 收起态未显示的站点数（与上面同一 visibleCount 口径，按钮文案与实际显示一致才可信）
   const hiddenCount = Math.max(0, sorted.length - visibleCount);
 
-  // 收起态跨组拖拽（随时按住都可拖）：收起网格本身无组内排序语义，只做跨组移动；
-  // 拖到别的组卡松手即 moveSite，同组/空白取消；展开体不接跨组、行为不变
-  const crossDrag = useSiteDragSort({
-    sites: sorted,
+  // 收起态拖拽（非编辑也能拖动换位）：收起网格按可见行做组内排序，与展开态同一套手势；
+  // 落盘只传可见行顺序，未显示站点由 reorderSites 按原相对顺序补在后面；拖出卡片 24px 即转跨组移动
+  const siteDrag = useSiteDragSort({
+    sites: rows,
+    onReorder: (ids) => store.reorderSites(group.id, ids),
     groupId: group.id,
-    crossGroupOnly: true,
     onMoveToGroup: (siteId, targetGroupId) => store.moveSite(group.id, siteId, targetGroupId),
   });
+
+  /** 收起态拖动 FLIP 滑移动画：与展开态同一套，缺口搬家时其余行滑过去而不是跳变 */
+  const flipPrevRects = useRef(new Map<string, DOMRect>());
+  const flipAnims = useRef(new Map<string, Animation>());
+  useLayoutEffect(() => {
+    const grid = gridRef.current;
+    if (!grid) return undefined;
+    flipAnims.current.forEach((a) => a.cancel());
+    flipAnims.current.clear();
+    const curr = new Map<string, DOMRect>();
+    grid.querySelectorAll<HTMLElement>('[data-site-drag-id]').forEach((el) => {
+      const id = el.dataset.siteDragId;
+      if (id) curr.set(id, el.getBoundingClientRect());
+    });
+    if (siteDrag.items !== rows) {
+      curr.forEach((rect, id) => {
+        const prev = flipPrevRects.current.get(id);
+        if (!prev) return;
+        const dx = prev.left - rect.left;
+        const dy = prev.top - rect.top;
+        if (Math.abs(dx) < 1 && Math.abs(dy) < 1) return;
+        const el = grid.querySelector<HTMLElement>(`[data-site-drag-id="${id}"]`);
+        if (!el) return;
+        flipAnims.current.set(
+          id,
+          el.animate([{ transform: `translate(${dx}px, ${dy}px)` }, { transform: 'translate(0px, 0px)' }], { duration: 200, easing: 'ease-out' }),
+        );
+      });
+    }
+    flipPrevRects.current = curr;
+    return () => {
+      flipAnims.current.forEach((a) => a.cancel());
+      flipAnims.current.clear();
+    };
+  }, [siteDrag.items]);
 
   // 展开态组操作（原在展开体顶部一行，第十二轮上提到标题行）
   const [renaming, setRenaming] = useState(false);
@@ -298,16 +333,17 @@ export default function GroupListCard({
             data-collapsed-grid
             data-cross-source
             className={`grid gap-x-2 content-start ${colSpan === 1 ? 'grid-cols-1' : 'grid-cols-1 min-[480px]:grid-cols-3'}`}
-            onPointerDown={crossDrag.onContainerPointerDown}
-            onDragStart={crossDrag.onContainerDragStart}
+            onPointerDown={siteDrag.onContainerPointerDown}
+            onDragStart={siteDrag.onContainerDragStart}
           >
-            {rows.map((site) => (
+            {siteDrag.items.map((site) => (
               <React.Fragment key={site.id ?? site.name}>
                   <button
                     data-site-drag-id={site.id}
+                    style={siteDrag.isDragging(site) ? SITE_DRAG_PLACEHOLDER_STYLE : undefined}
                     onClick={(e) => {
                       e.stopPropagation();
-                      if (crossDrag.consumeSuppressClick()) return;
+                      if (siteDrag.consumeSuppressClick()) return;
                       window.open(site.url, '_blank');
                     }}
                     className="flex items-center gap-2.5 px-2 py-[7px] w-full rounded-2xl hover:bg-white/6 text-left transition-colors"
@@ -333,7 +369,7 @@ export default function GroupListCard({
           {/* 收起态列表到底自然结束：底部渐隐提示条与卡底「展开」小按钮已删除（第三十一轮），展开入口统一在头部 */}
         </div>
       )}
-      {crossDrag.dragLayer}
+      {siteDrag.dragLayer}
     </motion.div>
   );
 }

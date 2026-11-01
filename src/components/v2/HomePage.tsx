@@ -1438,6 +1438,43 @@ export default function HomePage({ onNavigate, store }: { onNavigate: (page: str
     }
   }, [dragSnap]);
 
+  /* 整卡拖拽 FLIP 滑移动画：预览顺序变化时，被挤开的卡片从旧位置滑到新位置
+   * （与站内拖拽同一套语言：200ms ease-out），被拖卡的虚线占位同样滑动；
+   * 只在拖拽中途跑——平时/落盘只记录矩形，供下一次拖拽起手用 */
+  const cardFlipPrevRects = useRef(new Map<string, DOMRect>());
+  const cardFlipAnims = useRef(new Map<string, Animation>());
+  useLayoutEffect(() => {
+    const grid = gridRef.current;
+    if (!grid) return undefined;
+    cardFlipAnims.current.forEach((a) => a.cancel());
+    cardFlipAnims.current.clear();
+    const curr = new Map<string, DOMRect>();
+    grid.querySelectorAll<HTMLElement>('[data-card-key]').forEach((el) => {
+      const key = el.dataset.cardKey;
+      if (key) curr.set(key, el.getBoundingClientRect());
+    });
+    if (dragKey) {
+      curr.forEach((rect, key) => {
+        const prev = cardFlipPrevRects.current.get(key);
+        if (!prev) return;
+        const dx = prev.left - rect.left;
+        const dy = prev.top - rect.top;
+        if (Math.abs(dx) < 1 && Math.abs(dy) < 1) return;
+        const el = grid.querySelector<HTMLElement>(`[data-card-key="${key}"]`);
+        if (!el) return;
+        cardFlipAnims.current.set(
+          key,
+          el.animate([{ transform: `translate(${dx}px, ${dy}px)` }, { transform: 'translate(0px, 0px)' }], { duration: 200, easing: 'ease-out' }),
+        );
+      });
+    }
+    cardFlipPrevRects.current = curr;
+    return () => {
+      cardFlipAnims.current.forEach((a) => a.cancel());
+      cardFlipAnims.current.clear();
+    };
+  }, [displayOrder, placements]);
+
   // tab 拖出：屏外渲染的该组普通 C 卡就绪后，把其 HTML 设为拖拽快照（拖影即该组卡面）
   useLayoutEffect(() => {
     if (tabSnap && tabSnapRef.current) {

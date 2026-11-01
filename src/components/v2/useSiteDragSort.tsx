@@ -16,12 +16,16 @@ import type { SiteEntry } from '../../data/groups';
  * 跨组移动（随时按住都可拖）：crossGroupOnly 容器只做跨组移动、不做组内排序。
  * 不再等 1 秒武装——按下后位移过 12px 即进跨组模式；拖动只跟随快照、
  * 源行保持原样不占位不重排，松手时按指针下 data-group-card 卡片判定目标组，
- * 落在别的组卡上即 onMoveToGroup，同组或空白处 = 取消。与左滑的方向仲裁
- * （见 SwipeableRow）：左滑在捕获阶段先认领并截断，往右/纵向拖释放给这里，
- * 对角大位移同样释放；激活阈值 12px 高于左滑判定 10px，左滑认领前这里看不到位移。
- * 已认领的左滑拖出 150px 后经 activateCrossNow 转交跨组（往左拖出本组也是跨组移动）。
- * 与长按菜单的互斥：收起行按住不动的菜单由长按层在松手时开（500ms 不直接开，
- * 否则冻结位移、拖拽起不来）；位移一过 7px，长按层的松手菜单即取消（早于跨组激活 12px）。
+ * 落在别的组卡上即 onMoveToGroup，同组或空白处 = 取消。
+ * 与长按菜单的互斥：位移一过 7px，长按层的松手菜单即取消（早于跨组激活 12px）。
+ *
+ * 左滑交互已删除（2026-11-01 用户令）：行不再左滑露出编辑/删除（编辑改走
+ * 展开态编辑模式与右键/长按菜单），SwipeableRow 及其方向仲裁随之作废；拖拽
+ * 不再被左滑的 10px 未决截断，按下后 7px 即激活，响应更快。
+ *
+ * 落点判定（组内排序）：最近槽位 + 迟滞——缺口只在指针离另一槽位中心比离
+ * 当前缺口槽位中心更近（严格小于、差 1px 以上）时才移动，避免同一行内
+ * 竖拖半格就整行跳变、来回抖动；槽位中心取激活瞬间快照，预览重排不影响判定。
  *
  * 展开态拖出本组（用户口径：展开也可以拖动）：组内排序实例只要配了 onMoveToGroup，
  * 拖动中指针拖出源卡片 24px 即由排序转跨组（预览与占位丢弃、只跟随快照），
@@ -62,8 +66,6 @@ export function useSiteDragSort({
   const originRef = useRef<{ x: number; y: number } | null>(null);
   const containerRef = useRef<HTMLElement | null>(null);
   const pendingRef = useRef<{ id: string; pointerId: number; startX: number; startY: number } | null>(null);
-  /** effect 内建的激活函数（左滑超距逃逸用）：组件体内的 activateCrossNow 经它调用 */
-  const activateRef = useRef<((pending: { id: string; pointerId: number; startX: number; startY: number }, x: number, y: number, forceCross?: boolean) => boolean) | null>(null);
   const activeRef = useRef<{
     id: string;
     pointerId: number;
@@ -163,7 +165,9 @@ export function useSiteDragSort({
       }
     };
 
-    /** 由指针位置算出落点（先按行优先序数「中心在指针之前」的站点数，再按置顶分区夹取） */
+    /** 由指针位置算出落点：最近槽位 + 迟滞。槽位是激活瞬间的固定格子
+     * （rects 快照），缺口只有在指针离另一槽位中心比离当前缺口槽位中心
+     * 更近 1px 以上时才搬家；之后仍按置顶分区夹取，跨区拖不生效 */
     const updatePreviewTarget = (x: number, y: number) => {
       const d = activeRef.current;
       const container = containerRef.current;
@@ -174,16 +178,37 @@ export function useSiteDragSort({
       if (!dragged) return;
       const pinnedTotal = canonical.filter((s) => s.pinned).length;
       const others = preview.filter((id) => id !== d.id);
-      let pos = 0;
-      for (const id of others) {
-        // 优先用激活瞬间的槽位快照（预览重排后元素的实时 rect 已移位，会让落点多算一格）
+      const centerOf = (id: string) => {
         const r = d.rects.get(id) ?? container.querySelector(`[data-site-drag-id="${id}"]`)?.getBoundingClientRect();
-        if (!r) continue;
-        const cx = r.left + r.width / 2;
-        const cy = r.top + r.height / 2;
-        if (cy < y - 2 || (Math.abs(cy - y) <= r.height / 2 && cx < x)) pos++;
+        return r ? { x: r.left + r.width / 2, y: r.top + r.height / 2 } : null;
+      };
+      const gapPos = preview.indexOf(d.id);
+      const gapCenter = gapPos >= 0 ? centerOf(canonical[gapPos]?.id ?? '') : null;
+      let bestPos = gapPos < 0 ? 0 : gapPos;
+      let bestDist = gapCenter ? Math.hypot(x - gapCenter.x, y - gapCenter.y) : Infinity;
+      canonical.forEach((s, idx) => {
+        if (!s.id || s.id === d.id) return;
+        const c = centerOf(s.id);
+        if (!c) return;
+        const dist = Math.hypot(x - c.x, y - c.y);
+        if (dist < bestDist - 1) {
+          bestDist = dist;
+          bestPos = idx;
+        }
+      });
+      // 指针拖出网格上下界：直接落到最前/最后（单行网格往下拖到底也应排到末尾，
+      // 最近槽位在该情形下会误判为原地不动）
+      const slotCenters = canonical.map((s) => (s.id ? centerOf(s.id) : null)).filter((c): c is { x: number; y: number } => !!c);
+      if (slotCenters.length > 0) {
+        const firstRect = d.rects.get(canonical[0]?.id ?? '');
+        const halfH = (firstRect?.height ?? 48) / 2;
+        const minY = Math.min(...slotCenters.map((c) => c.y));
+        const maxY = Math.max(...slotCenters.map((c) => c.y));
+        if (y < minY - halfH) bestPos = 0;
+        else if (y > maxY + halfH) bestPos = canonical.length - 1;
       }
       // 分区夹取：置顶站点只能落在置顶区内（others 里置顶数 = pinnedTotal-1），普通站点不能进置顶区
+      let pos = bestPos;
       if (dragged.pinned) pos = Math.max(0, Math.min(pos, pinnedTotal - 1));
       else pos = Math.max(pinnedTotal, Math.min(pos, others.length));
       const next = [...others];
@@ -212,8 +237,8 @@ export function useSiteDragSort({
       }
     };
 
-    /** 由待命转激活（onPointerMove 越阈值 / 左滑超距逃逸共用）：建快照、置 active；
-     * forceCross = 左滑逃逸或跨组容器直接进跨组模式（排序预览不建） */
+    /** 由待命转激活（onPointerMove 越阈值）：建快照、置 active；
+     * forceCross = 跨组容器直接进跨组模式（排序预览不建） */
     const activateFromPending = (
       pending: { id: string; pointerId: number; startX: number; startY: number },
       x: number,
@@ -255,15 +280,13 @@ export function useSiteDragSort({
       if (mode === 'cross') updateCrossTarget(x, y);
       return true;
     };
-    activateRef.current = activateFromPending;
 
     const onPointerMove = (e: PointerEvent) => {
       const pending = pendingRef.current;
       if (!activeRef.current && pending && e.pointerId === pending.pointerId) {
         const moved = Math.hypot(e.clientX - pending.startX, e.clientY - pending.startY);
         if (crossGroupOnly) {
-          // 跨组：随时按住都可拖（不再等武装）；激活阈值 12px 高于左滑判定 10px，
-          // 左滑在捕获阶段先认领并截断，往右/纵向拖释放，冒泡阶段的这里才能看到位移
+          // 跨组：随时按住都可拖（不再等武装），位移过 12px 即激活
           if (moved < CROSS_ACTIVATE_PX) return;
         } else if (moved < DRAG_THRESHOLD) {
           return;
@@ -333,7 +356,6 @@ export function useSiteDragSort({
       window.removeEventListener('pointerup', onPointerUp);
       window.removeEventListener('pointercancel', onPointerCancel);
       window.removeEventListener('keydown', onKeyDown);
-      activateRef.current = null;
     };
   }, []);
 
@@ -375,17 +397,6 @@ export function useSiteDragSort({
     return false;
   };
 
-  /** 跨组激活状态（供左滑 gestureLock 读）：本次按压是否已进跨组拖拽 */
-  const isCrossActive = () => activeRef.current?.mode === 'cross';
-
-  /** 左滑超距逃逸：已认领的左滑拖出 150px 后转交跨组拖拽（仅配了跨组落盘的容器；
-   * 待命已不在时返回 false，左滑继续）。跨组容器与展开态排序实例都可转交。 */
-  const activateCrossNow = (x: number, y: number) => {
-    const pending = pendingRef.current;
-    if (!pending || activeRef.current || !onMoveToGroupRef.current) return false;
-    return activateRef.current?.(pending, x, y, true) ?? false;
-  };
-
   /** 占位只属于组内排序：跨组模式源行保持原样，不套虚线占位 */
   const isDragging = (site: SiteEntry) => activeRef.current?.mode === 'sort' && dragId !== null && site.id === dragId;
 
@@ -406,7 +417,7 @@ export function useSiteDragSort({
     </div>
   ) : null;
 
-  return { items, isDragging, isCrossActive, activateCrossNow, onContainerPointerDown, onContainerDragStart, consumeSuppressClick, dragLayer };
+  return { items, isDragging, onContainerPointerDown, onContainerDragStart, consumeSuppressClick, dragLayer };
 }
 
 /** 被拖站点在原位的占位样式（与主页拖拽占位同语言：靛蓝虚线框 + 淡蓝底）。

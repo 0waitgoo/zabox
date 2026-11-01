@@ -7,7 +7,6 @@ import { useLang } from '../../i18n/useLang';
 import { displayGroupName } from '../../i18n/groupNames';
 import { SiteLogo } from './Card';
 import GroupExpandedBody, { SiteTagBadges } from './GroupExpanded';
-import SwipeableRow from './SwipeableRow';
 import { useSiteDragSort } from './useSiteDragSort';
 
 /**
@@ -98,9 +97,6 @@ export default function GroupListCard({
   useEffect(() => {
     if (!expanded) setEditMode(false);
   }, [expanded]);
-  /** 收起态行左滑（第七十三轮）：当前打开操作条的行 + 左滑「编辑」直达请求（展开后由展开体消费） */
-  const [swipeOpenId, setSwipeOpenId] = useState<string | null>(null);
-  const [editRequestId, setEditRequestId] = useState<string | null>(null);
 
   const stop = (e: React.MouseEvent) => e.stopPropagation();
 
@@ -291,8 +287,6 @@ export default function GroupListCard({
           group={group}
           store={store}
           colSpan={colSpan}
-          editRequestId={editRequestId}
-          onEditRequestDone={() => setEditRequestId(null)}
           editMode={editMode}
         />
       ) : (
@@ -306,38 +300,14 @@ export default function GroupListCard({
             className={`grid gap-x-2 content-start ${colSpan === 1 ? 'grid-cols-1' : 'grid-cols-1 min-[480px]:grid-cols-3'}`}
             onPointerDown={crossDrag.onContainerPointerDown}
             onDragStart={crossDrag.onContainerDragStart}
-            onPointerDownCapture={(e) => {
-              // 左滑操作条开着时，按到该行之外先收起（第七十三轮）
-              if (!swipeOpenId) return;
-              const row = (e.target as HTMLElement).closest('[data-swipe-row]');
-              if (!row || row.getAttribute('data-swipe-row') !== swipeOpenId) setSwipeOpenId(null);
-            }}
           >
             {rows.map((site) => (
-              /* 左滑露出编辑/删除（第七十三轮）：横向认领在捕获阶段截断 move，主页整卡拖拽
-                 的 pending 不会误激活；「编辑」= 展开本卡并直达该站点的编辑表单（既有编辑入口） */
               <React.Fragment key={site.id ?? site.name}>
-              <SwipeableRow
-                rowKey={site.id ?? site.name}
-                openKey={swipeOpenId}
-                onOpenKeyChange={setSwipeOpenId}
-                gestureLock={crossDrag.isCrossActive}
-                onDragEscape={(x, y) => crossDrag.activateCrossNow(x, y)}
-                onEdit={() => {
-                  if (!site.id) return;
-                  setEditRequestId(site.id);
-                  onToggleExpand(group);
-                }}
-                onDelete={() => {
-                  if (site.id) store.deleteSite(group.id, site.id);
-                }}
-              >
-                {(swipeGuard) => (
                   <button
                     data-site-drag-id={site.id}
                     onClick={(e) => {
                       e.stopPropagation();
-                      if (swipeGuard() || crossDrag.consumeSuppressClick()) return;
+                      if (crossDrag.consumeSuppressClick()) return;
                       window.open(site.url, '_blank');
                     }}
                     className="flex items-center gap-2.5 px-2 py-[7px] w-full rounded-2xl hover:bg-white/6 text-left transition-colors"
@@ -356,8 +326,6 @@ export default function GroupListCard({
                       <span className="block text-[11px] text-white/45 truncate mt-0.5">{site.description}</span>
                     </span>
                   </button>
-                )}
-              </SwipeableRow>
               </React.Fragment>
             ))}
           </div>

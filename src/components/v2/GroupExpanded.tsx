@@ -1,4 +1,4 @@
-import React, { useRef, useState } from 'react';
+import React, { useLayoutEffect, useRef, useState } from 'react';
 import { Pin, Plus, Check, X, RefreshCw, Upload, Trash2 } from 'lucide-react';
 import { LETTER_ICON_COLORS, SITE_TAG_MAX, SITE_TAGS_MAX_COUNT, cleanSiteTag, cleanSiteTags, letterIconDataUri, siteIconSrc, siteLogoFallback, siteTags, sortSites, type NavGroup, type SiteEntry } from '../../data/groups';
 import { logoForSite, type LocalStore, type SiteDraft } from '../../store/localStore';
@@ -6,7 +6,6 @@ import { useLang } from '../../i18n/useLang';
 import { SiteLogo } from './Card';
 import SiteContextMenu, { siteMenuPosition, type SiteMenuState } from './SiteContextMenu';
 import { SITE_DRAG_PLACEHOLDER_STYLE, useSiteDragSort } from './useSiteDragSort';
-import SwipeableRow from './SwipeableRow';
 import SitePoolPicker from './SitePoolPicker';
 
 /** 站点名称 / 说明的长度上限（第十六轮⑦）：表单 maxLength + 计数，保存时再硬截断兜底 */
@@ -553,33 +552,19 @@ function EditableSiteRow({
 export default function GroupExpandedBody({
   group,
   store,
-  editRequestId,
-  onEditRequestDone,
   editMode = false,
 }: {
   group: NavGroup;
   store: LocalStore;
   /** 兼容既有调用方传参：展开态列数已恒为 3 列，不再使用此值 */
   colSpan?: 1 | 2;
-  /** 收起态行左滑「编辑」的直达请求（第七十三轮）：展开挂载后打开该站点的编辑表单，随即回调清空 */
-  editRequestId?: string | null;
-  onEditRequestDone?: () => void;
   /** 编辑模式（标题行开关）：行点击改开编辑表单、每行行尾出垃圾桶一键删除 */
   editMode?: boolean;
 }) {
   const [addMode, setAddMode] = useState<'choice' | 'custom' | 'pool' | null>(null);
   const [menu, setMenu] = useState<SiteMenuState | null>(null);
   const [editingSiteId, setEditingSiteId] = useState<string | null>(null);
-  /** 左滑操作条当前打开的行（第七十三轮）：同列表只开一行 */
-  const [swipeOpenId, setSwipeOpenId] = useState<string | null>(null);
   const { t } = useLang();
-
-  // 收起态左滑「编辑」直达：展开体挂载（或请求变更）时打开对应站点的编辑表单
-  React.useEffect(() => {
-    if (!editRequestId) return;
-    setEditingSiteId(editRequestId);
-    onEditRequestDone?.();
-  }, [editRequestId, onEditRequestDone]);
   const sorted = sortSites(group.sites);
   /** 组内拖动排序（第三十八轮）：行网格内拖动换位，置顶区/普通区不跨区；
    * 本区在 data-nodrag 滚动区内，按下不会触发整卡拖拽排序，两套手势互不干扰。
@@ -590,6 +575,43 @@ export default function GroupExpandedBody({
     groupId: group.id,
     onMoveToGroup: (siteId, targetGroupId) => store.moveSite(group.id, siteId, targetGroupId),
   });
+
+  /** 拖动排序 FLIP 滑移动画：缺口每搬一次家，其余行从旧槽位滑到新槽位
+   * （200ms ease-out），而不是瞬间跳变；只在排序预览进行中跑，平时不干预 */
+  const gridFlipRef = useRef<HTMLDivElement | null>(null);
+  const flipPrevRects = useRef(new Map<string, DOMRect>());
+  const flipAnims = useRef(new Map<string, Animation>());
+  useLayoutEffect(() => {
+    const grid = gridFlipRef.current;
+    if (!grid) return undefined;
+    flipAnims.current.forEach((a) => a.cancel());
+    flipAnims.current.clear();
+    const curr = new Map<string, DOMRect>();
+    grid.querySelectorAll<HTMLElement>('[data-site-drag-id]').forEach((el) => {
+      const id = el.dataset.siteDragId;
+      if (id) curr.set(id, el.getBoundingClientRect());
+    });
+    if (siteDrag.items !== sorted) {
+      curr.forEach((rect, id) => {
+        const prev = flipPrevRects.current.get(id);
+        if (!prev) return;
+        const dx = prev.left - rect.left;
+        const dy = prev.top - rect.top;
+        if (Math.abs(dx) < 1 && Math.abs(dy) < 1) return;
+        const el = grid.querySelector<HTMLElement>(`[data-site-drag-id="${id}"]`);
+        if (!el) return;
+        flipAnims.current.set(
+          id,
+          el.animate([{ transform: `translate(${dx}px, ${dy}px)` }, { transform: 'translate(0px, 0px)' }], { duration: 200, easing: 'ease-out' }),
+        );
+      });
+    }
+    flipPrevRects.current = curr;
+    return () => {
+      flipAnims.current.forEach((a) => a.cancel());
+      flipAnims.current.clear();
+    };
+  }, [siteDrag.items]);
 
   const handleSiteMenu = (e: React.MouseEvent, site: SiteEntry) => {
     // 只出站点菜单：阻止冒泡到卡片包装层（否则会同时弹出卡的尺寸菜单），并屏蔽浏览器默认菜单
@@ -607,15 +629,10 @@ export default function GroupExpandedBody({
           <p className="text-xs text-white/35 py-6 text-center">{t('menu.emptyGroupExpanded')}</p>
         )}
         <div
+          ref={gridFlipRef}
           className="grid grid-cols-1 gap-x-2 content-start min-[480px]:grid-cols-3"
           data-expanded-grid
           data-cross-source
-          onPointerDownCapture={(e) => {
-            // 左滑操作条开着时，按到该行之外（别行/空白/加站格）先收起（第七十三轮）
-            if (!swipeOpenId) return;
-            const row = (e.target as HTMLElement).closest('[data-swipe-row]');
-            if (!row || row.getAttribute('data-swipe-row') !== swipeOpenId) setSwipeOpenId(null);
-          }}
           onPointerDown={siteDrag.onContainerPointerDown}
           onDragStart={siteDrag.onContainerDragStart}
         >
@@ -634,35 +651,19 @@ export default function GroupExpandedBody({
                   guardClick={siteDrag.consumeSuppressClick}
                 />
               ) : (
-                /* 左滑露出编辑/删除（第七十三轮）：与组内拖拽排序靠方向仲裁共存——
-                   横向占优归左滑（捕获阶段截断 move，排序 pending 不激活），纵向归排序/滚动 */
-                <SwipeableRow
-                  rowKey={site.id ?? site.name}
-                  openKey={swipeOpenId}
-                  onOpenKeyChange={setSwipeOpenId}
-                  gestureLock={siteDrag.isCrossActive}
-                  onDragEscape={(x, y) => siteDrag.activateCrossNow(x, y)}
-                  onEdit={() => setEditingSiteId(site.id ?? null)}
-                  onDelete={() => {
-                    if (site.id) store.deleteSite(group.id, site.id);
-                  }}
-                >
-                  {(swipeGuard) => (
-                    <EditableSiteRow
-                      site={site}
-                      groupId={group.id}
-                      store={store}
-                      editing={false}
-                      onEndEdit={() => setEditingSiteId(null)}
-                      onSiteMenu={handleSiteMenu}
-                      formSpanCls="col-span-1 min-[480px]:col-span-3"
-                      dragging={siteDrag.isDragging(site)}
-                      guardClick={() => siteDrag.consumeSuppressClick() || swipeGuard()}
-                      editMode={editMode}
-                      onEditSite={() => setEditingSiteId(site.id ?? null)}
-                    />
-                  )}
-                </SwipeableRow>
+                <EditableSiteRow
+                  site={site}
+                  groupId={group.id}
+                  store={store}
+                  editing={false}
+                  onEndEdit={() => setEditingSiteId(null)}
+                  onSiteMenu={handleSiteMenu}
+                  formSpanCls="col-span-1 min-[480px]:col-span-3"
+                  dragging={siteDrag.isDragging(site)}
+                  guardClick={siteDrag.consumeSuppressClick}
+                  editMode={editMode}
+                  onEditSite={() => setEditingSiteId(site.id ?? null)}
+                />
               )}
             </React.Fragment>
           ))}

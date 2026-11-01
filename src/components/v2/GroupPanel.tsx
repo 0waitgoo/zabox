@@ -1,4 +1,5 @@
-import React, { useEffect, useMemo, useRef, useState } from 'react';
+import React, { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
+import { createPortal } from 'react-dom';
 import { AnimatePresence, motion } from 'motion/react';
 import { X, Pin, Plus, Trash2, Check } from 'lucide-react';
 import { GROUP_NAME_MAX, GROUP_TAB_COLORS, siteIconSrc, siteTags, sortSites, textCharCount, type NavGroup, type SiteEntry } from '../../data/groups';
@@ -39,10 +40,32 @@ export default function GroupPanel({
     return () => document.removeEventListener('keydown', onKey);
   }, [group, onClose]);
 
+  /** 拖出弹窗转跨组：面板隐藏（保持挂载、拖拽不中断），露出底下组卡供落点；
+   * 拖完落到异组 = 关弹窗，取消 = 恢复面板 */
+  const panelRef = useRef<HTMLDivElement | null>(null);
+  const [dragEscaped, setDragEscaped] = useState(false);
+  const dragEscapedRef = useRef(false);
+  const handleEscapeToCross = () => {
+    dragEscapedRef.current = true;
+    setDragEscaped(true);
+  };
+  const handleDragEnd = ({ moved }: { moved: boolean }) => {
+    if (!dragEscapedRef.current) return;
+    // 无论落盘还是取消都复位隐藏态（落盘后 onClose 关弹窗，取消则恢复面板）；避免下次打开仍隐藏
+    dragEscapedRef.current = false;
+    setDragEscaped(false);
+    if (moved) onClose();
+  };
+  // 换组打开时复位隐藏态（关弹窗时 handleDragEnd 已复位，这里是兜底）
+  useEffect(() => {
+    dragEscapedRef.current = false;
+    setDragEscaped(false);
+  }, [group?.id]);
+
   return (
     <AnimatePresence>
       {group && (
-        <div data-panel-root className="fixed inset-0 z-[60] flex items-center justify-center p-3 sm:p-6">
+        <div data-panel-root className={`fixed inset-0 z-[60] flex items-center justify-center p-3 sm:p-6 ${dragEscaped ? 'invisible' : ''}`}>
           <motion.div
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
@@ -51,6 +74,7 @@ export default function GroupPanel({
             className="absolute inset-0 bg-black/70"
           />
           <motion.div
+            ref={panelRef}
             initial={{ opacity: 0, scale: 0.94, y: 14 }}
             animate={{ opacity: 1, scale: 1, y: 0 }}
             exit={{ opacity: 0, scale: 0.96, y: 8 }}
@@ -58,7 +82,15 @@ export default function GroupPanel({
             className="relative rounded-[28px] bg-[#17171d] border border-white/10 w-full max-w-2xl max-h-[84vh] flex flex-col overflow-hidden shadow-2xl shadow-black/70"
           >
             <React.Fragment key={group.id}>
-              <GroupPanelSection group={group} store={store} onClose={onClose} onBecomeList={onBecomeList} />
+              <GroupPanelSection
+                group={group}
+                store={store}
+                onClose={onClose}
+                onBecomeList={onBecomeList}
+                getEscapeBoundary={() => panelRef.current}
+                onEscapeToCross={handleEscapeToCross}
+                onDragEnd={handleDragEnd}
+              />
             </React.Fragment>
           </motion.div>
         </div>
@@ -78,12 +110,19 @@ export function GroupPanelSection({
   onClose,
   onBecomeList,
   embedded = false,
+  getEscapeBoundary,
+  onEscapeToCross,
+  onDragEnd,
 }: {
   group: NavGroup;
   store: LocalStore;
   onClose: () => void;
   onBecomeList: (group: NavGroup) => void;
   embedded?: boolean;
+  /** 弹窗面板边界（仅单组弹窗传）：拖出面板即转跨组 */
+  getEscapeBoundary?: () => HTMLElement | null;
+  onEscapeToCross?: () => void;
+  onDragEnd?: (result: { moved: boolean }) => void;
 }) {
   const [adding, setAdding] = useState(false);
   const [editingSite, setEditingSite] = useState<SiteEntry | null>(null);
@@ -112,12 +151,55 @@ export function GroupPanelSection({
   };
 
   const sorted = useMemo(() => sortSites(group.sites), [group]);
-  /** 组内拖动排序（第三十八轮）：每个 Section 一套，组合弹窗里两组互不串组 */
+  /** 组内拖动排序（第三十八轮）：每个 Section 一套，组合弹窗里两组互不串组；
+   * 单组弹窗另配跨组移动：拖出面板边距即转跨组（面板隐藏、露出底下组卡），
+   * 组合弹窗（embedded）不传边界、保持只排序 */
   const siteDrag = useSiteDragSort({
     sites: sorted,
     onReorder: (ids) => store.reorderSites(group.id, ids),
+    groupId: group.id,
+    onMoveToGroup: (siteId, targetGroupId) => store.moveSite(group.id, siteId, targetGroupId),
+    getEscapeBoundary,
+    onEscapeToCross,
+    onDragEnd,
   });
   const showForm = adding || editingSite !== null;
+
+  /** 拖动排序 FLIP 滑移动画：与 B 卡展开态同一套，缺口搬家时其余瓷砖滑过去而不是跳变 */
+  const gridFlipRef = useRef<HTMLDivElement | null>(null);
+  const flipPrevRects = useRef(new Map<string, DOMRect>());
+  const flipAnims = useRef(new Map<string, Animation>());
+  useLayoutEffect(() => {
+    const grid = gridFlipRef.current;
+    if (!grid) return undefined;
+    flipAnims.current.forEach((a) => a.cancel());
+    flipAnims.current.clear();
+    const curr = new Map<string, DOMRect>();
+    grid.querySelectorAll<HTMLElement>('[data-site-drag-id]').forEach((el) => {
+      const id = el.dataset.siteDragId;
+      if (id) curr.set(id, el.getBoundingClientRect());
+    });
+    if (siteDrag.items !== sorted) {
+      curr.forEach((rect, id) => {
+        const prev = flipPrevRects.current.get(id);
+        if (!prev) return;
+        const dx = prev.left - rect.left;
+        const dy = prev.top - rect.top;
+        if (Math.abs(dx) < 1 && Math.abs(dy) < 1) return;
+        const el = grid.querySelector<HTMLElement>(`[data-site-drag-id="${id}"]`);
+        if (!el) return;
+        flipAnims.current.set(
+          id,
+          el.animate([{ transform: `translate(${dx}px, ${dy}px)` }, { transform: 'translate(0px, 0px)' }], { duration: 200, easing: 'ease-out' }),
+        );
+      });
+    }
+    flipPrevRects.current = curr;
+    return () => {
+      flipAnims.current.forEach((a) => a.cancel());
+      flipAnims.current.clear();
+    };
+  }, [siteDrag.items]);
 
   const switchDisplay = (display: 'list' | 'stack') => {
     if (display === group.display) return;
@@ -310,6 +392,8 @@ export function GroupPanelSection({
             只有提示文案、没有添加入口，新建文件夹组永远加不了第一个站 */}
         {(siteDrag.items.length > 0 || !showForm) && (
           <div
+            ref={gridFlipRef}
+            data-cross-source
             className="grid grid-cols-4 sm:grid-cols-5 md:grid-cols-6 gap-2"
             onPointerDown={siteDrag.onContainerPointerDown}
             onDragStart={siteDrag.onContainerDragStart}
@@ -373,8 +457,8 @@ export function GroupPanelSection({
 
       {/* 底部失效提示条已按用户要求删除（第二十九轮）：站点瓷砖自身的「失效」徽标与失效标记逻辑保留 */}
 
-      {/* 组内拖动排序的浮动快照（第三十八轮） */}
-      {siteDrag.dragLayer}
+      {/* 组内拖动排序的浮动快照（第三十八轮）：经 portal 挂到 body，拖出弹窗隐藏面板时快照不受 visibility 牵连、始终可见 */}
+      {createPortal(siteDrag.dragLayer, document.body)}
 
       {/* 站点右键菜单（打开/编辑/删除）：fixed 定位，渲染在弹窗内容之外不被滚动区裁剪 */}
       {siteMenu && (

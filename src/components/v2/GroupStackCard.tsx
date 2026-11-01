@@ -3,7 +3,7 @@ import { motion } from 'motion/react';
 import { groupIcon, siteIconSrc, sortSites, type NavGroup, type SiteEntry } from '../../data/groups';
 import type { LocalStore } from '../../store/localStore';
 import { cachedIconSrc, nextFallbackIconSrc, storeIconSrc } from './Card';
-import { useSiteDragSort } from './useSiteDragSort';
+import { SITE_DRAG_PLACEHOLDER_STYLE, useSiteDragSort } from './useSiteDragSort';
 import { useLang } from '../../i18n/useLang';
 import { displayGroupName } from '../../i18n/groupNames';
 
@@ -202,8 +202,9 @@ function useStretchedTileSize(zoneRef: React.RefObject<HTMLDivElement | null>) {
 
 /** 单个站点瓷砖（圆角块 + 铺满的站点图标 + 下方名字，名字字号与弹窗瓷砖一致 11px；
  * 尺寸走全形态统一变量；点击直达并阻止冒泡；
- * 跨组拖拽源：带 data-site-drag-id，拖完的 click 由宿主 guardClick 吞掉 */
-function SiteTile({ site, guardClick }: { site: SiteEntry; guardClick?: () => boolean }) {
+ * 拖拽源：带 data-site-drag-id，拖完的 click 由宿主 guardClick 吞掉；
+ * 被拖时套虚线占位样式（与 B 卡行 / 弹窗瓷砖同语言） */
+function SiteTile({ site, guardClick, dragging }: { site: SiteEntry; guardClick?: () => boolean; dragging?: boolean }) {
   const initial = siteIconSrc(site);
   const src = cachedIconSrc(site.url, initial, site.name) ?? initial;
   const openSite = (e: React.MouseEvent) => {
@@ -219,7 +220,7 @@ function SiteTile({ site, guardClick }: { site: SiteEntry; guardClick?: () => bo
       data-site-drag-id={site.id}
       onClick={openSite}
       className="group/face shrink-0 rounded-[13px] hover:z-20 flex flex-col items-center"
-      style={{ width: 'var(--face-tile-size)' }}
+      style={{ width: 'var(--face-tile-size)', ...(dragging ? SITE_DRAG_PLACEHOLDER_STYLE : {}) }}
     >
       <span
         className="site-icon-frame block w-full rounded-[13px] overflow-hidden transition-transform duration-150 group-hover/face:scale-110"
@@ -311,22 +312,58 @@ export function StackSiteTiles({
   const fitCount = useRowFitCount(zoneRef, heightUnits === 1);
   const stretched = useStretchedTileSize(zoneRef);
   const visible = heightUnits === 1 ? sorted.slice(0, fitCount) : sorted;
-  // 卡面瓷砖跨组拖拽（与 B 卡收起网格同规则：随时按住都可拖，拖到别的组卡松手即 moveSite；
-  // 组合卡 active 组瓷砖同样走这里；弹窗（GroupPanel）内瓷砖不接——弹窗盖住目标卡，拖不出去）
-  const crossDrag = useSiteDragSort({
-    sites: sorted,
+  // 卡面瓷砖拖动换位（与 B 卡收起网格同规则）：按可见瓷砖做组内排序，拖出卡身即转跨组移动；
+  // 组合卡 active 组瓷砖同样走这里；边界取卡身（data-stack-body），组合卡面同样适用
+  const siteDrag = useSiteDragSort({
+    sites: visible,
+    onReorder: (ids) => store.reorderSites(group.id, ids),
     groupId: group.id,
-    crossGroupOnly: true,
     onMoveToGroup: (siteId, targetGroupId) => store.moveSite(group.id, siteId, targetGroupId),
+    getEscapeBoundary: () => zoneRef.current?.closest('[data-stack-body]') as HTMLElement | null,
   });
+
+  /** 卡面拖动 FLIP 滑移动画：与 B 卡 / 弹窗同一套，缺口搬家时其余瓷砖滑过去而不是跳变 */
+  const flipPrevRects = React.useRef(new Map<string, DOMRect>());
+  const flipAnims = React.useRef(new Map<string, Animation>());
+  React.useLayoutEffect(() => {
+    const zone = zoneRef.current;
+    if (!zone) return undefined;
+    flipAnims.current.forEach((a) => a.cancel());
+    flipAnims.current.clear();
+    const curr = new Map<string, DOMRect>();
+    zone.querySelectorAll<HTMLElement>('[data-site-drag-id]').forEach((el) => {
+      const id = el.dataset.siteDragId;
+      if (id) curr.set(id, el.getBoundingClientRect());
+    });
+    if (siteDrag.items !== visible) {
+      curr.forEach((rect, id) => {
+        const prev = flipPrevRects.current.get(id);
+        if (!prev) return;
+        const dx = prev.left - rect.left;
+        const dy = prev.top - rect.top;
+        if (Math.abs(dx) < 1 && Math.abs(dy) < 1) return;
+        const el = zone.querySelector<HTMLElement>(`[data-site-drag-id="${id}"]`);
+        if (!el) return;
+        flipAnims.current.set(
+          id,
+          el.animate([{ transform: `translate(${dx}px, ${dy}px)` }, { transform: 'translate(0px, 0px)' }], { duration: 200, easing: 'ease-out' }),
+        );
+      });
+    }
+    flipPrevRects.current = curr;
+    return () => {
+      flipAnims.current.forEach((a) => a.cancel());
+      flipAnims.current.clear();
+    };
+  }, [siteDrag.items]);
   return (
     <>
     <div
       ref={zoneRef}
       data-tiles-zone
       data-cross-source
-      onPointerDown={crossDrag.onContainerPointerDown}
-      onDragStart={crossDrag.onContainerDragStart}
+      onPointerDown={siteDrag.onContainerPointerDown}
+      onDragStart={siteDrag.onContainerDragStart}
       style={{ ...FACE_TILE_VARS, ...(stretched ? { '--face-tile-size': `${stretched}px` } : {}) }}
       className={`flex-1 min-h-0 flex pt-3 relative ${
         /* 1x：补 pb-3 与 pt-3 对称，单行在整个图标区（含内边距）内真正垂直居中；水平靠左（第六十三轮） */
@@ -341,9 +378,9 @@ export function StackSiteTiles({
           className="w-full flex flex-nowrap items-center justify-start overflow-hidden"
           style={{ gap: 'var(--face-tile-gap)' }}
         >
-          {visible.map((site) => (
+          {siteDrag.items.map((site) => (
             <React.Fragment key={site.id ?? site.name}>
-              <SiteTile site={site} guardClick={crossDrag.consumeSuppressClick} />
+              <SiteTile site={site} guardClick={siteDrag.consumeSuppressClick} dragging={siteDrag.isDragging(site)} />
             </React.Fragment>
           ))}
         </div>
@@ -353,15 +390,15 @@ export function StackSiteTiles({
           className="w-full flex flex-wrap items-start justify-start content-start"
           style={{ gap: 'var(--face-tile-gap)' }}
         >
-          {visible.map((site) => (
+          {siteDrag.items.map((site) => (
             <React.Fragment key={site.id ?? site.name}>
-              <SiteTile site={site} guardClick={crossDrag.consumeSuppressClick} />
+              <SiteTile site={site} guardClick={siteDrag.consumeSuppressClick} dragging={siteDrag.isDragging(site)} />
             </React.Fragment>
           ))}
         </div>
       )}
     </div>
-    {crossDrag.dragLayer}
+    {siteDrag.dragLayer}
     </>
   );
 }

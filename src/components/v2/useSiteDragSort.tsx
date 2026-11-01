@@ -45,6 +45,9 @@ export function useSiteDragSort({
   groupId,
   onMoveToGroup,
   crossGroupOnly = false,
+  getEscapeBoundary,
+  onEscapeToCross,
+  onDragEnd,
 }: {
   /** 当前显示顺序（已经过 sortSites：置顶区在前） */
   sites: SiteEntry[];
@@ -54,8 +57,14 @@ export function useSiteDragSort({
   groupId?: string;
   /** 跨组移动落盘（siteId, targetGroupId） */
   onMoveToGroup?: (siteId: string, targetGroupId: string) => void;
-  /** 只做跨组移动、不做组内排序（暂无调用方保留：B 卡收起网格现已用排序实例兼跨组） */
+  /** 只做跨组移动、不做组内排序（暂无调用方保留：B 卡收起网格与 C 卡面现已用排序实例兼跨组） */
   crossGroupOnly?: boolean;
+  /** 排序转跨组的边界元素（弹窗等不在组卡内的容器）：提供时按它判定拖出，缺省用源组卡 */
+  getEscapeBoundary?: () => HTMLElement | null;
+  /** 排序转跨组时回调（弹窗可据此隐藏面板、露出底下组卡） */
+  onEscapeToCross?: () => void;
+  /** 拖拽结束回调（moved = 跨组模式下落到异组、实际发生了移动） */
+  onDragEnd?: (result: { moved: boolean }) => void;
 }) {
   const [previewIds, setPreviewIds] = useState<string[] | null>(null);
   const [dragId, setDragId] = useState<string | null>(null);
@@ -92,6 +101,12 @@ export function useSiteDragSort({
   onMoveToGroupRef.current = onMoveToGroup;
   const groupIdRef = useRef(groupId);
   groupIdRef.current = groupId;
+  const getEscapeBoundaryRef = useRef(getEscapeBoundary);
+  getEscapeBoundaryRef.current = getEscapeBoundary;
+  const onEscapeToCrossRef = useRef(onEscapeToCross);
+  onEscapeToCrossRef.current = onEscapeToCross;
+  const onDragEndRef = useRef(onDragEnd);
+  onDragEndRef.current = onDragEnd;
 
   const clearCrossHighlight = () => {
     const t = crossTargetRef.current;
@@ -146,13 +161,16 @@ export function useSiteDragSort({
       setDragId(null);
       setClone(null);
       originRef.current = null;
+      // moved = 跨组模式下确实落到了异组（onMoveToGroup 即将/已经触发）
+      const moved = d.mode === 'cross' && commit && !!crossTarget && crossTarget.groupId !== groupIdRef.current;
       if (d.mode === 'cross') {
         // 跨组提交：目标组存在且不是源组才移动；同组/空白 = 取消
-        if (commit && crossTarget && crossTarget.groupId !== groupIdRef.current) {
+        if (moved) {
           onMoveToGroupRef.current?.(d.id, crossTarget.groupId);
         }
         // 跨组拖拽只要拖起来过，松手那次 click 都不该打开站点（提交/取消、落在源行/目标行都一样）
         suppressUntilRef.current = Date.now() + 350;
+        onDragEndRef.current?.({ moved });
         return;
       }
       if (commit && finalIds) {
@@ -163,6 +181,7 @@ export function useSiteDragSort({
         // 拖完紧随的 click 会落在站点按钮上：吞掉，避免顺带打开站点
         suppressUntilRef.current = Date.now() + 350;
       }
+      onDragEndRef.current?.({ moved: false });
     };
 
     /** 由指针位置算出落点：最近槽位 + 迟滞。槽位是激活瞬间的固定格子
@@ -301,14 +320,16 @@ export function useSiteDragSort({
         if (d.mode === 'cross') {
           updateCrossTarget(e.clientX, e.clientY);
         } else {
-          // 排序转跨组：配了 onMoveToGroup 的实例，指针拖出源卡片边距即转交；
-          // 预览与占位随模式切换丢弃（isDragging 只认 sort），松手按跨组规则提交/取消
-          if (onMoveToGroupRef.current && d.sourceCard) {
-            const r = d.sourceCard.getBoundingClientRect();
+          // 排序转跨组：配了 onMoveToGroup 的实例，指针拖出边界（源组卡或 getEscapeBoundary 指定的
+          // 弹窗面板）边距即转交；预览与占位随模式切换丢弃（isDragging 只认 sort），松手按跨组规则提交/取消
+          const boundary = getEscapeBoundaryRef.current?.() ?? d.sourceCard;
+          if (onMoveToGroupRef.current && boundary) {
+            const r = boundary.getBoundingClientRect();
             const m = CROSS_ESCAPE_MARGIN;
             if (e.clientX < r.left - m || e.clientX > r.right + m || e.clientY < r.top - m || e.clientY > r.bottom + m) {
               d.mode = 'cross';
               setPreview(null);
+              onEscapeToCrossRef.current?.();
               updateCrossTarget(e.clientX, e.clientY);
             } else {
               updatePreviewTarget(e.clientX, e.clientY);

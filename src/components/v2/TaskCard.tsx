@@ -1,6 +1,6 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { motion } from 'motion/react';
-import { ArrowLeft, CalendarDays, CalendarRange, Check, Layers, ListTodo, Maximize2, Sparkles } from 'lucide-react';
+import { ArrowLeft, CalendarDays, CalendarRange, Check, Download, Layers, ListTodo, Maximize2, Sparkles } from 'lucide-react';
 import {
   cardFaceStyleOf,
   isTaskGroup,
@@ -44,6 +44,14 @@ import WidgetTintLayer from './WidgetTint';
  * 由注册表注入 onOpenPlanPage、商店预览等无导航场景不传则不渲染）；卡面其余结构不动；
  * useCardDragScroll 导出供 PlanPage 复用同一套拖拽滚动。
  */
+
+/** 计划桌面版下载直链：滚动 Release「plan-desktop」的当前版 NSIS 安装包
+ * （.github/workflows/plan-desktop.yml 上传，附件名以下划线开头；
+ * 2026-11-01 经 GitHub API 核实为 0.1.8 版，与 src-tauri/tauri.conf.json 的 version 一致）。
+ * 新版发布后需随 tauri.conf.json 的 version 一起改；兜底见 README 的 Release 页地址。 */
+const PLAN_DESKTOP_DOWNLOAD_URL =
+  'https://github.com/0waitgoo/zabox/releases/download/plan-desktop/_0.1.8_x64-setup.exe';
+
 export default function TaskCard({
   store,
   delay = 0,
@@ -202,6 +210,18 @@ export default function TaskCard({
             {doneCount}/{total}
           </span>
           {planPageEntry}
+          {/* 下载桌面版：与旁边图标按钮同尺寸同幽灵样式，点开即下载安装包 */}
+          <a
+            data-plan-download
+            href={PLAN_DESKTOP_DOWNLOAD_URL}
+            target="_blank"
+            rel="noreferrer"
+            title={tr('plan.downloadDesktop')}
+            aria-label={tr('plan.downloadDesktop')}
+            className="w-7 h-7 rounded-lg bg-white/10 hover:bg-white/[0.18] text-zinc-200 hover:text-white flex items-center justify-center transition-colors shrink-0"
+          >
+            <Download size={13} />
+          </a>
           <button
             type="button"
             data-ai-open

@@ -7,7 +7,7 @@
  */
 import { useEffect, useMemo, useState } from 'react';
 import { createRoot } from 'react-dom/client';
-import { Check, ChevronDown, Globe, Home, LayoutGrid, Link2, PanelRightOpen, Type } from 'lucide-react';
+import { Check, ChevronDown, Download, Globe, Home, LayoutGrid, Link2, PanelRightOpen, Type } from 'lucide-react';
 import './index.css';
 import { letterIconDataUri } from './data/groups';
 import {
@@ -23,6 +23,11 @@ import type { NavGroup } from './data/groups';
 
 const HOME_URL = 'https://zahe.hiitun.top/';
 const LAST_GROUP_KEY = 'zabox-popup-last-group';
+
+/** 计划桌面版下载直链：与计划卡头部按钮同一地址（GitHub 滚动 Release「plan-desktop」0.1.8 版；
+ * 中文界面走 Gitee 的口径待 Gitee 上有了发行版再接——Gitee 公开核查暂无 zabox 仓库） */
+const PLAN_DESKTOP_DOWNLOAD_URL =
+  'https://github.com/0waitgoo/zabox/releases/download/plan-desktop/_0.1.8_x64-setup.exe';
 
 /** 色板（贴近参考面板两排配色；最后一格彩虹 = 自动配色） */
 const PALETTE: string[] = [
@@ -151,6 +156,12 @@ function PopupApp() {
       if (c?.tabs?.create && extUrl) void c.tabs.create({ url: extUrl });
       else window.open(extUrl ?? HOME_URL, '_blank');
     }
+  };
+
+  const openDesktopDownload = () => {
+    const c = getChrome();
+    if (c?.tabs?.create) void c.tabs.create({ url: PLAN_DESKTOP_DOWNLOAD_URL });
+    else window.open(PLAN_DESKTOP_DOWNLOAD_URL, '_blank');
   };
 
   const onConfirm = async () => {
@@ -353,6 +364,15 @@ function PopupApp() {
           )}
         </>
       )}
+
+      <button
+        type="button"
+        data-testid="popup-download-desktop"
+        onClick={openDesktopDownload}
+        className="mt-auto flex items-center justify-center gap-1.5 rounded-xl bg-white/[0.07] border border-white/10 px-2 py-2.5 text-sm hover:bg-white/10"
+      >
+        <Download size={16} /> 下载桌面待办 App
+      </button>
     </div>
   );
 }

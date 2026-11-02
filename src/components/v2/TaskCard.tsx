@@ -1,4 +1,5 @@
 import React, { useEffect, useRef, useState } from 'react';
+import { createPortal } from 'react-dom';
 import { motion } from 'motion/react';
 import { ArrowLeft, CalendarDays, CalendarRange, Check, Download, Layers, ListTodo, Maximize2, Sparkles } from 'lucide-react';
 import {
@@ -82,6 +83,8 @@ export default function TaskCard({
   const [focusExpanded, setFocusExpanded] = useState(false);
   /** 2x 卡面视图：主视图（待办+计划）/ AI 整理（第六十九轮从面板迁入卡内切换） */
   const [cardView, setCardView] = useState<'main' | 'ai'>('main');
+  /** 下载桌面版前的小窗提示（点下载图标先弹提示，确认后才开始下载） */
+  const [downloadPromptOpen, setDownloadPromptOpen] = useState(false);
   /** 2x 卡面 tab（2026-10-26 重新设计）：计划（待办）| 日程表（单日）| 推进表（多日区间 month 格）——
       只在卡内切换视图，不开新页面；当前 tab 记本地（显示偏好，不进同步），下次打开还是这个 tab；
       1 栏（colSpan 1）时 tab 只留图标（窄卡放不下文字时同口径） */
@@ -100,6 +103,10 @@ export default function TaskCard({
     } catch {
       /* 忽略 */
     }
+  };
+  const confirmDownload = () => {
+    setDownloadPromptOpen(false);
+    window.open(PLAN_DESKTOP_DOWNLOAD_URL, '_blank', 'noopener');
   };
   const dragScroll = useCardDragScroll();
 
@@ -171,6 +178,7 @@ export default function TaskCard({
   /* ---------- 高 2x：全功能卡面（双列内容与原面板同一套组件；头部 AI 整理切换卡内视图） ---------- */
   if (heightUnits === 2) {
     return (
+      <>
       <motion.div
         initial={{ opacity: 0, y: 16 }}
         animate={{ opacity: 1, y: 0 }}
@@ -210,18 +218,17 @@ export default function TaskCard({
             {doneCount}/{total}
           </span>
           {planPageEntry}
-          {/* 下载桌面版：与旁边图标按钮同尺寸同幽灵样式，点开即下载安装包 */}
-          <a
+          {/* 下载桌面版：与旁边图标按钮同尺寸同幽灵样式，点开先弹小窗提示、确认后下载 */}
+          <button
+            type="button"
             data-plan-download
-            href={PLAN_DESKTOP_DOWNLOAD_URL}
-            target="_blank"
-            rel="noreferrer"
             title={tr('plan.downloadDesktop')}
             aria-label={tr('plan.downloadDesktop')}
+            onClick={() => setDownloadPromptOpen(true)}
             className="w-7 h-7 rounded-lg bg-white/10 hover:bg-white/[0.18] text-zinc-200 hover:text-white flex items-center justify-center transition-colors shrink-0"
           >
             <Download size={13} />
-          </a>
+          </button>
           <button
             type="button"
             data-ai-open
@@ -263,6 +270,45 @@ export default function TaskCard({
         )}
         </div>
       </motion.div>
+      {downloadPromptOpen &&
+        createPortal(
+          <div
+            data-plan-download-prompt
+            className="fixed inset-0 z-[70] bg-black/60 backdrop-blur-sm flex items-center justify-center p-4"
+            onClick={() => setDownloadPromptOpen(false)}
+          >
+            <div
+              role="dialog"
+              aria-modal="true"
+              aria-label={tr('plan.downloadDesktop')}
+              className="w-full max-w-[340px] rounded-2xl bg-[#23232b] border border-white/10 p-5 shadow-2xl"
+              onClick={(e) => e.stopPropagation()}
+            >
+              <h3 className="text-[15px] font-semibold text-white mb-2">{tr('plan.downloadDesktop')}</h3>
+              <p className="text-[13px] leading-relaxed text-white/70">{tr('plan.downloadModalBody')}</p>
+              <div className="flex gap-2 mt-4">
+                <button
+                  type="button"
+                  data-plan-download-confirm
+                  onClick={confirmDownload}
+                  className="flex-1 rounded-xl bg-indigo-500 py-2.5 text-sm font-medium text-white hover:bg-indigo-400"
+                >
+                  {tr('tools.download')}
+                </button>
+                <button
+                  type="button"
+                  data-plan-download-cancel
+                  onClick={() => setDownloadPromptOpen(false)}
+                  className="flex-1 rounded-xl bg-white/[0.07] border border-white/10 py-2.5 text-sm text-white/85 hover:bg-white/10"
+                >
+                  {tr('menu.cancel')}
+                </button>
+              </div>
+            </div>
+          </div>,
+          document.body,
+        )}
+      </>
     );
   }
 

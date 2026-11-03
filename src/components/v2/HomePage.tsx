@@ -311,12 +311,12 @@ export default function HomePage({ onNavigate, store }: { onNavigate: (page: str
     });
   };
 
-  /** 只在真正空白处触发：卡片（自有菜单）、弹窗/浮动层（.fixed）、吸顶导航条（.sticky）都跳过 */
+  /** 只在真正空白处触发：卡片（自有菜单）、弹窗/浮动层（.fixed）、顶栏（[data-topbar]）都跳过 */
   const handleBlankContextMenu = (e: React.MouseEvent) => {
     const t = e.target as HTMLElement;
     if (t.closest('[data-card-key]')) return;
     if (t.closest('.fixed')) return;
-    if (t.closest('.sticky')) return;
+    if (t.closest('[data-topbar]')) return;
     e.preventDefault();
     openBlankMenuAtRef.current(e.clientX, e.clientY);
   };
@@ -437,7 +437,7 @@ export default function HomePage({ onNavigate, store }: { onNavigate: (page: str
    * 站点拖动等「从卡内按下」的手势由 pressInsideAt 记录按下点——本次手势的 click 一律不收，
    * 满足「起点在卡内、落点在卡外也不收」。只认左键 click（button 0），右键菜单不触发。
    * 不收的区域：展开卡内部、一切浮层（.fixed：GroupPanel/ComboPanel/任务面板/各类右键菜单等）、
-   * 顶栏（.sticky：搜索下拉与背景/数据菜单的 absolute 面板都在顶栏 DOM 内）。
+   * 顶栏（[data-topbar]：搜索下拉与背景/数据菜单的 absolute 面板都在顶栏 DOM 内）。
    * 点另一张 B 卡的「展开」：捕获先收 A，同次 click 到达按钮后 toggle（函数式更新）在
    * 已收起状态上打开 B，净效果 = 收 A 开 B（单卡模型不会双开）。 */
   const expandedIdRef = useRef<string | null>(null);
@@ -458,7 +458,7 @@ export default function HomePage({ onNavigate, store }: { onNavigate: (page: str
       if (!t || typeof t.closest !== 'function') return;
       const wrap = document.getElementById(`v2-group-${id}`);
       if (wrap && wrap.contains(t)) return;
-      if (t.closest('.fixed, .sticky, [data-site-menu], [data-size-menu]')) return;
+      if (t.closest('.fixed, [data-topbar], [data-site-menu], [data-size-menu]')) return;
       if (suppressClickRef.current) return;
       if (pressInsideAtRef.current > 0 && performance.now() - pressInsideAtRef.current < 1200) return;
       setExpandedId(null);
@@ -1539,11 +1539,12 @@ export default function HomePage({ onNavigate, store }: { onNavigate: (page: str
       className="flex flex-col pt-6 sm:pt-10 lg:pt-14"
       onContextMenu={handleBlankContextMenu}
     >
-      {/* 吸顶栏（一行对齐）：与下方卡片网格同款 4 栏 grid——左半 2 栏放页面导航图标组（靠左），
-          右半 2 栏放搜索框 +「数据」入口（算在右半内）；整条栏吸顶，滚动时停留在视口顶部。
-          移动端为 2 栏 grid，左右各半，仍保持一行不换行。 */}
-      {/* 吸顶栏底已按用户要求全透明：各控件自带实色底，直接浮在页面背景之上 */}
-      <div className="sticky top-0 z-50 -mt-1 pt-1 pb-2">
+      {/* 顶栏（一行对齐）：与下方卡片网格同款 4 栏 grid——左半 2 栏放页面导航图标组（靠左），
+          右半 2 栏放搜索框 +「数据」入口（算在右半内）；2026-11-04 用户令：本栏不再吸顶，
+          随卡片一起上下滚动（顶部毛玻璃遮挡带同轮删除）；relative 保留定位上下文，
+          z-40 让菜单面板盖过卡片、仍在弹窗/拖影之下。移动端为 2 栏 grid，左右各半，仍保持一行不换行。 */}
+      {/* 栏底全透明：各控件自带实色底，直接浮在页面背景之上 */}
+      <div data-topbar className="relative z-40 -mt-1 pt-1 pb-2">
         {/* 遮挡带（第五十九轮）第六十三轮起改由 App 在容器层统一渲染（fixed 全幅），不在栏内挂 */}
         {/* 移动端列宽（第六十四轮实测修正）：左组加 LOGO 后内容约 207px，grid-cols-2 的半屏
             （390px 时 177px）装不下、工具钮会被搜索框盖住一半无法点。移动端改左列按内容宽、

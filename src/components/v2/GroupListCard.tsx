@@ -89,6 +89,7 @@ export default function GroupListCard({
     onReorder: (ids) => store.reorderSites(group.id, ids),
     groupId: group.id,
     onMoveToGroup: (siteId, targetGroupId) => store.moveSite(group.id, siteId, targetGroupId),
+    onDropToDock: (siteId) => store.addDockSite(group.id, siteId, rows.find((s) => s.id === siteId)?.url ?? ''),
   });
 
   /** 收起态拖动 FLIP 滑移动画：与展开态同一套，缺口搬家时其余行滑过去而不是跳变 */

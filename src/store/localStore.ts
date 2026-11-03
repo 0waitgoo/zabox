@@ -1304,6 +1304,14 @@ export function useLocalStore() {
   const [data, setData] = useState<StoreData>(loadInitial);
   const dataRef = useRef(data);
   dataRef.current = data;
+  /* 覆盖「我的」确认（用户 2026-11-04 定）：内置预设期改动先不覆盖存档，等用户
+   * 在提示里点确认才覆盖。ref 供 update()/偏好桥接的 setData 回调内标记（回调须纯净，
+   * 只写 ref 不直接 setState），state 经下方 effect 同步后由 PresetMenu 渲染提示。 */
+  const overwritePendingRef = useRef(false);
+  const [overwriteConfirmOpen, setOverwriteConfirmOpen] = useState(false);
+  useEffect(() => {
+    if (overwritePendingRef.current) setOverwriteConfirmOpen(true);
+  }, [data]);
   if (lastAppearance === null) lastAppearance = appearanceOf(data, getDisplayPrefs());
 
   useEffect(() => {
@@ -1329,6 +1337,8 @@ export function useLocalStore() {
       }
       if (!incoming || incoming.updatedAt <= dataRef.current.updatedAt) return;
       lastAppearance = appearanceOf(incoming, getDisplayPrefs());
+      overwritePendingRef.current = false;
+      setOverwriteConfirmOpen(false);
       setData(incoming);
     };
     window.addEventListener('storage', onStorage);
@@ -1337,7 +1347,9 @@ export function useLocalStore() {
 
   /* 显示偏好订阅桥接（第一百一十一轮）：偏好改动同样走自动保存语义——
    * 内置预设期翻为 'my' 并刷新快照，本来就在 'my' 时同样刷新快照；
-   * 与基线相等（点已激活项、无实际变化）不触发；计划内容不走此通道，永不触发。 */
+   * 与基线相等（点已激活项、无实际变化）不触发；计划内容不走此通道，永不触发。
+   * 2026-11-04 起内置预设期同样先弹确认：外观改动只改当前排版，不动存档，
+   * 点确认才覆盖（与 update() 同一提示、同一确认入口）。 */
   useEffect(() => {
     return subscribeDisplayPrefs((prefs) => {
       if (suppressAppearanceFlip || !lastAppearance) return;
@@ -1352,8 +1364,13 @@ export function useLocalStore() {
       lastAppearance = nextAppearance;
       setData((prev) => {
         const next = structuredClone(prev);
-        next.activePreset = 'my';
-        next.myPreset = structuredClone(compositionOf(next));
+        if (prev.activePreset === 'my' || !prev.myPreset) {
+          next.activePreset = 'my';
+          next.myPreset = structuredClone(compositionOf(next));
+          overwritePendingRef.current = false;
+        } else {
+          overwritePendingRef.current = true;
+        }
         next.updatedAt = Date.now();
         return next;
       });
@@ -1368,13 +1385,22 @@ export function useLocalStore() {
       /* 预设状态机（第一百零六轮建、第一百零九轮改语义：预设一有变化自动变「我的」，
        * 并且自动保存「我的」；第一百一十一轮起外观同样触发）：任一经 update() 的构成
        * 或外观变更（增删改编组/站点、改尺寸、拖拽排序、合并/拆分、换背景等）都立即翻为
-       * 'my' 并把当前构成存进 myPreset——内置预设期如此，本来就在 'my' 时同样刷新快照，
+       * 'my' 并把当前构成存进 myPreset——本来就在 'my' 时同样刷新快照，
        * 「我的」恒等于当前排版。显示偏好不走 update()，由订阅桥接进同一逻辑。
+       * 2026-11-04 起例外（用户定）：当前在内置预设上、且 myPreset 存档存在时，
+       * 改动只改当前排版，不翻 'my'、不动存档，并挂起覆盖确认；用户点确认后
+       * confirmMyPresetOverwrite 才把当前构成存进 myPreset 并翻为 'my'，
+       * 点取消则本次改动留在当前内置预设上、存档原样不动。
        * 计划内容不改指纹，不触发。静默写回（栏锚点补写/迁移、底色补抽走 setData 直写）
        * 不经此处，不会误翻误存。 */
       if (compositionFingerprint(next) !== compositionFingerprint(prev)) {
-        next.activePreset = 'my';
-        next.myPreset = structuredClone(compositionOf(next));
+        if (prev.activePreset === 'my' || !prev.myPreset) {
+          next.activePreset = 'my';
+          next.myPreset = structuredClone(compositionOf(next));
+          overwritePendingRef.current = false;
+        } else {
+          overwritePendingRef.current = true;
+        }
       }
       lastAppearance = appearanceOf(next, getDisplayPrefs());
       return next;
@@ -2506,14 +2532,38 @@ export function useLocalStore() {
     [update],
   );
 
+  /* 覆盖「我的」确认的确认/取消（2026-11-04）：确认按点确认那一刻的当前排版
+   * 存档并翻为 'my'（含提示打开期间又做的改动）；取消只关提示，当前排版与
+   * 存档都不动，下一次内置预设期改动会再次提示。 */
+  const confirmMyPresetOverwrite = useCallback(() => {
+    overwritePendingRef.current = false;
+    setOverwriteConfirmOpen(false);
+    setData((prev) => {
+      const next = structuredClone(prev);
+      next.myPreset = structuredClone(compositionOf(next));
+      next.activePreset = 'my';
+      next.updatedAt = Date.now();
+      return next;
+    });
+  }, []);
+
+  const cancelMyPresetOverwrite = useCallback(() => {
+    overwritePendingRef.current = false;
+    setOverwriteConfirmOpen(false);
+  }, []);
+
   const importData = useCallback((raw: unknown): boolean => {
     const validated = validateStoreData(raw);
     if (!validated) return false;
+    overwritePendingRef.current = false;
+    setOverwriteConfirmOpen(false);
     setData(validated);
     return true;
   }, []);
 
   const resetData = useCallback(() => {
+    overwritePendingRef.current = false;
+    setOverwriteConfirmOpen(false);
     setData(seedData());
     // 恢复默认回到星云紫 + 当前偏好：基线同步跟上，否则下一次偏好比对会拿旧外观作基准
     const prefs = getDisplayPrefs();
@@ -2538,6 +2588,8 @@ export function useLocalStore() {
    * 本地图片背景不进预设：应用预设一律回到预设背景（图片本体仍在 IndexedDB）。
    */
   const applyPreset = useCallback((presetId: PresetId, snapshot?: CompositionSnapshot) => {
+    overwritePendingRef.current = false;
+    setOverwriteConfirmOpen(false);
     const prev = dataRef.current;
     let snap: CompositionSnapshot | null = null;
     if (presetId === 'my') {
@@ -2639,6 +2691,9 @@ export function useLocalStore() {
     importData,
     resetData,
     applyPreset,
+    myPresetOverwritePending: overwriteConfirmOpen,
+    confirmMyPresetOverwrite,
+    cancelMyPresetOverwrite,
   };
 }
 

@@ -1,4 +1,5 @@
 import React, { useEffect, useRef, useState } from 'react';
+import { createPortal } from 'react-dom';
 import { Check, LayoutTemplate } from 'lucide-react';
 import { AnimatePresence, motion } from 'motion/react';
 import type { LocalStore, PresetId } from '../../store/localStore';
@@ -11,8 +12,9 @@ import AppearanceSection from './AppearanceSection';
  * 第一百一十一轮起顶栏背景按钮并入本面板）：布局/模板图标点开浮层，
  * 六套主页构成一键切换——一排两个，顺序 默认 / 我的 / 设计师 / 程序员 / 工具 / 娱乐导航
  * （娱乐导航最后一个），下方是「外观」节。娱乐导航卡单独高亮（2026-10-29 用户定）。
- * 切换换主页构成（编组、组件、布局）与外观（背景、明暗、透明度、模糊），计划数据不动，
- * 无二次确认：排版或外观一改动就自动存进「我的」（状态机见 store.update 与偏好订阅桥接），
+ * 切换换主页构成（编组、组件、布局）与外观（背景、明暗、透明度、模糊），计划数据不动。
+ * 内置预设期改动先弹确认（2026-11-04 用户定）：提示「本次保存会覆盖掉“我的”预设」，
+ * 点确认才把当前排版存进「我的」并翻为自定义，点取消则存档原样不动；
  * 内置预设之间互切不覆盖存档。
  * 面板形态与原 BackgroundMenu 同款：无底色图标触发 + 实色浮层 + 点外关闭。
  */
@@ -52,6 +54,17 @@ export default function PresetMenu({ store }: { store: LocalStore }) {
       document.removeEventListener('keydown', onKey);
     };
   }, []);
+
+  // 覆盖确认提示打开时 Esc = 取消（不覆盖）；点遮罩同样取消
+  const overwritePending = store.myPresetOverwritePending;
+  useEffect(() => {
+    if (!overwritePending) return;
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') store.cancelMyPresetOverwrite();
+    };
+    document.addEventListener('keydown', onKey);
+    return () => document.removeEventListener('keydown', onKey);
+  }, [overwritePending, store]);
 
   const pick = (id: PresetId) => {
     if (id === 'my') {
@@ -109,6 +122,7 @@ export default function PresetMenu({ store }: { store: LocalStore }) {
   // 全述只放 title 悬停；短述为原述的忠实缩写，语义不变
 
   return (
+    <>
     <div ref={containerRef} className="relative shrink-0">
       {/* 触发按钮：与顶栏其他图标同款——无底色、白色图标，明暗随开合 */}
       <button
@@ -168,5 +182,44 @@ export default function PresetMenu({ store }: { store: LocalStore }) {
         )}
       </AnimatePresence>
     </div>
+    {overwritePending &&
+      createPortal(
+        <div
+          data-my-preset-overwrite-prompt
+          className="fixed inset-0 z-[70] bg-black/60 backdrop-blur-sm flex items-center justify-center p-4"
+          onClick={() => store.cancelMyPresetOverwrite()}
+        >
+          <div
+            role="dialog"
+            aria-modal="true"
+            aria-label={t('preset.overwriteTitle')}
+            className="w-full max-w-[340px] rounded-2xl bg-[#23232b] border border-white/10 p-5 shadow-2xl"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <h3 className="text-[15px] font-semibold text-white mb-2">{t('preset.overwriteTitle')}</h3>
+            <p className="text-[13px] leading-relaxed text-white/70">{t('preset.overwriteBody')}</p>
+            <div className="flex gap-2 mt-4">
+              <button
+                type="button"
+                data-my-preset-overwrite-confirm
+                onClick={() => store.confirmMyPresetOverwrite()}
+                className="flex-1 rounded-xl bg-indigo-500 py-2.5 text-sm font-medium text-white hover:bg-indigo-400"
+              >
+                {t('preset.overwriteConfirm')}
+              </button>
+              <button
+                type="button"
+                data-my-preset-overwrite-cancel
+                onClick={() => store.cancelMyPresetOverwrite()}
+                className="flex-1 rounded-xl bg-white/[0.07] border border-white/10 py-2.5 text-sm text-white/85 hover:bg-white/10"
+              >
+                {t('menu.cancel')}
+              </button>
+            </div>
+          </div>
+        </div>,
+        document.body,
+      )}
+    </>
   );
 }

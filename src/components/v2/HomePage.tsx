@@ -32,6 +32,8 @@ import PresetMenu from './PresetMenu';
 import { TopLogo, TopNav } from '../Sidebar';
 import { closeToolsWorkspace, useToolsWorkspace } from '../../store/toolsWorkspace';
 import { closeColorsWorkspace, useColorsWorkspace } from '../../store/colorsWorkspace';
+import { useDisplayPrefs } from '../../store/displayPrefs';
+import DockBar from './DockBar';
 import { WIDGET_DEFINITIONS, widgetDefOf, widgetDisplayName } from './widgetRegistry';
 import GroupListCard from './GroupListCard';
 import GroupStackCard, { StackGroupIcon } from './GroupStackCard';
@@ -129,6 +131,8 @@ export default function HomePage({ onNavigate, store }: { onNavigate: (page: str
   /* 原位长按触发右键菜单（第七十轮）：合成 contextmenu 事件走既有三层右键路由 */
   useLongPressMenu();
   const { t, lang } = useLang();
+  /* Dock 栏显隐（2026-11-04）：只存本机显示偏好，关时 DockBar 不挂、底部留白也不留 */
+  const { dockVisible } = useDisplayPrefs();
   const { groups, widgets, widgetLayouts, groupLayouts } = store.data;
   /* 文件工具工作区状态（第八十六轮）：打开时本页要把文件工具卡（或含它的摞）
    * 的栏位高度抬高；状态本体在 toolsWorkspace store。原顶栏扳手定位已于
@@ -1531,7 +1535,10 @@ export default function HomePage({ onNavigate, store }: { onNavigate: (page: str
     'w-full h-full rounded-[26px] border border-dashed border-white/15 text-white/45 hover:text-white/85 hover:border-white/35 transition-colors flex flex-col items-center justify-center gap-1.5 text-xs';
 
   return (
-    <div className="flex flex-col" onContextMenu={handleBlankContextMenu}>
+    <div
+      className="flex flex-col pt-6 sm:pt-10 lg:pt-14"
+      onContextMenu={handleBlankContextMenu}
+    >
       {/* 吸顶栏（一行对齐）：与下方卡片网格同款 4 栏 grid——左半 2 栏放页面导航图标组（靠左），
           右半 2 栏放搜索框 +「数据」入口（算在右半内）；整条栏吸顶，滚动时停留在视口顶部。
           移动端为 2 栏 grid，左右各半，仍保持一行不换行。 */}
@@ -1564,7 +1571,7 @@ export default function HomePage({ onNavigate, store }: { onNavigate: (page: str
           顶部留白约 28–32px 级别（移动端略小），让第一行卡片与吸顶导航条明显隔开、有呼吸感 */}
       <div
         ref={gridRef}
-        className={`grid gap-3 sm:gap-4 mt-6 sm:mt-7 lg:mt-8 ${
+        className={`grid gap-3 sm:gap-4 mt-10 sm:mt-12 lg:mt-14 ${
           phoneViewport
             ? 'grid-cols-1'
             : 'grid-cols-2 lg:grid-cols-4 auto-rows-[158px] sm:auto-rows-[168px] lg:auto-rows-[176px]'
@@ -2075,6 +2082,10 @@ export default function HomePage({ onNavigate, store }: { onNavigate: (page: str
           </motion.div>
         )}
       </AnimatePresence>
+
+      {/* 底部 Dock 栏（2026-11-04）：fixed 悬在视口底部，留白只在 Dock 显示时留、免得盖住末行卡片 */}
+      {dockVisible && <div aria-hidden className="h-20 sm:h-24 shrink-0" />}
+      <DockBar store={store} />
     </div>
   );
 }

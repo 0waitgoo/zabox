@@ -31,6 +31,10 @@ import type { SiteEntry } from '../../data/groups';
  * 拖动中指针拖出源卡片 24px 即由排序转跨组（预览与占位丢弃、只跟随快照），
  * 落在别的组卡上即移动、同组或空白处取消；左滑超距逃逸同样可转交跨组。
  * 未配 onMoveToGroup 的实例（如文件夹式弹窗瓷砖）行为不变，仍只做组内排序。
+ *
+ * Dock 栏落点（2026-11-04 用户定：拖网站进 Dock 只加引用、不动主页数据）：
+ * 配了 onDropToDock 的实例，松手时指针落在 [data-dock-bar] 上即只调 onDropToDock、
+ * 不排序也不跨组（排序/跨组两个模式都判）；拖动经过 Dock 时描边高亮，与跨组高亮同口径。
  */
 const DRAG_THRESHOLD = 7;
 export { DRAG_THRESHOLD };
@@ -48,6 +52,7 @@ export function useSiteDragSort({
   getEscapeBoundary,
   onEscapeToCross,
   onDragEnd,
+  onDropToDock,
 }: {
   /** 当前显示顺序（已经过 sortSites：置顶区在前） */
   sites: SiteEntry[];
@@ -65,6 +70,8 @@ export function useSiteDragSort({
   onEscapeToCross?: () => void;
   /** 拖拽结束回调（moved = 跨组模式下落到异组、实际发生了移动） */
   onDragEnd?: (result: { moved: boolean }) => void;
+  /** 拖到 Dock 栏松手：只加 Dock 引用、不移动（siteId）；调用方负责按组 id 追加引用 */
+  onDropToDock?: (siteId: string) => void;
 }) {
   const [previewIds, setPreviewIds] = useState<string[] | null>(null);
   const [dragId, setDragId] = useState<string | null>(null);
@@ -107,6 +114,10 @@ export function useSiteDragSort({
   onEscapeToCrossRef.current = onEscapeToCross;
   const onDragEndRef = useRef(onDragEnd);
   onDragEndRef.current = onDragEnd;
+  const onDropToDockRef = useRef(onDropToDock);
+  onDropToDockRef.current = onDropToDock;
+  /** 拖动中高亮的 Dock 栏元素（松手/取消时清除描边，与跨组高亮同口径） */
+  const dockHighlightRef = useRef<HTMLElement | null>(null);
 
   const clearCrossHighlight = () => {
     const t = crossTargetRef.current;
@@ -114,6 +125,44 @@ export function useSiteDragSort({
       t.el.style.outline = '';
       t.el.style.outlineOffset = '';
       crossTargetRef.current = null;
+    }
+  };
+
+  /** 指针是否落在 Dock 栏上（快照 pointer-events-none，elementFromPoint 能命中 Dock 本体） */
+  const isOverDock = (x: number, y: number) => {
+    const hit = document.elementFromPoint(x, y);
+    return !!hit?.closest?.('[data-dock-bar]');
+  };
+
+  /** Dock 栏拖入高亮：指针在 Dock 上时描边、离开时清除（与跨组高亮同口径） */
+  const updateDockHighlight = (x: number, y: number) => {
+    if (!onDropToDockRef.current) return;
+    const over = isOverDock(x, y);
+    const prev = dockHighlightRef.current;
+    if (over) {
+      const el = document.querySelector('[data-dock-bar]') as HTMLElement | null;
+      if (el && prev !== el) {
+        if (prev) {
+          prev.style.outline = '';
+          prev.style.outlineOffset = '';
+        }
+        el.style.outline = '2px solid rgba(129, 140, 248, 0.9)';
+        el.style.outlineOffset = '2px';
+        dockHighlightRef.current = el;
+      }
+    } else if (prev) {
+      prev.style.outline = '';
+      prev.style.outlineOffset = '';
+      dockHighlightRef.current = null;
+    }
+  };
+
+  const clearDockHighlight = () => {
+    const el = dockHighlightRef.current;
+    if (el) {
+      el.style.outline = '';
+      el.style.outlineOffset = '';
+      dockHighlightRef.current = null;
     }
   };
 
@@ -154,6 +203,7 @@ export function useSiteDragSort({
       pendingRef.current = null;
       const crossTarget = crossTargetRef.current;
       clearCrossHighlight();
+      clearDockHighlight();
       document.body.style.cursor = '';
       document.body.style.userSelect = '';
       const finalIds = previewRef.current;
@@ -164,6 +214,13 @@ export function useSiteDragSort({
       // moved = 跨组模式下确实落到了异组（onMoveToGroup 即将/已经触发）
       const moved = d.mode === 'cross' && commit && !!crossTarget && crossTarget.groupId !== groupIdRef.current;
       if (d.mode === 'cross') {
+        // Dock 优先：落在 Dock 上只加引用，不跨组移动
+        if (commit && onDropToDockRef.current && isOverDock(d.lastX, d.lastY)) {
+          onDropToDockRef.current(d.id);
+          suppressUntilRef.current = Date.now() + 350;
+          onDragEndRef.current?.({ moved: false });
+          return;
+        }
         // 跨组提交：目标组存在且不是源组才移动；同组/空白 = 取消
         if (moved) {
           onMoveToGroupRef.current?.(d.id, crossTarget.groupId);
@@ -171,6 +228,13 @@ export function useSiteDragSort({
         // 跨组拖拽只要拖起来过，松手那次 click 都不该打开站点（提交/取消、落在源行/目标行都一样）
         suppressUntilRef.current = Date.now() + 350;
         onDragEndRef.current?.({ moved });
+        return;
+      }
+      // Dock 落点（排序模式）：落在 Dock 上只加引用，不落盘排序
+      if (commit && onDropToDockRef.current && isOverDock(d.lastX, d.lastY)) {
+        onDropToDockRef.current(d.id);
+        suppressUntilRef.current = Date.now() + 350;
+        onDragEndRef.current?.({ moved: false });
         return;
       }
       if (commit && finalIds) {
@@ -338,6 +402,7 @@ export function useSiteDragSort({
             updatePreviewTarget(e.clientX, e.clientY);
           }
         }
+        updateDockHighlight(e.clientX, e.clientY);
       }
     };
 

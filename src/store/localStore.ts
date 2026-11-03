@@ -2626,6 +2626,20 @@ export function useLocalStore() {
     });
   }, []);
 
+  /* Dock 排序（2026-11-04）：只改 dock 引用数组的顺序，与 add/remove 同口径——
+   * 不走 update()，不翻预设、不触发覆盖确认；顺序没变时不写回。 */
+  const setDockOrder = useCallback((ordered: DockEntry[]) => {
+    setData((prev) => {
+      const dock = prev.dock ?? [];
+      const key = (d: DockEntry) => `${d.groupId}|${d.siteId}|${d.url}`;
+      if (ordered.length === dock.length && ordered.every((d, i) => key(d) === key(dock[i]))) return prev;
+      const next = structuredClone(prev);
+      next.dock = ordered.map((d) => ({ groupId: d.groupId, siteId: d.siteId, url: d.url }));
+      next.updatedAt = Date.now();
+      return next;
+    });
+  }, []);
+
   const importData = useCallback((raw: unknown): boolean => {
     const validated = validateStoreData(raw);
     if (!validated) return false;
@@ -2770,6 +2784,7 @@ export function useLocalStore() {
     cancelMyPresetOverwrite,
     addDockSite,
     removeDockSite,
+    setDockOrder,
   };
 }
 

@@ -75,7 +75,10 @@ export default function GroupListCard({
   }, [expanded, colSpan, heightUnits]);
   const rowsPerCol = fitRows ?? (heightUnits === 2 ? 5 : 2);
   const visibleCount = cols * rowsPerCol;
-  const rows = sorted.slice(0, visibleCount);
+  // 收起态渲染全部站点（卡内悬停滚动、无可见滚动条、滚到底自动续滚页面）：
+  // visibleCount 只保留给头部「展开 其他N个站点」的计数口径，拖拽落盘传全量顺序，
+  // reorderSites 按给定顺序排、剩余补后，全量传入即完整顺序
+  const rows = sorted;
   // 收起态未显示的站点数（与上面同一 visibleCount 口径，按钮文案与实际显示一致才可信）
   const hiddenCount = Math.max(0, sorted.length - visibleCount);
 
@@ -325,9 +328,9 @@ export default function GroupListCard({
           editMode={editMode}
         />
       ) : (
-        /* 收起态：只显示站点（无底部横线、无「展开全部」字样、无底部渐隐）；展开靠头部组名后的「展开」按钮，不靠整卡点击 */
+        /* 收起态：卡内悬停滚动（无可见滚动条、滚到底自动续滚页面）；展开靠头部组名后的「展开」按钮，不靠整卡点击 */
         <div className="flex-1 min-h-0 flex flex-col">
-          <div className="flex-1 min-h-0 overflow-hidden">
+          <div data-collapsed-scroll className="flex-1 min-h-0 overflow-y-auto">
           <div
             ref={gridRef}
             data-collapsed-grid

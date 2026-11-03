@@ -367,7 +367,8 @@ export function StackSiteTiles({
       style={{ ...FACE_TILE_VARS, ...(stretched ? { '--face-tile-size': `${stretched}px` } : {}) }}
       className={`flex-1 min-h-0 flex pt-3 relative ${
         /* 1x：补 pb-3 与 pt-3 对称，单行在整个图标区（含内边距）内真正垂直居中；水平靠左（第六十三轮） */
-        heightUnits === 1 ? 'items-center justify-start pb-3' : 'items-start justify-start'
+        /* 2x：卡内悬停滚动（无可见滚动条、滚到底自动续滚页面） */
+        heightUnits === 1 ? 'items-center justify-start pb-3' : 'items-start justify-start overflow-y-auto'
       }`}
     >
       {group.sites.length === 0 ? (

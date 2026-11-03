@@ -2,6 +2,7 @@ import { X } from 'lucide-react';
 import type { LocalStore } from '../../store/localStore';
 import { useDisplayPrefs } from '../../store/displayPrefs';
 import { useLang } from '../../i18n/useLang';
+import { siteIconSrc, type SiteEntry } from '../../data/groups';
 import { SiteLogo } from './Card';
 
 /**
@@ -12,6 +13,9 @@ import { SiteLogo } from './Card';
  * 拖网站进来只追加引用，主页编组与站点原样不动，同一网站同时在主页与 Dock 出现；
  * 主页删站后引用自动跳过、改名换图标后 Dock 里同步变。点 Dock 图标打开网站，
  * 悬停的 × 只从 Dock 移除引用，不动主页。
+ * 图标与页面保持一致：渲染完整站点条目，走与列表行/瓷砖同一条管线——
+ * siteIconSrc（文字图标/自传图标/品牌 logo）+ SiteLogo（会话缓存与回落链），
+ * 绝不直接用 site.logo（文字/自传图标会走样）。
  */
 export default function DockBar({ store }: { store: LocalStore }) {
   const { t } = useLang();
@@ -22,10 +26,7 @@ export default function DockBar({ store }: { store: LocalStore }) {
     entryGroupId: string;
     entrySiteId: string;
     entryUrl: string;
-    siteId: string;
-    name: string;
-    url: string;
-    logo: string;
+    site: SiteEntry;
   }[] = [];
   const seen = new Set<string>();
   for (const entry of store.data.dock ?? []) {
@@ -38,15 +39,7 @@ export default function DockBar({ store }: { store: LocalStore }) {
     const dedupeKey = `${entry.groupId}|${site.url}`;
     if (seen.has(dedupeKey)) continue;
     seen.add(dedupeKey);
-    resolved.push({
-      entryGroupId: entry.groupId,
-      entrySiteId: entry.siteId,
-      entryUrl: entry.url,
-      siteId: site.id ?? entry.siteId,
-      name: site.name,
-      url: site.url,
-      logo: site.logo,
-    });
+    resolved.push({ entryGroupId: entry.groupId, entrySiteId: entry.siteId, entryUrl: entry.url, site });
   }
 
   return (
@@ -60,21 +53,27 @@ export default function DockBar({ store }: { store: LocalStore }) {
         </p>
       ) : (
         resolved.map((item) => (
-          <div key={item.siteId} className="group relative shrink-0">
+          <div key={`${item.entryGroupId}|${item.site.id ?? item.entrySiteId}`} className="group relative shrink-0">
             <button
               type="button"
-              data-dock-item={item.siteId}
-              title={item.name}
-              aria-label={item.name}
-              onClick={() => window.open(item.url, '_blank')}
+              data-dock-item={item.site.id ?? item.entrySiteId}
+              title={item.site.name}
+              aria-label={item.site.name}
+              onClick={() => window.open(item.site.url, '_blank')}
               className="flex w-[58px] flex-col items-center gap-1 rounded-2xl px-1 py-1 transition-colors hover:bg-white/8"
             >
-              <SiteLogo logo={item.logo} name={item.name} url={item.url} size={44} />
-              <span className="w-full truncate text-center text-[10px] leading-tight text-white/80">{item.name}</span>
+              <SiteLogo
+                logo={siteIconSrc(item.site)}
+                name={item.site.name}
+                url={item.site.url}
+                size={44}
+                grayscale={!!item.site.dead}
+              />
+              <span className="w-full truncate text-center text-[10px] leading-tight text-white/80">{item.site.name}</span>
             </button>
             <button
               type="button"
-              data-dock-remove={item.siteId}
+              data-dock-remove={item.site.id ?? item.entrySiteId}
               title={t('dock.remove')}
               aria-label={t('dock.remove')}
               onClick={(e) => {

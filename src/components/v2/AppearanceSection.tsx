@@ -171,6 +171,29 @@ export default function AppearanceSection({ store }: { store: LocalStore }) {
         })}
       </div>
 
+      {/* Dock 栏开关（2026-11-04）：只存本机显示偏好（ainav-display-prefs-v1），
+          默认开；关掉只隐藏 Dock 栏，Dock 里的引用与主页数据都不动 */}
+      <div className="my-2 border-t border-white/[0.07]" />
+      <div className="flex items-center justify-between px-1 py-1">
+        <span className="text-xs text-white/75">{t('preset.dock')}</span>
+        <button
+          type="button"
+          data-dock-toggle
+          aria-pressed={displayPrefs.dockVisible}
+          onClick={() => setDisplayPrefs({ dockVisible: !displayPrefs.dockVisible })}
+          className={`relative h-[22px] w-10 shrink-0 rounded-full transition-colors ${
+            displayPrefs.dockVisible ? 'bg-indigo-500' : 'bg-white/15'
+          }`}
+        >
+          <span
+            className={`absolute top-[3px] h-4 w-4 rounded-full bg-white transition-all ${
+              displayPrefs.dockVisible ? 'left-[22px]' : 'left-[3px]'
+            }`}
+          />
+        </button>
+      </div>
+      <p className="px-1 pb-1 text-[11px] text-white/45">{t('preset.dockDesc')}</p>
+
       <p className="px-1 pt-2 pb-1 text-[10px] tracking-wider text-white/40 uppercase">{t('preset.opacity')}</p>
       <p className="px-1 pb-1 text-[11px] text-white/60">{t('preset.groupAlpha')}</p>
       <div className="px-1 flex items-center gap-2.5">

@@ -319,6 +319,7 @@ export function StackSiteTiles({
     onReorder: (ids) => store.reorderSites(group.id, ids),
     groupId: group.id,
     onMoveToGroup: (siteId, targetGroupId) => store.moveSite(group.id, siteId, targetGroupId),
+    onDropToDock: (siteId) => store.addDockSite(group.id, siteId, visible.find((s) => s.id === siteId)?.url ?? ''),
     getEscapeBoundary: () => zoneRef.current?.closest('[data-stack-body]') as HTMLElement | null,
   });
 

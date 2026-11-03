@@ -710,6 +710,24 @@ export interface StoreData {
    * 首次构成变更时自动生成。内置预设之间互切不覆盖存档。
    */
   myPreset: CompositionSnapshot | null;
+  /**
+   * 底部 Dock 栏的引用（2026-11-04 新增）：只存「组 id + 站点 id」，不复制站点数据。
+   * 拖网站进 Dock 只追加一条引用，主页编组/站点原样不动——同一网站同时在主页与 Dock 出现；
+   * 站点在主页改名/换图标后 Dock 里同步变，删站后 Dock 渲染时自动跳过该引用。
+   * 明确不进构成快照与指纹：切预设不清空 Dock，改 Dock 也不翻预设、不触发覆盖确认。
+   * 老数据无此字段时归一化为空数组。
+   */
+  dock: DockEntry[];
+}
+
+/** Dock 栏的一条引用：指向某编组内的某站点。siteId 只在当前构成内稳定——
+ * 预设模板每次制备都会给无 id 的站点重配随机 id，切预设后同一站点的 siteId 会变；
+ * url 才是跨预设的稳定键，渲染时先按 siteId、再按 url 在组内解析，追加时按 url 去重。 */
+export interface DockEntry {
+  groupId: string;
+  siteId: string;
+  /** 站点地址（跨预设解析与去重的稳定键）；老条目可能为空，按 siteId 解析 */
+  url: string;
 }
 
 /** 内置预设 id（第一百零六轮）：构成数据在 data/presets.ts，本层只认 id */
@@ -723,8 +741,8 @@ export const BUILTIN_PRESET_IDS: readonly BuiltinPresetId[] = ['default', 'desig
 /**
  * 主页构成快照（第一百零六轮， 第一百一十一轮起含外观）：预设切换与「我的」存档的统一形态——
  * 主页构成（编组+站点、组件构成、布局尺寸/栏位/顺序、组合、摞、卡面样式与组件底色）+ 外观。
- * 明确不含：tasks/plans（计划数据独立，绝不随预设变）。外观（背景预设/明暗/透明度/模糊）
- * 第一百一十一轮起随预设走：切换预设连同外观一起换，改外观同样自动存进「我的」。
+ * 明确不含：tasks/plans（计划数据独立，绝不随预设变）、dock（Dock 引用独立，绝不随预设变）。
+ * 外观（背景预设/明暗/透明度/模糊）第一百一十一轮起随预设走：切换预设连同外观一起换，改外观同样自动存进「我的」。
  */
 export interface CompositionSnapshot {
   groups: NavGroup[];
@@ -958,6 +976,7 @@ function seedData(): StoreData {
     // 新装即默认预设的主页（构成与默认预设同源），「我的」尚无存档
     activePreset: 'default',
     myPreset: null,
+    dock: [],
   };
 }
 
@@ -1168,6 +1187,29 @@ function normalizeSnapshot(raw: unknown, appearanceFallback: PresetAppearance): 
   };
 }
 
+/** Dock 引用归一化（2026-11-04）：只采纳 {groupId, siteId} 均为非空字符串的条目，
+ * url 缺失时补空串；按 siteId、或（同组 + 同 url）去重保序；是否真实存在由 DockBar
+ * 渲染时按当前编组过滤（切预设后组 id 可能暂不存在，引用须保留、切回后恢复显示，
+ * 故此处不按组过滤）。 */
+function normalizeDock(raw: unknown): DockEntry[] {
+  if (!Array.isArray(raw)) return [];
+  const seenIds = new Set<string>();
+  const seenUrls = new Set<string>();
+  const out: DockEntry[] = [];
+  for (const item of raw) {
+    if (!item || typeof item !== 'object') continue;
+    const { groupId, siteId, url } = item as { groupId?: unknown; siteId?: unknown; url?: unknown };
+    if (typeof groupId !== 'string' || !groupId || typeof siteId !== 'string' || !siteId) continue;
+    const urlStr = typeof url === 'string' ? url : '';
+    const urlKey = urlStr ? `${groupId}|${urlStr}` : '';
+    if (seenIds.has(siteId) || (urlKey && seenUrls.has(urlKey))) continue;
+    seenIds.add(siteId);
+    if (urlKey) seenUrls.add(urlKey);
+    out.push({ groupId, siteId, url: urlStr });
+  }
+  return out;
+}
+
 /** 校验任意来源（localStorage / 导入文件）的数据结构，合法则归一化返回，否则 null */
 export function validateStoreData(raw: unknown): StoreData | null {
   if (!raw || typeof raw !== 'object') return null;
@@ -1203,6 +1245,7 @@ export function validateStoreData(raw: unknown): StoreData | null {
     widgetTints: normalizeWidgetTints((data as { widgetTints?: unknown }).widgetTints),
     activePreset: normalizeActivePreset((data as { activePreset?: unknown }).activePreset),
     myPreset: normalizeSnapshot((data as { myPreset?: unknown }).myPreset, fallbackAppearance(background.presetId)),
+    dock: normalizeDock((data as { dock?: unknown }).dock),
   };
 }
 
@@ -2552,6 +2595,37 @@ export function useLocalStore() {
     setOverwriteConfirmOpen(false);
   }, []);
 
+  /* Dock 栏（2026-11-04）：只改 dock 引用数组，不走 update()——不翻预设、不刷新
+   * 「我的」存档、不触发覆盖确认；updatedAt 照常刷新以便同步/导出带走 Dock。
+   * 拖入已在 Dock 里的站点 = 无操作（不重复、不改位置）；主页编组与站点一概不动。 */
+  const addDockSite = useCallback((groupId: string, siteId: string, url: string = '') => {
+    if (!groupId || !siteId) return;
+    setData((prev) => {
+      const dock = prev.dock ?? [];
+      // 去重：同一 siteId、或同组同 url（切预设后 siteId 会变，url 是稳定键）都算已在 Dock
+      if (dock.some((d) => d.siteId === siteId || (url && d.groupId === groupId && d.url === url))) return prev;
+      const next = structuredClone(prev);
+      next.dock = [...dock, { groupId, siteId, url }];
+      next.updatedAt = Date.now();
+      return next;
+    });
+  }, []);
+
+  const removeDockSite = useCallback((groupId: string, siteId: string, url: string = '') => {
+    if (!groupId || !siteId) return;
+    setData((prev) => {
+      const dock = prev.dock ?? [];
+      const kept = dock.filter(
+        (d) => !(d.groupId === groupId && (d.siteId === siteId || (url && d.url === url))),
+      );
+      if (kept.length === dock.length) return prev;
+      const next = structuredClone(prev);
+      next.dock = kept;
+      next.updatedAt = Date.now();
+      return next;
+    });
+  }, []);
+
   const importData = useCallback((raw: unknown): boolean => {
     const validated = validateStoreData(raw);
     if (!validated) return false;
@@ -2694,6 +2768,8 @@ export function useLocalStore() {
     myPresetOverwritePending: overwriteConfirmOpen,
     confirmMyPresetOverwrite,
     cancelMyPresetOverwrite,
+    addDockSite,
+    removeDockSite,
   };
 }
 

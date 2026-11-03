@@ -37,6 +37,9 @@ export interface DisplayPrefs {
   /** 「深海蓝」纯色版的颜色（第九十二轮）：该预设从动态背景改为纯色自选，颜色存这里
    *  （与显示偏好同路径、本机保存），背景面板点开即选色；默认 OCEAN_DEFAULT_COLOR。 */
   oceanColor: string;
+  /** 底部 Dock 栏是否显示（2026-11-04 新增）：只存本机、不进同步/导出；
+   *  开关在预设面板「外观」节，默认开。Dock 内容（引用）存在 store.data.dock，与本字段解耦。 */
+  dockVisible: boolean;
 }
 
 /** 「深海蓝」纯色版默认色 = 原渐变的主色 #0d2140（第九十二轮）：老用户升级后第一眼仍是深海蓝 */
@@ -70,6 +73,7 @@ export const DEFAULT_DISPLAY_PREFS: DisplayPrefs = {
   // 背景模糊默认 0.3 ↔ 6px，即第六十二轮前 App 遮罩层写死的 backdrop-blur-[6px]，观感不变
   bgBlur: 0.3,
   oceanColor: OCEAN_DEFAULT_COLOR,
+  dockVisible: true,
 };
 
 function normalizePrefs(raw: unknown): DisplayPrefs {
@@ -80,6 +84,7 @@ function normalizePrefs(raw: unknown): DisplayPrefs {
       widgetAlpha?: unknown;
       bgBlur?: unknown;
       oceanColor?: unknown;
+      dockVisible?: unknown;
     };
     const groupCardAlpha =
       typeof p.groupCardAlpha === 'number' && Number.isFinite(p.groupCardAlpha)
@@ -104,6 +109,8 @@ function normalizePrefs(raw: unknown): DisplayPrefs {
         typeof p.oceanColor === 'string' && /^#[0-9a-fA-F]{6}$/.test(p.oceanColor)
           ? p.oceanColor.toLowerCase()
           : OCEAN_DEFAULT_COLOR,
+      // 2026-11-04 新增：老存档没有 dockVisible 时默认显示 Dock 栏
+      dockVisible: typeof p.dockVisible === 'boolean' ? p.dockVisible : true,
     };
   }
   return { ...DEFAULT_DISPLAY_PREFS };

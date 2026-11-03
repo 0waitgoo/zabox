@@ -2,7 +2,6 @@ import React, { useEffect, useState, Suspense } from 'react';
 import { TopLogo, TopNav } from './components/Sidebar';
 import HomePage from './components/v2/HomePage';
 import PresetMenu from './components/v2/PresetMenu';
-import TopBarShade from './components/v2/TopBarShade';
 import LiquidGlassFilter from './components/v2/LiquidGlassFilter';
 import { backgroundPresetOf, useLocalStore } from './store/localStore';
 import { loadBgImage } from './store/bgImageDb';
@@ -146,7 +145,8 @@ export default function App() {
       </div>
 
       {/* Main Content */}
-      {/* h-dvh 固定视口高度：让内部 overflow-y-auto 容器成为真正的滚动区，position: sticky 吸顶才有可依附的滚动容器 */}
+      {/* h-dvh 固定视口高度：让内部 overflow-y-auto 容器成为真正的滚动区；
+          2026-11-04 用户令：顶部毛玻璃遮挡带已删，顶栏不再吸顶、随内容一起滚动 */}
       {/* 第六十五轮（滚轮死区）：本容器不再 max-w-[1600px] 居中、横向 padding 也撤掉——
           原先滚动容器被关在居中 1600 列内，宽屏两侧空白条的滚轮命中只能落到背景层/根层、
           祖先链里没有可滚动盒子（页面又被 h-dvh 锁死、窗口本身不滚），滚了没反应。
@@ -155,29 +155,23 @@ export default function App() {
           滚动区因此横贯全视口，鼠标在任意横位置滚轮都能滚。纵向 py 不动；
           原容器 gap（栏与 main 的间距）改由子页面内容列的 pt 在滚动区内复刻。 */}
       <div className="relative z-10 flex flex-col h-dvh w-full py-3 sm:py-4 md:py-6">
-        {/* 顶栏遮挡带（第五十九轮引入、第六十三轮改全幅）：fixed 铺满视口上/左/右，
-            在本容器层统一渲染一份（主页/子页面共用），变体按当前页实际渲染的栏选
-            （子页面栏在本组件内、主页栏在 HomePage 内，高度差只有 -mt-1 的 4px）。
-            几何与层级见 index.css .topbar-shade */}
-        <TopBarShade variant={isSubPage ? 'sub' : 'home'} />
+        {/* 2026-11-04 用户令：顶部毛玻璃遮挡带（TopBarShade）已删除，顶栏随内容滚动、不再置顶 */}
         <main className="flex-1 flex flex-col min-h-0">
           {/* 滚动区横贯全视口（第六十五轮）：页面内容在区内再套一层居中列
               （max-w+横向 padding 复刻原容器列宽），列宽与改前一致；
               居中列 overflow 可见，主页拖拽的 findScrollAncestor 向上仍命中本滚动区 */}
           <div className="flex-1 overflow-y-auto pb-20 sm:pb-6">
-            {/* 子页面顶栏与主页吸顶栏同款渲染（第四十三轮修漂移）：同样的 4 栏 grid 左半——
+            {/* 子页面顶栏与主页栏同款渲染（第四十三轮修漂移）：同样的 4 栏 grid 左半——
                 LOGO + 背景按钮 + 导航图标组（第六十四轮：左组全去底色、白色图标，LOGO 两页同位），
                 位置/间距/高亮与主页完全一致，不再用旧的居中导航行；
                 右半（搜索/数据）是主页专属，子页面留空占位保持左半位置不变。
-                第六十五轮起本栏移进滚动区内 sticky（原在滚动区外的 flex 列里）：一是与主页栏
-                同框居中——滚动条移到视口右缘后滚动区内容框比视口窄一个滚动条宽，栏只有同在
-                滚动区内与内容列同框，左组横坐标才能与主页栏逐像素一致；二是栏在滚动区内，
-                悬停栏上滚轮同样滚页面。sticky top-0 贴的是滚动区上缘、正落在外层容器 py 之下，
-                与移入前「栏贴容器内容顶」的静止位相同；不带主页那条的 -mt-1（主页栏在滚动
-                容器内、边距折叠后净偏移与此处不同，实测去掉后三页图标组 Y 坐标一致）。
+                第六十五轮起本栏在滚动区内与内容列同框（左组横坐标与主页栏逐像素一致）。
+                2026-11-04 用户令：顶栏不再吸顶，随内容一起上下滚动（主页栏同改）；
+                relative 保留定位上下文（搜索下拉等 absolute 面板以此为基准），z-40 让
+                菜单面板盖过卡片（卡片 ≤z-20）、仍在弹窗/拖影（z-60+）之下。
                 栏与内容的间距由下方内容列的 pt 复刻原容器 gap（gap-4/sm:gap-6） */}
             {isSubPage && (
-              <div className="sticky top-0 z-50 pt-1 pb-2 mx-auto w-full max-w-[1600px] px-3 sm:px-4 md:px-6">
+              <div data-topbar className="relative z-40 pt-1 pb-2 mx-auto w-full max-w-[1600px] px-3 sm:px-4 md:px-6">
                 {/* 行高与主页栏对齐（第六十四轮实测修正）：主页栏行高由搜索框（h-12/sm:h-13）撑起、
                     左组在行内居中；子页面无搜索框、行高只剩左组 40px，整组比主页高 6px。
                     给子页面 grid 同款 min-h 后两处左组中心线回到同一 Y 坐标。

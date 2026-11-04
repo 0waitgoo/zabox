@@ -37,10 +37,24 @@ export interface DisplayPrefs {
   /** 「深海蓝」纯色版的颜色（第九十二轮）：该预设从动态背景改为纯色自选，颜色存这里
    *  （与显示偏好同路径、本机保存），背景面板点开即选色；默认 OCEAN_DEFAULT_COLOR。 */
   oceanColor: string;
+  /** 底部 Dock 栏的图标尺寸（2026-11-04 新增）：只存本机、不进同步/导出；
+   *  在 Dock 栏右侧 ⋮ 设置里切换，三档：s 小 / m 中（默认，现观感）/ l 大。 */
+  dockSize: DockSize;
+  /** 底部 Dock 栏的隐藏方式（2026-11-04 新增）：只存本机、不进同步/导出；
+   *  在 Dock 栏右侧 ⋮ 设置里切换：show 一直显示（默认）/ auto 鼠标贴底边时浮现 /
+   *  hide 一直隐藏（只剩一个 ⋮ 钮可改回）。与 dockVisible 主开关解耦：主开关关了
+   *  则 Dock 与 ⋮ 钮一律不显示，须回预设面板「外观」节重开。 */
+  dockHide: DockHide;
   /** 底部 Dock 栏是否显示（2026-11-04 新增）：只存本机、不进同步/导出；
    *  开关在预设面板「外观」节，默认开。Dock 内容（引用）存在 store.data.dock，与本字段解耦。 */
   dockVisible: boolean;
 }
+
+/** 底部 Dock 栏的图标尺寸三档 */
+export type DockSize = 's' | 'm' | 'l';
+
+/** 底部 Dock 栏的隐藏方式三态 */
+export type DockHide = 'show' | 'auto' | 'hide';
 
 /** 「深海蓝」纯色版默认色 = 原渐变的主色 #0d2140（第九十二轮）：老用户升级后第一眼仍是深海蓝 */
 export const OCEAN_DEFAULT_COLOR = '#0d2140';
@@ -74,6 +88,8 @@ export const DEFAULT_DISPLAY_PREFS: DisplayPrefs = {
   bgBlur: 0.3,
   oceanColor: OCEAN_DEFAULT_COLOR,
   dockVisible: true,
+  dockSize: 'm',
+  dockHide: 'show',
 };
 
 function normalizePrefs(raw: unknown): DisplayPrefs {
@@ -85,6 +101,8 @@ function normalizePrefs(raw: unknown): DisplayPrefs {
       bgBlur?: unknown;
       oceanColor?: unknown;
       dockVisible?: unknown;
+      dockSize?: unknown;
+      dockHide?: unknown;
     };
     const groupCardAlpha =
       typeof p.groupCardAlpha === 'number' && Number.isFinite(p.groupCardAlpha)
@@ -111,6 +129,9 @@ function normalizePrefs(raw: unknown): DisplayPrefs {
           : OCEAN_DEFAULT_COLOR,
       // 2026-11-04 新增：老存档没有 dockVisible 时默认显示 Dock 栏
       dockVisible: typeof p.dockVisible === 'boolean' ? p.dockVisible : true,
+      // 2026-11-04 新增：尺寸与隐藏方式只接受三档合法值，其余回落默认
+      dockSize: p.dockSize === 's' || p.dockSize === 'l' ? p.dockSize : 'm',
+      dockHide: p.dockHide === 'auto' || p.dockHide === 'hide' ? p.dockHide : 'show',
     };
   }
   return { ...DEFAULT_DISPLAY_PREFS };

@@ -52,7 +52,8 @@ interface MoveEdit {
 }
 
 const inputCls =
-  'w-full bg-white/5 border border-white/12 rounded-xl px-3 py-2 text-sm outline-none focus:border-indigo-400/50 placeholder:text-white/30';
+  // [&>option]:text-black：原生下拉弹层在 Windows 下是白底，选项不显式写黑字会继承浅色字、白底上看不见（2026-11-05 搜集分组弹窗实报；扩展弹窗同款先例）
+  'w-full bg-white/5 border border-white/12 rounded-xl px-3 py-2 text-sm outline-none focus:border-indigo-400/50 placeholder:text-white/30 [&>option]:text-black';
 const btnPrimary =
   'px-3.5 py-2 rounded-xl bg-indigo-500/80 hover:bg-indigo-500 text-white text-sm font-medium transition-colors disabled:opacity-40 shrink-0';
 const btnGhost =
@@ -725,7 +726,7 @@ export default function SiteAiAssistant({
                                           ),
                                         )
                                       }
-                                      className="shrink-0 bg-white/5 border border-white/12 rounded-lg px-1.5 py-1 text-xs outline-none"
+                                      className="shrink-0 bg-white/5 border border-white/12 rounded-lg px-1.5 py-1 text-xs outline-none [&>option]:text-black"
                                     >
                                       {targetOptions.map((o) => (
                                         <option key={o.key} value={o.key}>
@@ -801,7 +802,7 @@ export default function SiteAiAssistant({
                                 setTargetGroupId(e.target.value);
                               }
                             }}
-                            className="flex-1 bg-white/5 border border-white/12 rounded-xl px-2 py-2 text-xs outline-none"
+                            className="flex-1 bg-white/5 border border-white/12 rounded-xl px-2 py-2 text-xs outline-none [&>option]:text-black"
                           >
                             <option value="__new__">新建组</option>
                             {groups.map((g) => (

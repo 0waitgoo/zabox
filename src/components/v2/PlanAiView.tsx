@@ -35,7 +35,7 @@ export default function PlanAiView({
   const faint = light ? 'text-zinc-500' : 'text-white/45';
   const inputCls = light
     ? 'w-full rounded-lg border border-black/10 bg-white px-3 py-2 text-sm text-zinc-900 placeholder:text-zinc-400 outline-none focus:border-indigo-400'
-    : 'w-full rounded-lg border border-white/10 bg-white/5 px-3 py-2 text-sm text-white placeholder:text-white/30 outline-none focus:border-indigo-400';
+    : 'w-full rounded-lg border border-white/10 bg-white/5 px-3 py-2 text-sm text-white placeholder:text-white/30 outline-none focus:border-indigo-400 [&>option]:text-black';
   const stepItemCls = light
     ? 'flex items-start gap-2 rounded-lg border border-black/10 bg-white px-3 py-2 text-sm text-zinc-800'
     : 'flex items-start gap-2 rounded-lg border border-white/10 bg-white/5 px-3 py-2 text-sm text-white/90';

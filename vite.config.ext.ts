@@ -24,6 +24,8 @@ function extensionAssets(): Plugin {
       for (const f of fs.readdirSync(iconsSrc)) {
         if (f.endsWith('.png')) fs.copyFileSync(path.join(iconsSrc, f), path.join(iconsDst, f));
       }
+      // 后台脚本（网页右键菜单）：纯 chrome.* API，不打包、原样拷入
+      fs.copyFileSync(path.resolve(root, 'public-ext/background.js'), path.join(outDir, 'background.js'));
       const pkg = JSON.parse(fs.readFileSync(path.resolve(root, 'package.json'), 'utf8')) as { version: string };
       const manifest = {
         manifest_version: 3,
@@ -44,7 +46,9 @@ function extensionAssets(): Plugin {
           },
         },
         side_panel: { default_path: 'index.html' },
-        permissions: ['storage', 'tabs', 'sidePanel'],
+        // background：右键菜单「添加到杂盒主页」的 service worker；contextMenus：注册该菜单
+        background: { service_worker: 'background.js' },
+        permissions: ['storage', 'tabs', 'sidePanel', 'contextMenus'],
         host_permissions: ['https://zahe.hiitun.top/*'],
         icons: {
           '16': 'icons/icon-16.png',

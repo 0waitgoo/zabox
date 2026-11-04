@@ -1563,8 +1563,9 @@ export default function HomePage({ onNavigate, store }: { onNavigate: (page: str
           {/* 一栏两模式（2026-10-30）：搜索与 AI 整理共用一栏，分段开关切换，平时只显示一栏。
               <lg 时本格自动落到第二行占满宽（左组只占 1 栏、剩 1 栏装不下 col-span-2），
               避免开关 + 搜索框在窄屏被挤到 0 宽；lg 起恢复左右两半一行。
-              宽屏悬浮栏接管时左组不渲染，搜索格定在第 3 栏起、位置与原来右半一致 */}
-          <div className={`col-span-2 lg:col-span-2 flex items-center gap-2 min-w-0 ${wideRail ? 'lg:col-start-3' : ''}`}>
+              宽屏悬浮栏接管时左组不渲染，搜索格定在第 2 栏起、占中间两栏左右居中
+              （2026-11-05 用户令：搜索栏放中间） */}
+          <div className={`col-span-2 lg:col-span-2 flex items-center gap-2 min-w-0 ${wideRail ? 'lg:col-start-2' : ''}`}>
             {/* 一栏两模式（2026-10-30）：搜索与 AI 整理共用一栏，分段开关切换，平时只显示一栏 */}
             <UnifiedSearchAiBar groups={groups} onOpenGroup={openGroupFromSearch} store={store} />
             {!wideRail && (

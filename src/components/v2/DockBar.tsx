@@ -1,8 +1,8 @@
 import React from 'react';
 import { createPortal } from 'react-dom';
-import { Trash2 } from 'lucide-react';
+import { Check, MoreHorizontal, Trash2 } from 'lucide-react';
 import type { DockEntry, LocalStore } from '../../store/localStore';
-import { useDisplayPrefs } from '../../store/displayPrefs';
+import { setDisplayPrefs, useDisplayPrefs, type DockHide, type DockSize } from '../../store/displayPrefs';
 import { useLang } from '../../i18n/useLang';
 import { siteIconSrc, type SiteEntry } from '../../data/groups';
 import { SiteLogo } from './Card';
@@ -21,7 +21,19 @@ import { SiteLogo } from './Card';
  * 删除与排序（2026-11-04 用户定）：悬停 × 已删——右键出菜单删除，或把图标
  * 拖出 Dock 栏松手删除；左右拖动改变位置。三种操作都只改 dock 引用数组，
  * 主页数据一概不动。
+ *
+ * 名字与设置（2026-11-04 用户定）：Dock 里只显示图标、不显示名字（悬停看
+ * 原生 title）；栏右端一个 ⋮ 按钮开设置面板：隐藏三态（一直显示 / 自动隐藏 /
+ * 一直隐藏）与大小三档（小 / 中 / 大），都只存本机显示偏好。自动隐藏时鼠标
+ * 贴到底边浮现、离开后收起；一直隐藏时只剩 ⋮ 钮可改回（主开关在预设面板）。
  */
+type DockSizeConfig = { icon: number; btn: number; btnClass: string; padClass: string };
+
+const DOCK_SIZES: Record<DockSize, DockSizeConfig> = {
+  s: { icon: 32, btn: 46, btnClass: 'w-[46px]', padClass: 'px-2 py-1.5' },
+  m: { icon: 44, btn: 58, btnClass: 'w-[58px]', padClass: 'px-2.5 py-2' },
+  l: { icon: 56, btn: 70, btnClass: 'w-[70px]', padClass: 'px-3 py-2.5' },
+};
 type ResolvedDockItem = {
   key: string;
   entryGroupId: string;
@@ -40,13 +52,30 @@ type DragState = {
 
 export default function DockBar({ store }: { store: LocalStore }) {
   const { t } = useLang();
-  const { dockVisible } = useDisplayPrefs();
+  const { dockVisible, dockSize, dockHide } = useDisplayPrefs();
+  const size = DOCK_SIZES[dockSize] ?? DOCK_SIZES.m;
   const barRef = React.useRef<HTMLDivElement | null>(null);
   const itemEls = React.useRef(new Map<string, HTMLElement>());
   const suppressClickRef = React.useRef<string | null>(null);
   const [drag, setDrag] = React.useState<DragState | null>(null);
   const [menu, setMenu] = React.useState<{ x: number; y: number; key: string } | null>(null);
   const menuRef = React.useRef<HTMLDivElement | null>(null);
+  const [settingsOpen, setSettingsOpen] = React.useState(false);
+  const settingsBtnRef = React.useRef<HTMLButtonElement | null>(null);
+  const settingsRef = React.useRef<HTMLDivElement | null>(null);
+  const [autoVisible, setAutoVisible] = React.useState(false);
+  const dragActiveRef = React.useRef(false);
+  const hideTimerRef = React.useRef<number | null>(null);
+
+  // 自动隐藏：鼠标贴到底边 16px 内浮现
+  React.useEffect(() => {
+    if (dockHide !== 'auto') return;
+    const onMove = (e: MouseEvent) => {
+      if (e.clientY > window.innerHeight - 16) setAutoVisible(true);
+    };
+    window.addEventListener('mousemove', onMove);
+    return () => window.removeEventListener('mousemove', onMove);
+  }, [dockHide]);
 
   const resolved: ResolvedDockItem[] = [];
   const seen = new Set<string>();
@@ -75,7 +104,7 @@ export default function DockBar({ store }: { store: LocalStore }) {
       : resolved;
   const draggedItem = drag ? byKey.get(drag.key) : undefined;
 
-  // 右键菜单：点菜单外 / Esc / 滚动即关
+  // 右键菜单：点菜单外 / Esc 即关（栏是 fixed 定位，滚动不挪位，不用滚动关）
   React.useEffect(() => {
     if (!menu) return;
     const onDown = (e: PointerEvent) => {
@@ -84,18 +113,55 @@ export default function DockBar({ store }: { store: LocalStore }) {
     const onKey = (e: KeyboardEvent) => {
       if (e.key === 'Escape') setMenu(null);
     };
-    const onScroll = () => setMenu(null);
     document.addEventListener('pointerdown', onDown, true);
     document.addEventListener('keydown', onKey);
-    window.addEventListener('scroll', onScroll, true);
     return () => {
       document.removeEventListener('pointerdown', onDown, true);
       document.removeEventListener('keydown', onKey);
-      window.removeEventListener('scroll', onScroll, true);
     };
   }, [menu]);
 
+  // 设置面板：点面板与 ⋮ 钮之外 / Esc 即关（面板锚定 fixed 的栏，滚动不挪位，不用滚动关）
+  React.useEffect(() => {
+    if (!settingsOpen) return;
+    const onDown = (e: PointerEvent) => {
+      const target = e.target as Node;
+      if (settingsRef.current && !settingsRef.current.contains(target)) {
+        if (!settingsBtnRef.current || !settingsBtnRef.current.contains(target)) setSettingsOpen(false);
+      }
+    };
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') setSettingsOpen(false);
+    };
+    document.addEventListener('pointerdown', onDown, true);
+    document.addEventListener('keydown', onKey);
+    return () => {
+      document.removeEventListener('pointerdown', onDown, true);
+      document.removeEventListener('keydown', onKey);
+    };
+  }, [settingsOpen]);
+
   if (!dockVisible) return null;
+
+  // 自动隐藏：栏在视口内才算显示；设置面板/右键菜单/拖拽进行时保持显示
+  const barShown = dockHide === 'show' || autoVisible || settingsOpen || !!drag || !!menu;
+
+  const clearAutoHideTimer = () => {
+    if (hideTimerRef.current) {
+      window.clearTimeout(hideTimerRef.current);
+      hideTimerRef.current = null;
+    }
+  };
+
+  const scheduleAutoHide = () => {
+    if (dockHide !== 'auto') return;
+    clearAutoHideTimer();
+    hideTimerRef.current = window.setTimeout(() => {
+      if (dragActiveRef.current) return;
+      if (document.querySelector('[data-dock-settings-panel], [data-dock-menu]')) return;
+      setAutoVisible(false);
+    }, 350);
+  };
 
   const isOutsideBar = (clientX: number, clientY: number) => {
     const bar = barRef.current?.getBoundingClientRect();
@@ -112,6 +178,8 @@ export default function DockBar({ store }: { store: LocalStore }) {
   const startDrag = (e: React.PointerEvent, item: ResolvedDockItem) => {
     if (e.button !== 0) return;
     setMenu(null);
+    setSettingsOpen(false);
+    clearAutoHideTimer();
     const startX = e.clientX;
     const startY = e.clientY;
     const keys = resolved.map((r) => r.key);
@@ -120,6 +188,7 @@ export default function DockBar({ store }: { store: LocalStore }) {
     const onMove = (ev: PointerEvent) => {
       if (!active && Math.hypot(ev.clientX - startX, ev.clientY - startY) < 8) return;
       active = true;
+      dragActiveRef.current = true;
       const rest = keys.filter((k) => k !== item.key);
       let insertAt = 0;
       for (const k of rest) {
@@ -133,6 +202,7 @@ export default function DockBar({ store }: { store: LocalStore }) {
       window.removeEventListener('pointermove', onMove);
       window.removeEventListener('pointerup', onUp);
       if (!active) return;
+      dragActiveRef.current = false;
       // 只抑制本次被拖 item 紧随其后的那次 click（拖出删除后点别的图标不受影响）
       suppressClickRef.current = item.key;
       setDrag(null);
@@ -158,6 +228,7 @@ export default function DockBar({ store }: { store: LocalStore }) {
     e.preventDefault();
     e.stopPropagation();
     setDrag(null);
+    setSettingsOpen(false);
     setMenu({ x: e.clientX, y: e.clientY, key: item.key });
   };
 
@@ -171,18 +242,26 @@ export default function DockBar({ store }: { store: LocalStore }) {
       <div
         ref={barRef}
         data-dock-bar
-        className="fixed bottom-3 sm:bottom-5 left-1/2 z-50 -translate-x-1/2 flex items-center gap-1 sm:gap-1.5 rounded-[28px] border border-white/10 bg-[#14141a]/70 px-2.5 py-2 shadow-2xl shadow-black/60 backdrop-blur-md max-w-[calc(100vw-20px)] overflow-x-auto select-none"
+        onMouseEnter={clearAutoHideTimer}
+        onMouseLeave={scheduleAutoHide}
+        className={`fixed bottom-3 sm:bottom-5 left-1/2 z-50 -translate-x-1/2 flex items-center gap-1 sm:gap-1.5 rounded-[28px] border border-white/10 bg-[#14141a]/70 ${size.padClass} shadow-2xl shadow-black/60 backdrop-blur-md max-w-[calc(100vw-20px)] overflow-x-auto select-none transition-all duration-300 ${
+          dockHide === 'auto' && !barShown ? 'translate-y-[140%] opacity-0 pointer-events-none' : ''
+        }`}
       >
-        {ordered.length === 0 ? (
+        {dockHide !== 'hide' && ordered.length === 0 && (
           <p data-dock-empty className="px-3 py-1.5 text-xs text-white/55 whitespace-nowrap">
             {t('dock.empty')}
           </p>
-        ) : (
+        )}
+        {dockHide !== 'hide' &&
           ordered.map((item) => {
             const isDragged = drag?.key === item.key;
             return (
               <div
                 key={item.key}
+                // 跨组拖拽源标记：Dock 图标是按住拖拽源，长按菜单钩子不对它 500ms 冻结位移，
+                // 否则按住稍久再拖时后续 pointermove 会被冻结、Dock 拖拽起不来
+                data-cross-source
                 ref={(el) => {
                   if (el) itemEls.current.set(item.key, el);
                   else itemEls.current.delete(item.key);
@@ -193,6 +272,7 @@ export default function DockBar({ store }: { store: LocalStore }) {
                 <button
                   type="button"
                   data-dock-item={item.site.id ?? item.entrySiteId}
+                  data-site-drag-id={item.key}
                   title={item.site.name}
                   aria-label={item.site.name}
                   draggable={false}
@@ -206,32 +286,47 @@ export default function DockBar({ store }: { store: LocalStore }) {
                     }
                     window.open(item.site.url, '_blank');
                   }}
-                  className="flex w-[58px] flex-col items-center gap-1 rounded-2xl px-1 py-1 transition-colors hover:bg-white/8 touch-none cursor-grab active:cursor-grabbing"
+                  className={`flex ${size.btnClass} items-center justify-center rounded-2xl p-1 transition-colors hover:bg-white/8 touch-none cursor-grab active:cursor-grabbing`}
                 >
                   <SiteLogo
                     logo={siteIconSrc(item.site)}
                     name={item.site.name}
                     url={item.site.url}
-                    size={44}
+                    size={size.icon}
                     grayscale={!!item.site.dead}
                   />
-                  <span className="w-full truncate text-center text-[10px] leading-tight text-white/80">{item.site.name}</span>
                 </button>
               </div>
             );
-          })
+          })}
+        {dockHide !== 'hide' && ordered.length > 0 && (
+          <div aria-hidden className="mx-0.5 h-6 w-px shrink-0 bg-white/15" />
         )}
+        <button
+          ref={settingsBtnRef}
+          type="button"
+          data-dock-settings
+          title={t('dock.settings')}
+          aria-label={t('dock.settings')}
+          onClick={() => {
+            setMenu(null);
+            setSettingsOpen((v) => !v);
+          }}
+          className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-white/65 transition-colors hover:bg-white/10 hover:text-white"
+        >
+          <MoreHorizontal size={18} />
+        </button>
       </div>
 
       {drag && draggedItem &&
         createPortal(
           <div
             aria-hidden
-            className="fixed z-[80] pointer-events-none flex w-[58px] flex-col items-center gap-1"
-            style={{ left: drag.x - 29, top: drag.y - 32 }}
+            className="fixed z-[80] pointer-events-none flex flex-col items-center gap-1"
+            style={{ left: drag.x - size.btn / 2, top: drag.y - (size.icon + 8) / 2, width: size.btn }}
           >
             <div
-              className={`flex w-[58px] flex-col items-center gap-1 rounded-2xl px-1 py-1 bg-[#14141a]/90 shadow-2xl shadow-black/60 scale-105 ${
+              className={`flex ${size.btnClass} items-center justify-center rounded-2xl p-1 bg-[#14141a]/90 shadow-2xl shadow-black/60 scale-105 ${
                 drag.outside ? 'ring-2 ring-red-400' : 'ring-1 ring-white/25'
               }`}
             >
@@ -239,10 +334,9 @@ export default function DockBar({ store }: { store: LocalStore }) {
                 logo={siteIconSrc(draggedItem.site)}
                 name={draggedItem.site.name}
                 url={draggedItem.site.url}
-                size={44}
+                size={size.icon}
                 grayscale={!!draggedItem.site.dead}
               />
-              <span className="w-full truncate text-center text-[10px] leading-tight text-white/80">{draggedItem.site.name}</span>
             </div>
             {drag.outside && (
               <span className="rounded-full bg-red-500 px-2 py-0.5 text-[10px] font-medium text-white shadow-lg whitespace-nowrap">
@@ -252,6 +346,64 @@ export default function DockBar({ store }: { store: LocalStore }) {
           </div>,
           document.body,
         )}
+
+      {settingsOpen &&
+        (() => {
+          const anchor = settingsBtnRef.current?.getBoundingClientRect();
+          const panelW = 208;
+          const panelH = 268;
+          const left = anchor
+            ? Math.max(8, Math.min(anchor.right - panelW, window.innerWidth - panelW - 8))
+            : 8;
+          const top = anchor ? Math.max(8, anchor.top - panelH - 8) : 8;
+          const hideOptions: { value: DockHide; label: string }[] = [
+            { value: 'show', label: t('dock.hideShow') },
+            { value: 'auto', label: t('dock.hideAuto') },
+            { value: 'hide', label: t('dock.hideAlways') },
+          ];
+          const sizeOptions: { value: DockSize; label: string }[] = [
+            { value: 's', label: t('dock.sizeSmall') },
+            { value: 'm', label: t('dock.sizeMedium') },
+            { value: 'l', label: t('dock.sizeLarge') },
+          ];
+          return createPortal(
+            <div
+              ref={settingsRef}
+              data-dock-settings-panel
+              className="fixed z-[90] w-[208px] rounded-2xl border border-white/12 bg-[#1c1c24] p-1.5 shadow-2xl shadow-black/60"
+              style={{ left, top }}
+            >
+              <p className="px-2 pb-1 pt-1.5 text-[13px] font-medium text-white/90">{t('dock.settings')}</p>
+              <p className="px-2 pb-1 pt-1 text-[11px] text-white/45">{t('dock.hideLabel')}</p>
+              {hideOptions.map((opt) => (
+                <button
+                  key={opt.value}
+                  type="button"
+                  data-dock-hide={opt.value}
+                  onClick={() => setDisplayPrefs({ dockHide: opt.value })}
+                  className="flex w-full items-center justify-between rounded-xl px-2.5 py-2 text-left text-sm text-white/85 transition-colors hover:bg-white/8"
+                >
+                  {opt.label}
+                  {dockHide === opt.value && <Check size={15} className="text-indigo-300" />}
+                </button>
+              ))}
+              <p className="px-2 pb-1 pt-2 text-[11px] text-white/45">{t('dock.sizeLabel')}</p>
+              {sizeOptions.map((opt) => (
+                <button
+                  key={opt.value}
+                  type="button"
+                  data-dock-size={opt.value}
+                  onClick={() => setDisplayPrefs({ dockSize: opt.value })}
+                  className="flex w-full items-center justify-between rounded-xl px-2.5 py-2 text-left text-sm text-white/85 transition-colors hover:bg-white/8"
+                >
+                  {opt.label}
+                  {dockSize === opt.value && <Check size={15} className="text-indigo-300" />}
+                </button>
+              ))}
+            </div>,
+            document.body,
+          );
+        })()}
 
       {menu &&
         (() => {

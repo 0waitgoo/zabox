@@ -76,6 +76,7 @@ export default function UnifiedSearchAiBar({
       <StickySearch
         groups={groups}
         onOpenGroup={onOpenGroup}
+        store={store}
         active={mode === 'search'}
         onRequestActivate={() => setMode('search')}
       />

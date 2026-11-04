@@ -35,6 +35,10 @@ import type { SiteEntry } from '../../data/groups';
  * Dock 栏落点（2026-11-04 用户定：拖网站进 Dock 只加引用、不动主页数据）：
  * 配了 onDropToDock 的实例，松手时指针落在 [data-dock-bar] 上即只调 onDropToDock、
  * 不排序也不跨组（排序/跨组两个模式都判）；拖动经过 Dock 时描边高亮，与跨组高亮同口径。
+ *
+ * 多组混排容器（搜索下拉，2026-11-04 用户定：下拉站点行可直接拖到主页组卡/Dock）：
+ * 容器内站点分属不同组，容器级 groupId 无法表示源组——配 getSourceGroupId
+ * 按被拖站点 id 返回其实际所属组，跨组高亮与同组取消按它判定；缺省仍用 groupId。
  */
 const DRAG_THRESHOLD = 7;
 export { DRAG_THRESHOLD };
@@ -53,6 +57,7 @@ export function useSiteDragSort({
   onEscapeToCross,
   onDragEnd,
   onDropToDock,
+  getSourceGroupId,
 }: {
   /** 当前显示顺序（已经过 sortSites：置顶区在前） */
   sites: SiteEntry[];
@@ -72,6 +77,8 @@ export function useSiteDragSort({
   onDragEnd?: (result: { moved: boolean }) => void;
   /** 拖到 Dock 栏松手：只加 Dock 引用、不移动（siteId）；调用方负责按组 id 追加引用 */
   onDropToDock?: (siteId: string) => void;
+  /** 被拖站点实际所属组 id（多组混排容器用；缺省用容器 groupId 判定同组） */
+  getSourceGroupId?: (siteId: string) => string | undefined;
 }) {
   const [previewIds, setPreviewIds] = useState<string[] | null>(null);
   const [dragId, setDragId] = useState<string | null>(null);
@@ -116,6 +123,10 @@ export function useSiteDragSort({
   onDragEndRef.current = onDragEnd;
   const onDropToDockRef = useRef(onDropToDock);
   onDropToDockRef.current = onDropToDock;
+  const getSourceGroupIdRef = useRef(getSourceGroupId);
+  getSourceGroupIdRef.current = getSourceGroupId;
+  /** 被拖站点的源组：多组混排时按站点实际所属组，否则用容器组 */
+  const sourceGroupIdOf = (siteId: string) => getSourceGroupIdRef.current?.(siteId) ?? groupIdRef.current;
   /** 拖动中高亮的 Dock 栏元素（松手/取消时清除描边，与跨组高亮同口径） */
   const dockHighlightRef = useRef<HTMLElement | null>(null);
 
@@ -211,8 +222,8 @@ export function useSiteDragSort({
       setDragId(null);
       setClone(null);
       originRef.current = null;
-      // moved = 跨组模式下确实落到了异组（onMoveToGroup 即将/已经触发）
-      const moved = d.mode === 'cross' && commit && !!crossTarget && crossTarget.groupId !== groupIdRef.current;
+      // moved = 跨组模式下确实落到了异组（onMoveToGroup 即将/已经触发；源组按被拖站点实际所属组判）
+      const moved = d.mode === 'cross' && commit && !!crossTarget && crossTarget.groupId !== sourceGroupIdOf(d.id);
       if (d.mode === 'cross') {
         // Dock 优先：落在 Dock 上只加引用，不跨组移动
         if (commit && onDropToDockRef.current && isOverDock(d.lastX, d.lastY)) {
@@ -304,7 +315,8 @@ export function useSiteDragSort({
       const hit = document.elementFromPoint(x, y);
       const card = hit?.closest?.('[data-group-card]') as HTMLElement | null;
       const targetId = card?.dataset.groupCard ?? null;
-      const next = targetId && targetId !== groupIdRef.current ? targetId : null;
+      const sourceGroupId = sourceGroupIdOf(activeRef.current?.id ?? '');
+      const next = targetId && targetId !== sourceGroupId ? targetId : null;
       const prev = crossTargetRef.current;
       if ((prev?.groupId ?? null) === next) return;
       if (prev) {

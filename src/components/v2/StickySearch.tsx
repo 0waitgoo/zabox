@@ -1,11 +1,13 @@
 import React, { useEffect, useId, useMemo, useRef, useState } from 'react';
 import { Search, LayoutGrid, CornerDownLeft } from 'lucide-react';
 import { AnimatePresence, motion } from 'motion/react';
-import { siteIconSrc, type NavGroup } from '../../data/groups';
+import { siteIconSrc, type NavGroup, type SiteEntry } from '../../data/groups';
+import type { LocalStore } from '../../store/localStore';
 import { searchAll } from '../../utils/search';
 import { useLang } from '../../i18n/useLang';
 import { displayGroupName } from '../../i18n/groupNames';
 import { SiteLogo } from './Card';
+import { useSiteDragSort } from './useSiteDragSort';
 
 /** 网页搜索引擎：回车默认引擎跟随界面语言（CN→百度，EN→Google），下拉底部两行始终可点 */
 type WebEngine = 'baidu' | 'google';
@@ -21,15 +23,23 @@ const webSearchUrl = (engine: WebEngine, q: string): string =>
  * 一栏两模式（2026-10-30）：与 AI 整理共用顶栏一栏，平时只显示其一。
  * `active` 为 false 时本栏 display:none 藏起、但组件不卸载——搜索词保留在
  * 自己的 state 里，不会串到 AI 输入框；切回来时下拉关闭、输入框重新聚焦。
+ *
+ * 下拉站点行可拖（2026-11-04 用户定）：按住拖动（与卡片拖拽同一套跨组手感，
+ * 12px 激活、快照跟随、组卡/Dock 描边高亮）——落到主页组卡上把站点移到那个组，
+ * 落到 Dock 栏只加引用、主页数据不动；落回原组或空白处取消。编组行与
+ * “在 Baidu/Google 中搜索”两行不可拖；普通点击/回车行为不变，拖完的 click 被吞掉。
  */
 export default function StickySearch({
   groups,
   onOpenGroup,
+  store,
   active = true,
   onRequestActivate,
 }: {
   groups: NavGroup[];
   onOpenGroup: (group: NavGroup) => void;
+  /** 传了 store 才接拖拽落盘（移动/加 Dock 引用）；不传则下拉只做搜索 */
+  store?: LocalStore;
   /** 是否当前模式；false 时藏起（不卸载，输入内容保留） */
   active?: boolean;
   /** AI 模式下按 ⌘K/Ctrl+K 时回调：由统一栏切回搜索模式 */
@@ -61,6 +71,41 @@ export default function StickySearch({
   const results = useMemo(() => searchAll(query, groups), [query, groups]);
   const hasResults = results.sites.length > 0 || results.groups.length > 0;
   const resultCount = results.groups.length + results.sites.length;
+
+  /* 下拉站点拖拽：跨组模式（只移动/加 Dock，不做下拉内排序）；没传 store 时不接落盘 */
+  const groupBySiteId = useMemo(() => {
+    const m = new Map<string, NavGroup>();
+    for (const g of groups) for (const s of g.sites) if (s.id && !m.has(s.id)) m.set(s.id, g);
+    return m;
+  }, [groups]);
+  const dragSites = useMemo(() => {
+    const seen = new Set<string>();
+    const out: SiteEntry[] = [];
+    for (const h of results.sites) {
+      if (h.site.id && !seen.has(h.site.id)) {
+        seen.add(h.site.id);
+        out.push(h.site);
+      }
+    }
+    return out;
+  }, [results]);
+  const siteDrag = useSiteDragSort({
+    sites: dragSites,
+    crossGroupOnly: true,
+    getSourceGroupId: (siteId) => groupBySiteId.get(siteId)?.id,
+    onMoveToGroup: store
+      ? (siteId, targetGroupId) => {
+          const src = groupBySiteId.get(siteId);
+          if (src) store.moveSite(src.id, siteId, targetGroupId);
+        }
+      : undefined,
+    onDropToDock: store
+      ? (siteId) => {
+          const hit = results.sites.find((h) => h.site.id === siteId);
+          if (hit) store.addDockSite(hit.group.id, siteId, hit.site.url);
+        }
+      : undefined,
+  });
 
   useEffect(() => {
     if (activeIndex >= 0) {
@@ -187,6 +232,10 @@ export default function StickySearch({
               animate={{ opacity: 1, y: 0 }}
               exit={{ opacity: 0, y: 6 }}
               transition={{ duration: 0.15 }}
+              // 跨组拖拽源标记：长按菜单钩子不对它 500ms 冻结位移（与收起网格/C 卡面/Dock 同一口径）
+              data-cross-source
+              onPointerDown={siteDrag.onContainerPointerDown}
+              onDragStart={siteDrag.onContainerDragStart}
  className="absolute left-0 right-0 top-full mt-2 rounded-3xl bg-[#17171d] border border-white/15 p-2 max-h-[60vh] overflow-y-auto z-50"
             >
               {!hasResults && (
@@ -233,8 +282,16 @@ export default function StickySearch({
                       tabIndex={-1}
                       style={activeIndex === results.groups.length + index ? { backgroundColor: 'rgba(255,255,255,0.08)' } : undefined}
                       key={`${group.id}-${site.name}`}
-                      onClick={() => openSite(site.url)}
-                      className="w-full flex items-center gap-3 px-3 py-2 rounded-2xl hover:bg-white/8 text-left transition-colors group/item"
+                      // 可拖：跨组拖拽源（编组行与网页搜索行没有此标记，不可拖）
+                      data-site-drag-id={site.id}
+                      draggable={false}
+                      onDragStart={(e) => e.preventDefault()}
+                      onClick={() => {
+                        // 刚拖完的 click 吞掉，避免拖到组卡/Dock 后顺带打开站点
+                        if (siteDrag.consumeSuppressClick()) return;
+                        openSite(site.url);
+                      }}
+                      className="w-full flex items-center gap-3 px-3 py-2 rounded-2xl hover:bg-white/8 text-left transition-colors group/item cursor-grab active:cursor-grabbing"
                     >
                       <SiteLogo logo={siteIconSrc(site)} name={site.name} url={site.url} size={32} imgSize={22} />
                       <span className="flex-1 min-w-0">
@@ -286,6 +343,7 @@ export default function StickySearch({
           )}
         </AnimatePresence>
       </div>
+      {siteDrag.dragLayer}
     </div>
   );
 }

@@ -1,5 +1,5 @@
 import React, { useEffect, useRef, useState } from 'react';
-import { Database, Download, Upload, RotateCcw, Save, FolderOpen, RefreshCw, X, AlertTriangle, LogIn, LogOut, KeyRound } from 'lucide-react';
+import { Database, Download, Upload, RotateCcw, Save, FolderOpen, RefreshCw, X, AlertTriangle, LogIn, LogOut, KeyRound, ExternalLink } from 'lucide-react';
 import { AnimatePresence, motion } from 'motion/react';
 import { IS_EXTENSION_BUILD } from '../../services/apiBase';
 import type { LocalStore } from '../../store/localStore';
@@ -64,6 +64,9 @@ import { packDataEnvelope, restoreWidgetStorage, unpackDataEnvelope } from '../.
 import { reloadColorsData } from '../../store/colorsData';
 import { parseWetabData } from '../../data/wetab';
 import type { NavGroup } from '../../data/groups';
+
+/** Gitee 私人令牌页：扩展版粘贴令牌直连时，点「获取 Gitee 令牌」新标签页打开（页内右上角「生成新令牌」） */
+const GITEE_TOKEN_URL = 'https://gitee.com/profile/personal_access_tokens';
 
 /**
  * 同步模块（githubSync/giteeSync）返回的中文错误文案 → 当前语言。
@@ -1632,6 +1635,15 @@ export default function DataMenu({
                     autoComplete="off"
                     className="mt-2 w-full px-3 py-2 rounded-xl bg-white/6 border border-white/12 text-xs text-white placeholder:text-white/30 outline-none focus:border-violet-400/60"
                   />
+                  <a
+                    href={GITEE_TOKEN_URL}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    data-testid="data-gitee-token-link"
+                    className="mt-2 w-full flex items-center justify-center gap-2 px-3 py-2 rounded-xl bg-white/6 border border-white/12 text-white/85 text-xs font-medium hover:bg-white/10 transition-colors"
+                  >
+                    <ExternalLink size={14} /> {t('data.getGeToken')}
+                  </a>
                   <button
                     onClick={() => void connectWithGiteeToken()}
                     disabled={!gePatToken.trim()}

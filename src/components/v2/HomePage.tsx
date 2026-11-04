@@ -132,7 +132,7 @@ export default function HomePage({ onNavigate, store }: { onNavigate: (page: str
   useLongPressMenu();
   const { t, lang } = useLang();
   /* Dock 栏显隐（2026-11-04）：只存本机显示偏好，关时 DockBar 不挂、底部留白也不留 */
-  const { dockVisible } = useDisplayPrefs();
+  const { dockVisible, dockHide } = useDisplayPrefs();
   const { groups, widgets, widgetLayouts, groupLayouts } = store.data;
   /* 文件工具工作区状态（第八十六轮）：打开时本页要把文件工具卡（或含它的摞）
    * 的栏位高度抬高；状态本体在 toolsWorkspace store。原顶栏扳手定位已于
@@ -2085,7 +2085,13 @@ export default function HomePage({ onNavigate, store }: { onNavigate: (page: str
       </AnimatePresence>
 
       {/* 底部 Dock 栏（2026-11-04）：fixed 悬在视口底部，留白只在 Dock 显示时留、免得盖住末行卡片 */}
-      {dockVisible && <div aria-hidden className="h-20 sm:h-24 shrink-0" />}
+      {dockVisible && (
+        <div
+          aria-hidden
+          // Dock 栏占位：一直显示/自动隐藏时留整条栏高；一直隐藏时只剩 ⋮ 钮，留小一点
+          className={dockHide === 'hide' ? 'h-10 shrink-0' : 'h-20 sm:h-24 shrink-0'}
+        />
+      )}
       <DockBar store={store} />
     </div>
   );

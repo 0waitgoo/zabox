@@ -6,7 +6,10 @@ import { autoSiteLogo, type NavGroup, type SiteEntry } from '../data/groups';
  * 验证通过的才算命中，同样经面板逐项确认后才写回（调用方负责）。
  * 判定口径与渲染兜底链一致（见 Card.tsx nextFallbackIconSrc）：本地品牌图标 → 本站
  * /favicon.ico → 字母。扫描只处理“当前显示字标”的站：手动设过文字图标、自己上传
- * 过图标的站一律跳过；已有远端地址的站先验证现地址，加载成功就不动。
+ * 过图标的站一律跳过；已有地址的站（远端地址或本地品牌图路径）先验证现地址能不
+ * 能加载，加载成功就不动——本地路径按名猜的居多（/icon_APP/<站名>.svg），文件不
+ * 存在时卡面实际显示字标，旧口径“本地路径一律跳过”会把这类站漏出计数（2026-11-04
+ * 用户报：报 7 个没找到，主页仍有大量字标站）。
  * 候选只取三处：种子库已知的同域品牌图标、本站 /favicon.ico、本站 apple-touch-icon；
  * 全部加载失败且 AI 也没找到的站保持字标不动。写回前必须经面板逐项确认（调用方负责）。
  */
@@ -32,14 +35,13 @@ export function probeImageUrl(url: string, timeoutMs = 4000): Promise<boolean> {
 
 type ProbeKind = 'skip' | 'fill' | 'verify';
 
-/** 该站是否参与补图标：skip = 手动图标/本地品牌图/无 id（无法定位写回）；fill = 无可用地址；verify = 有远端地址待验证 */
+/** 该站是否参与补图标：skip = 手动图标（text/upload）/无 id（无法定位写回）；fill = 无可用地址；verify = 有地址待验证（远端地址或本地品牌图路径，加载失败才列入补齐） */
 export function iconFillProbeKind(site: SiteEntry): ProbeKind {
   if (site.iconMode === 'text' || site.iconMode === 'upload') return 'skip';
   if (!site.id) return 'skip';
   const logo = (site.logo ?? '').trim();
   if (!logo) return 'fill';
   if (logo.startsWith('data:')) return 'fill';
-  if (logo.startsWith('/')) return 'skip';
   return 'verify';
 }
 
@@ -116,7 +118,7 @@ export async function scanIconFill(
   const runOne = async (job: Job): Promise<void> => {
     const { site } = job;
     const logo = (site.logo ?? '').trim();
-    // 有远端地址的站：现地址能加载就不动
+    // 有地址的站（远端或本地品牌图）：现地址能加载就不动，加载失败才试候选
     if (iconFillProbeKind(site) === 'verify' && logo && (await load(logo, timeoutMs))) {
       done++;
       report();

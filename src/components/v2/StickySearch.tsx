@@ -187,7 +187,7 @@ export default function StickySearch({
               animate={{ opacity: 1, y: 0 }}
               exit={{ opacity: 0, y: 6 }}
               transition={{ duration: 0.15 }}
-              className="absolute left-0 right-0 top-full mt-2 rounded-3xl bg-[#17171d] border border-white/15 p-2 shadow-2xl shadow-black/70 max-h-[60vh] overflow-y-auto z-50"
+ className="absolute left-0 right-0 top-full mt-2 rounded-3xl bg-[#17171d] border border-white/15 p-2 max-h-[60vh] overflow-y-auto z-50"
             >
               {!hasResults && (
                 <div className="px-4 py-6 text-center text-sm text-white/55">{t('search.empty')}</div>

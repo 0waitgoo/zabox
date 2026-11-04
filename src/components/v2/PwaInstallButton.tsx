@@ -91,7 +91,7 @@ export default function PwaInstallButton() {
       {open && (
         <div
           data-pwa-install-guide
-          className="absolute right-0 top-full mt-2 w-64 max-w-[calc(100vw-24px)] rounded-3xl bg-[#17171d] border border-white/15 p-3.5 shadow-2xl shadow-black/70 z-50"
+ className="absolute right-0 top-full mt-2 w-64 max-w-[calc(100vw-24px)] rounded-3xl bg-[#17171d] border border-white/15 p-3.5 z-50"
         >
           <p className="text-[13px] font-medium text-white/90 pb-1.5">{t('nav.pwaHeading')}</p>
           {isIOS ? (

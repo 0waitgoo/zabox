@@ -40,7 +40,7 @@ export default function DesktopCreateMenu({ position, onClose, onCreate }: {
   const itemClass = 'w-full flex items-center gap-2 px-2.5 py-2 rounded-lg text-left text-xs text-white/80 hover:bg-white/10 focus-visible:bg-white/10 outline-none';
   return (
     <div ref={ref} role="menu" aria-label="新建" data-row-menu
-      className="fixed z-[100] w-44 rounded-xl bg-[#1e1e26] border border-white/15 shadow-xl p-1.5"
+ className="fixed z-[100] w-44 rounded-xl bg-[#1e1e26] border border-white/15 p-1.5"
       style={{ left: Math.max(8, Math.min(position.x, window.innerWidth - 184)), top: Math.max(8, Math.min(position.y, window.innerHeight - 92)) }}
       onContextMenu={(event) => { event.preventDefault(); event.stopPropagation(); }}>
       <button type="button" role="menuitem" onClick={() => onCreate('task')} className={itemClass}><Plus size={14} />新建待办</button>

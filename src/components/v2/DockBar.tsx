@@ -244,7 +244,7 @@ export default function DockBar({ store }: { store: LocalStore }) {
         data-dock-bar
         onMouseEnter={clearAutoHideTimer}
         onMouseLeave={scheduleAutoHide}
-        className={`fixed bottom-3 sm:bottom-5 left-1/2 z-50 -translate-x-1/2 flex items-center gap-1 sm:gap-1.5 rounded-[28px] border border-white/10 bg-[#14141a]/70 ${size.padClass} shadow-2xl shadow-black/60 backdrop-blur-md max-w-[calc(100vw-20px)] overflow-x-auto select-none transition-all duration-300 ${
+ className={`fixed bottom-3 sm:bottom-5 left-1/2 z-50 -translate-x-1/2 flex items-center gap-1 sm:gap-1.5 rounded-[28px] border border-white/10 bg-[#14141a]/70 ${size.padClass} backdrop-blur-md max-w-[calc(100vw-20px)] overflow-x-auto select-none transition-all duration-300 ${
           dockHide === 'auto' && !barShown ? 'translate-y-[140%] opacity-0 pointer-events-none' : ''
         }`}
       >
@@ -326,7 +326,7 @@ export default function DockBar({ store }: { store: LocalStore }) {
             style={{ left: drag.x - size.btn / 2, top: drag.y - (size.icon + 8) / 2, width: size.btn }}
           >
             <div
-              className={`flex ${size.btnClass} items-center justify-center rounded-2xl p-1 bg-[#14141a]/90 shadow-2xl shadow-black/60 scale-105 ${
+ className={`flex ${size.btnClass} items-center justify-center rounded-2xl p-1 bg-[#14141a]/90 scale-105 ${
                 drag.outside ? 'ring-2 ring-red-400' : 'ring-1 ring-white/25'
               }`}
             >
@@ -339,7 +339,7 @@ export default function DockBar({ store }: { store: LocalStore }) {
               />
             </div>
             {drag.outside && (
-              <span className="rounded-full bg-red-500 px-2 py-0.5 text-[10px] font-medium text-white shadow-lg whitespace-nowrap">
+ <span className="rounded-full bg-red-500 px-2 py-0.5 text-[10px] font-medium text-white whitespace-nowrap">
                 {t('dock.dragRemove')}
               </span>
             )}
@@ -370,7 +370,7 @@ export default function DockBar({ store }: { store: LocalStore }) {
             <div
               ref={settingsRef}
               data-dock-settings-panel
-              className="fixed z-[90] w-[208px] rounded-2xl border border-white/12 bg-[#1c1c24] p-1.5 shadow-2xl shadow-black/60"
+ className="fixed z-[90] w-[208px] rounded-2xl border border-white/12 bg-[#1c1c24] p-1.5"
               style={{ left, top }}
             >
               <p className="px-2 pb-1 pt-1.5 text-[13px] font-medium text-white/90">{t('dock.settings')}</p>
@@ -415,7 +415,7 @@ export default function DockBar({ store }: { store: LocalStore }) {
             <div
               ref={menuRef}
               data-dock-menu
-              className="fixed z-[90] w-[160px] rounded-2xl border border-white/12 bg-[#1c1c24] p-1 shadow-2xl shadow-black/60"
+ className="fixed z-[90] w-[160px] rounded-2xl border border-white/12 bg-[#1c1c24] p-1"
               style={{ left, top }}
             >
               <button

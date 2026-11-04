@@ -1690,7 +1690,7 @@ export default function HomePage({ onNavigate, store }: { onNavigate: (page: str
         >
           <div className="relative w-full h-full">
             <div
-              className="w-full h-full rounded-[26px] overflow-hidden shadow-2xl shadow-black/80 ring-1 ring-white/25 opacity-95 scale-[1.02] [&>*]:h-full"
+ className="w-full h-full rounded-[26px] overflow-hidden ring-1 ring-white/25 opacity-95 scale-[1.02] [&>*]:h-full"
               dangerouslySetInnerHTML={{ __html: dragSnap.html }}
             />
             {/* 合并充能提示（第二十一轮修订，第三十七轮改 2 秒）：拖影底部进度条，满 2 秒点亮「可合并文件夹」 */}
@@ -1762,7 +1762,7 @@ export default function HomePage({ onNavigate, store }: { onNavigate: (page: str
             animate={{ opacity: 1, scale: 1 }}
             exit={{ opacity: 0, scale: 0.96 }}
             transition={{ duration: 0.12 }}
-            className="fixed z-[80] w-[200px] rounded-2xl bg-[#1e1e26] border border-white/15 shadow-2xl shadow-black/70 p-2.5"
+ className="fixed z-[80] w-[200px] rounded-2xl bg-[#1e1e26] border border-white/15 p-2.5"
             style={{ left: sizeMenu.x, top: sizeMenu.y }}
           >
             <p className="px-1 pb-2 text-[11px] font-medium text-white/60">{sizeMenuTitle}</p>
@@ -1970,7 +1970,7 @@ export default function HomePage({ onNavigate, store }: { onNavigate: (page: str
             exit={{ opacity: 0, scale: 0.96 }}
             transition={{ duration: 0.12 }}
             data-blank-menu
-            className="fixed z-[80] w-[200px] rounded-2xl bg-[#1e1e26] border border-white/15 shadow-2xl shadow-black/70 p-2"
+ className="fixed z-[80] w-[200px] rounded-2xl bg-[#1e1e26] border border-white/15 p-2"
             style={{ left: blankMenu.x, top: blankMenu.y }}
           >
             <button
@@ -2016,7 +2016,7 @@ export default function HomePage({ onNavigate, store }: { onNavigate: (page: str
               transition={{ duration: 0.18 }}
               onClick={(e) => e.stopPropagation()}
               data-new-group-modal
-              className="rounded-[24px] bg-[#17171d] border border-white/10 w-full max-w-sm p-4 shadow-2xl shadow-black/60"
+ className="rounded-[24px] bg-[#17171d] border border-white/10 w-full max-w-sm p-4"
             >
               <div className="flex items-center justify-between mb-3">
                 <h3 className="font-semibold text-sm">{t('menu.newGroup')}</h3>

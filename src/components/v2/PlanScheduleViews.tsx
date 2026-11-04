@@ -657,7 +657,7 @@ export function MonthView({ store }: { store: LocalStore }) {
           onClick={() => setEditor(null)}
         >
           <div
-            className="w-full max-w-sm rounded-[28px] bg-[#17171d] border border-white/15 p-4 shadow-2xl shadow-black/70"
+ className="w-full max-w-sm rounded-[28px] bg-[#17171d] border border-white/15 p-4"
             onClick={(e) => e.stopPropagation()}
             data-month-editor
           >

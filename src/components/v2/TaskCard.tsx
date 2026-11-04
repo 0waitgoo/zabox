@@ -281,7 +281,7 @@ export default function TaskCard({
               role="dialog"
               aria-modal="true"
               aria-label={tr('plan.downloadDesktop')}
-              className="w-full max-w-[340px] rounded-2xl bg-[#23232b] border border-white/10 p-5 shadow-2xl"
+ className="w-full max-w-[340px] rounded-2xl bg-[#23232b] border border-white/10 p-5"
               onClick={(e) => e.stopPropagation()}
             >
               <h3 className="text-[15px] font-semibold text-white mb-2">{tr('plan.downloadDesktop')}</h3>
@@ -326,7 +326,7 @@ export default function TaskCard({
       <div className="relative flex flex-col flex-1 min-h-0">
       {/* 头部：标题 + 今日进度 */}
       <div className="flex items-center gap-2 mb-2 shrink-0">
-        <div className="w-7 h-7 rounded-full bg-indigo-500 text-white shadow-[0_1px_4px_rgba(0,0,0,0.3)] ring-1 ring-black/20 flex items-center justify-center shrink-0">
+ <div className="w-7 h-7 rounded-full bg-indigo-500 text-white ring-1 ring-black/20 flex items-center justify-center shrink-0">
           <ListTodo size={14} />
         </div>
         <h3 className="font-semibold text-base sm:text-lg tracking-tight">{tr('widget.nameTask')}</h3>

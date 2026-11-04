@@ -130,7 +130,7 @@ export default function FileToolsCard({
               }`}
             >
               <span
-                className={`flex items-center justify-center bg-indigo-500 text-white shadow-[0_1px_4px_rgba(0,0,0,0.3)] ring-1 ring-black/20 shrink-0 ${
+ className={`flex items-center justify-center bg-indigo-500 text-white ring-1 ring-black/20 shrink-0 ${
                   compact ? 'w-7 h-7 rounded-lg' : 'w-10 h-10 rounded-xl'
                 }`}
               >

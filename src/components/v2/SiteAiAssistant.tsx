@@ -467,7 +467,7 @@ export default function SiteAiAssistant({
               transition={{ duration: 0.18 }}
               onClick={(e) => e.stopPropagation()}
               data-site-ai-panel
-              className="rounded-[24px] bg-[#17171d] border border-white/15 w-full max-w-lg max-h-[84vh] flex flex-col overflow-hidden shadow-2xl shadow-black/70"
+ className="rounded-[24px] bg-[#17171d] border border-white/15 w-full max-w-lg max-h-[84vh] flex flex-col overflow-hidden"
             >
               <div className="flex items-center justify-between px-4 pt-4 pb-2 shrink-0">
                 <h3 className="font-semibold text-sm flex items-center gap-2">

@@ -497,7 +497,7 @@ export function useSiteDragSort({
       style={{ width: clone.w, height: clone.h, visibility: 'hidden' }}
     >
       <div
-        className="w-full h-full rounded-2xl overflow-hidden bg-[#26262e] shadow-2xl shadow-black/70 ring-1 ring-white/25 opacity-95 scale-[1.03] [&>*]:w-full [&>*]:h-full"
+ className="w-full h-full rounded-2xl overflow-hidden bg-[#26262e] ring-1 ring-white/25 opacity-95 scale-[1.03] [&>*]:w-full [&>*]:h-full"
         dangerouslySetInnerHTML={{ __html: clone.html }}
       />
     </div>

@@ -34,7 +34,7 @@ export default function UnifiedSearchAiBar({
 
   const switchCls = (isActive: boolean) =>
     `flex items-center gap-1 rounded-full px-2 sm:px-2.5 py-1.5 text-xs font-medium transition-colors ${
-      isActive ? 'bg-white text-black shadow' : 'text-white/55 hover:text-white'
+ isActive ? 'bg-white text-black' : 'text-white/55 hover:text-white'
     }`;
 
   return (

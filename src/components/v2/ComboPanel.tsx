@@ -59,7 +59,7 @@ export default function ComboPanel({
             exit={{ opacity: 0, scale: 0.96, y: 8 }}
             transition={{ type: 'spring', damping: 26, stiffness: 300 }}
             data-combo-panel={combo.id}
-            className="relative rounded-[28px] bg-[#17171d] border border-white/10 w-full max-w-2xl max-h-[84vh] flex flex-col overflow-hidden shadow-2xl shadow-black/70"
+ className="relative rounded-[28px] bg-[#17171d] border border-white/10 w-full max-w-2xl max-h-[84vh] flex flex-col overflow-hidden"
           >
             {/* 弹窗头：组合标题 + 两组名 + 统一关闭 */}
             <div className="px-5 sm:px-6 pt-5 pb-1 shrink-0 flex items-center gap-2.5">

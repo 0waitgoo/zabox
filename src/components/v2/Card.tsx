@@ -60,7 +60,7 @@ export function Card({
  * 深色细环与浅投影定轮廓；改前为 /20 半透明底 + -300 粉彩字，压在壁纸/渐变上几乎看不见） */
 export function CardIconBadge({ children, className = 'bg-indigo-500 text-white' }: { children: React.ReactNode; className?: string }) {
   return (
-    <div className={`w-7 h-7 rounded-full flex items-center justify-center shrink-0 shadow-[0_1px_4px_rgba(0,0,0,0.3)] ring-1 ring-black/20 ${className}`}>
+ <div className={`w-7 h-7 rounded-full flex items-center justify-center shrink-0 ring-1 ring-black/20 ${className}`}>
       {children}
     </div>
   );

@@ -73,7 +73,7 @@ export default function SiteContextMenu({
     <div
       ref={ref}
       data-site-menu
-      className="fixed z-[90] w-[180px] rounded-2xl bg-[#1e1e26] border border-white/15 shadow-2xl shadow-black/70 p-1.5"
+ className="fixed z-[90] w-[180px] rounded-2xl bg-[#1e1e26] border border-white/15 p-1.5"
       style={{ left: state.x, top: state.y }}
       onClick={(e) => e.stopPropagation()}
       onContextMenu={(e) => e.preventDefault()}

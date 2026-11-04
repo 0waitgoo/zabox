@@ -75,7 +75,7 @@ export default function AppearanceSection({ store }: { store: LocalStore }) {
               }`}
               style={{ background: isOcean ? displayPrefs.oceanColor : preset.css }}
             >
-              <span className="absolute left-2 bottom-1.5 text-[11px] font-medium text-white/90 drop-shadow">
+ <span className="absolute left-2 bottom-1.5 text-[11px] font-medium text-white/90">
                 {BG_NAMES[preset.id] ?? preset.name}
               </span>
               {isOcean && (

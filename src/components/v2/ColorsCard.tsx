@@ -678,7 +678,7 @@ export default function ColorsCard({
           <div
             key={toast.id}
             data-copy-toast
-            className="pointer-events-none absolute bottom-3 left-1/2 z-20 flex -translate-x-1/2 items-center gap-1.5 whitespace-nowrap rounded-full bg-black/85 py-1.5 pl-2.5 pr-3 text-xs text-white shadow-lg ring-1 ring-white/15"
+ className="pointer-events-none absolute bottom-3 left-1/2 z-20 flex -translate-x-1/2 items-center gap-1.5 whitespace-nowrap rounded-full bg-black/85 py-1.5 pl-2.5 pr-3 text-xs text-white ring-1 ring-white/15"
           >
             {toast.hex && <span className="h-3 w-3 rounded-full ring-1 ring-white/40" style={{ backgroundColor: toast.hex }} />}
             <Check size={13} className="text-emerald-300" />

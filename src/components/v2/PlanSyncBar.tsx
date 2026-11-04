@@ -248,7 +248,7 @@ export default function PlanSyncBar({
       {status && (status.includes('失败')
         ? <button type="button" title={status} aria-label="查看错误详情" onClick={() => setShowError((value) => !value)} className="shrink-0 text-red-400"><CircleAlert size={14} /></button>
         : <span role="status" className="sr-only">{status}</span>)}
-      {showError && status?.includes('失败') && <div role="alert" className="fixed left-2 right-2 top-11 z-[120] flex items-start gap-2 rounded-lg border border-red-400/40 bg-[#1e1e26] px-3 py-2 text-xs text-white shadow-xl">
+ {showError && status?.includes('失败') && <div role="alert" className="fixed left-2 right-2 top-11 z-[120] flex items-start gap-2 rounded-lg border border-red-400/40 bg-[#1e1e26] px-3 py-2 text-xs text-white">
         <span className="flex-1">{status}</span>
         <button type="button" aria-label="关闭错误提示" onClick={() => setShowError(false)}><X size={14} /></button>
       </div>}

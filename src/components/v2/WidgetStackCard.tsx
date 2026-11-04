@@ -75,7 +75,7 @@ export default function WidgetStackCard({
               onClick={() => store.setWidgetStackActive(stack.id, id)}
               className={`flex items-center gap-1.5 pl-1 pr-2.5 py-1 rounded-full text-xs font-medium whitespace-nowrap border transition-colors ${
                 active
-                  ? 'bg-indigo-500 border-indigo-400 text-white shadow-[0_2px_8px_rgba(0,0,0,0.35)]'
+ ? 'bg-indigo-500 border-indigo-400 text-white'
                   : 'bg-[#23232c]/85 border-white/10 text-white/55 hover:text-white hover:border-white/25'
               }`}
             >

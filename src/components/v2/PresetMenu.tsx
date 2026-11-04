@@ -82,7 +82,7 @@ export default function PresetMenu({ store }: { store: LocalStore }) {
   const cardClass = (current: boolean, disabled = false, highlight = false) =>
     `w-full flex flex-col gap-0.5 px-3 py-2 rounded-2xl border text-left transition-all ${
       highlight
-        ? 'border-violet-400/70 bg-violet-500/15 shadow-[0_0_18px_rgba(167,139,250,0.35)] hover:border-violet-300/90'
+ ? 'border-violet-400/70 bg-violet-500/15 hover:border-violet-300/90'
         : current
           ? 'border-indigo-400/80 bg-white/8'
           : disabled
@@ -146,7 +146,7 @@ export default function PresetMenu({ store }: { store: LocalStore }) {
             transition={{ duration: 0.15 }}
             /* 面板实色不透明（同 BackgroundMenu 口径）：不用毛玻璃，避免透出后面卡片文字；
                marginLeft 为打开时算出的视口平移（手机防溢出，桌面恒 0），不与 motion 的 transform 冲突 */
-            className="absolute left-0 top-full mt-2 w-72 max-w-[calc(100vw-24px)] max-h-[85vh] overflow-y-auto rounded-3xl bg-[#17171d] border border-white/15 p-2.5 shadow-2xl shadow-black/70 z-50"
+ className="absolute left-0 top-full mt-2 w-72 max-w-[calc(100vw-24px)] max-h-[85vh] overflow-y-auto rounded-3xl bg-[#17171d] border border-white/15 p-2.5 z-50"
             style={{ marginLeft: panelShift }}
           >
             <p className="px-1 pb-1.5 text-[10px] tracking-wider text-white/40 uppercase">{t('preset.heading')}</p>
@@ -193,7 +193,7 @@ export default function PresetMenu({ store }: { store: LocalStore }) {
             role="dialog"
             aria-modal="true"
             aria-label={t('preset.overwriteTitle')}
-            className="w-full max-w-[340px] rounded-2xl bg-[#23232b] border border-white/10 p-5 shadow-2xl"
+ className="w-full max-w-[340px] rounded-2xl bg-[#23232b] border border-white/10 p-5"
             onClick={(e) => e.stopPropagation()}
           >
             <h3 className="text-[15px] font-semibold text-white mb-2">{t('preset.overwriteTitle')}</h3>

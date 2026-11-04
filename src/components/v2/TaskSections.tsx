@@ -679,7 +679,7 @@ export function TasksSection({ store, pinned = false }: { store: LocalStore; pin
           className="fixed left-0 top-0 z-[95] pointer-events-none will-change-transform"
           style={{ width: drag.clone.w }}
         >
-          <div className="flex items-center gap-2 rounded-xl bg-[#23232c] px-3 py-2 shadow-2xl shadow-black/70 ring-1 ring-white/25 opacity-95">
+ <div className="flex items-center gap-2 rounded-xl bg-[#23232c] px-3 py-2 ring-1 ring-white/25 opacity-95">
             {drag.clone.isGroup ? (
               <Layers size={13} className="text-zinc-300 shrink-0" />
             ) : (
@@ -950,7 +950,7 @@ function DoneClearMenu({
     <div
       ref={ref}
       data-done-clear-menu
-      className="fixed z-[90] w-[196px] rounded-2xl bg-[#1e1e26] border border-white/15 shadow-2xl shadow-black/70 p-1.5"
+ className="fixed z-[90] w-[196px] rounded-2xl bg-[#1e1e26] border border-white/15 p-1.5"
       style={{ left: x, top: y }}
       onClick={(e) => e.stopPropagation()}
       onContextMenu={(e) => e.preventDefault()}
@@ -1012,7 +1012,7 @@ function RowContextMenu({
     <div
       ref={ref}
       data-row-menu
-      className="fixed z-[90] w-[172px] rounded-2xl bg-[#1e1e26] border border-white/15 shadow-2xl shadow-black/70 p-1.5"
+ className="fixed z-[90] w-[172px] rounded-2xl bg-[#1e1e26] border border-white/15 p-1.5"
       style={{ left: state.x, top: state.y }}
       onClick={(e) => e.stopPropagation()}
       onContextMenu={(e) => e.preventDefault()}

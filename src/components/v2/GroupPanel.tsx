@@ -79,7 +79,7 @@ export default function GroupPanel({
             animate={{ opacity: 1, scale: 1, y: 0 }}
             exit={{ opacity: 0, scale: 0.96, y: 8 }}
             transition={{ type: 'spring', damping: 26, stiffness: 300 }}
-            className="relative rounded-[28px] bg-[#17171d] border border-white/10 w-full max-w-2xl max-h-[84vh] flex flex-col overflow-hidden shadow-2xl shadow-black/70"
+ className="relative rounded-[28px] bg-[#17171d] border border-white/10 w-full max-w-2xl max-h-[84vh] flex flex-col overflow-hidden"
           >
             <React.Fragment key={group.id}>
               <GroupPanelSection
@@ -356,7 +356,7 @@ export function GroupPanelSection({
                   }`}
                   style={{ backgroundColor: c.value }}
                 >
-                  {active && <Check size={11} className="text-white drop-shadow" />}
+ {active && <Check size={11} className="text-white" />}
                 </button>
               );
             })}

@@ -210,6 +210,10 @@ export const siteLogoFallback = logoFallback;
 
 /* ---------- 站点图标解析（第四十九轮）：全站唯一的图标来源判定 ---------- */
 
+/** 悬浮组名：扩展弹窗与右键菜单添加的站点都直接落进这个组（没有就新建）；
+ * 宽屏下它不占组卡、改在左侧悬浮条里显示（见 FloatingTabGroup），窄屏沿用普通组卡 */
+export const TAB_GROUP_NAME = 'tab';
+
 /** 字母图标底色板：按文字哈希稳定取色（同一文字永远同色）；表单选色与自动取色共用同一板 */
 export const LETTER_ICON_COLORS = ['#6366f1', '#0ea5e9', '#10b981', '#f59e0b', '#ef4444', '#8b5cf6', '#ec4899', '#14b8a6'];
 

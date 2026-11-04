@@ -274,7 +274,7 @@ export default function TaskCard({
         createPortal(
           <div
             data-plan-download-prompt
-            className="fixed inset-0 z-[70] bg-black/60 backdrop-blur-sm flex items-center justify-center p-4"
+            className="fixed inset-0 z-[70] bg-black/60 flex items-center justify-center p-4"
             onClick={() => setDownloadPromptOpen(false)}
           >
             <div

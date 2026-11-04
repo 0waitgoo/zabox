@@ -26,6 +26,7 @@ import {
 } from '../../store/localStore';
 import { placeInLanes, simulateDenseFlow, type LaneItemSpec } from './laneLayout';
 import UnifiedSearchAiBar from './UnifiedSearchAiBar';
+import { useWideRail } from './LeftRail';
 import DataMenu from './DataMenu';
 import PwaInstallButton from './PwaInstallButton';
 import PresetMenu from './PresetMenu';
@@ -157,6 +158,9 @@ export default function HomePage({ onNavigate, store }: { onNavigate: (page: str
   }, []);
   const wideViewport = viewportWidth >= 1024;
   const phoneViewport = viewportWidth < 640;
+  /* 宽屏左侧悬浮栏接管顶栏两组控件（LOGO/导航/中英＋下载/数据）时，本栏只剩搜索框；
+     窄屏与移动端沿用原排布（见 LeftRail.LEFT_RAIL_MIN_WIDTH） */
+  const wideRail = useWideRail();
   const visualCols: 1 | 2 | 4 = wideViewport ? 4 : phoneViewport ? 1 : 2;
   const visualColsRef = useRef(visualCols);
   visualColsRef.current = visualCols;
@@ -1550,18 +1554,25 @@ export default function HomePage({ onNavigate, store }: { onNavigate: (page: str
             （390px 时 177px）装不下、工具钮会被搜索框盖住一半无法点。移动端改左列按内容宽、
             右列吃剩余（搜索框可缩），lg 起仍是原 4 栏等分、左组位置与桌面完全一致 */}
         <div className="grid grid-cols-[auto_minmax(0,1fr)] lg:grid-cols-4 gap-3 sm:gap-4 items-center">
-          <div className="col-span-1 lg:col-span-2 flex items-center justify-start gap-2 min-w-0">
-            <TopLogo onClick={() => onNavigate('home')} />
-            <TopNav onPageChange={onNavigate} currentPage="home" presetsNode={<PresetMenu store={store} />} />
-          </div>
+          {!wideRail && (
+            <div className="col-span-1 lg:col-span-2 flex items-center justify-start gap-2 min-w-0">
+              <TopLogo onClick={() => onNavigate('home')} />
+              <TopNav onPageChange={onNavigate} currentPage="home" presetsNode={<PresetMenu store={store} />} />
+            </div>
+          )}
           {/* 一栏两模式（2026-10-30）：搜索与 AI 整理共用一栏，分段开关切换，平时只显示一栏。
               <lg 时本格自动落到第二行占满宽（左组只占 1 栏、剩 1 栏装不下 col-span-2），
-              避免开关 + 搜索框在窄屏被挤到 0 宽；lg 起恢复左右两半一行 */}
-          <div className="col-span-2 lg:col-span-2 flex items-center gap-2 min-w-0">
+              避免开关 + 搜索框在窄屏被挤到 0 宽；lg 起恢复左右两半一行。
+              宽屏悬浮栏接管时左组不渲染，搜索格定在第 3 栏起、位置与原来右半一致 */}
+          <div className={`col-span-2 lg:col-span-2 flex items-center gap-2 min-w-0 ${wideRail ? 'lg:col-start-3' : ''}`}>
             {/* 一栏两模式（2026-10-30）：搜索与 AI 整理共用一栏，分段开关切换，平时只显示一栏 */}
             <UnifiedSearchAiBar groups={groups} onOpenGroup={openGroupFromSearch} store={store} />
-            <PwaInstallButton />
-            <DataMenu store={store} />
+            {!wideRail && (
+              <>
+                <PwaInstallButton />
+                <DataMenu store={store} />
+              </>
+            )}
           </div>
         </div>
       </div>

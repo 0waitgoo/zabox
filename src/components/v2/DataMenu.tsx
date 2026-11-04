@@ -117,7 +117,14 @@ function translateSyncText(
  * 以及第十四轮的「保存到本地文件」：设置一次默认保存文件后，可点击保存或开自动保存
  * （数据一变化就自动写回该文件）；句柄存 IndexedDB，内容与导出 JSON 完全同一格式。
  */
-export default function DataMenu({ store }: { store: LocalStore }) {
+export default function DataMenu({
+  store,
+  panelAlign = 'right',
+}: {
+  store: LocalStore;
+  /** 面板开口方向：顶栏默认向右对齐；左侧悬浮栏里改向左开口，避免面板伸出视口外 */
+  panelAlign?: 'left' | 'right';
+}) {
   const { t } = useLang();
   const [open, setOpen] = useState(false);
   const [message, setMessage] = useState<{ ok: boolean; text: string } | null>(null);
@@ -1212,7 +1219,7 @@ export default function DataMenu({ store }: { store: LocalStore }) {
             exit={{ opacity: 0, y: 6 }}
             transition={{ duration: 0.15 }}
             /* 面板全不透明实色（第十二轮，与背景面板/搜索下拉同口径）：不用 glass-panel 的半透明毛玻璃，避免透出后面的卡片内容 */
- className="absolute right-0 top-full mt-2 w-64 max-h-[82vh] overflow-y-auto rounded-3xl bg-[#17171d] border border-white/15 p-2 z-50"
+ className={`absolute ${panelAlign === 'left' ? 'left-0' : 'right-0'} top-full mt-2 w-64 max-h-[82vh] overflow-y-auto rounded-3xl bg-[#17171d] border border-white/15 p-2 z-50`}
           >
             <p className="px-3 pt-2 pb-1 text-[10px] text-white/35 leading-relaxed">
               {t('data.intro')}

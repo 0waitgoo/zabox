@@ -16,7 +16,7 @@ interface BeforeInstallPromptEvent extends Event {
  * 已是独立运行态（standalone）时不渲染——装过的设备不再占顶栏位置。
  * 形态与顶栏其他图标同款：无底色、白色图标；浮层与预设/数据菜单同款实色面板 + 点外关闭。
  */
-export default function PwaInstallButton() {
+export default function PwaInstallButton({ panelAlign = 'right' }: { panelAlign?: 'left' | 'right' } = {}) {
   const [deferred, setDeferred] = useState<BeforeInstallPromptEvent | null>(null);
   const [installed, setInstalled] = useState(false);
   const [open, setOpen] = useState(false);
@@ -91,7 +91,7 @@ export default function PwaInstallButton() {
       {open && (
         <div
           data-pwa-install-guide
- className="absolute right-0 top-full mt-2 w-64 max-w-[calc(100vw-24px)] rounded-3xl bg-[#17171d] border border-white/15 p-3.5 z-50"
+ className={`absolute ${panelAlign === 'left' ? 'left-0' : 'right-0'} top-full mt-2 w-64 max-w-[calc(100vw-24px)] rounded-3xl bg-[#17171d] border border-white/15 p-3.5 z-50`}
         >
           <p className="text-[13px] font-medium text-white/90 pb-1.5">{t('nav.pwaHeading')}</p>
           {isIOS ? (

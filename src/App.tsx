@@ -3,6 +3,7 @@ import { startTabAddBridge } from './extension/tabAddBridge';
 import { TopLogo, TopNav } from './components/Sidebar';
 import HomePage from './components/v2/HomePage';
 import PresetMenu from './components/v2/PresetMenu';
+import LeftRail, { useWideRail } from './components/v2/LeftRail';
 import LiquidGlassFilter from './components/v2/LiquidGlassFilter';
 import { backgroundPresetOf, useLocalStore } from './store/localStore';
 import { loadBgImage } from './store/bgImageDb';
@@ -86,6 +87,9 @@ export default function App() {
   // （独立工具页已于第八十六轮删除，文件工具并入主页组件，不再是子页面）
   const isSubPage =
     currentPage === 'news' || currentPage === 'nav' || currentPage === 'store' || currentPage === 'plan';
+  /* 宽屏左侧悬浮栏（2026-11-05）：够宽时顶栏两组控件改由悬浮栏单实例渲染，
+     子页面顶栏左组与主页栏左组/下载/数据同步让位；窄屏沿用原顶栏 */
+  const wideRail = useWideRail();
   // 「深海蓝」第九十二轮改纯色自选：底色 = displayPrefs.oceanColor（默认 #0d2140 原深海蓝）；
   // 第四十四轮的 Binary Orbits 动态背景随之整体下线（本轮口径覆盖旧队列，不再挂载）
   const isOceanSolid = background.kind === 'preset' && background.presetId === 'ocean';
@@ -183,10 +187,12 @@ export default function App() {
                     给子页面 grid 同款 min-h 后两处左组中心线回到同一 Y 坐标。
                     列宽同主页：移动端左列按内容宽（加 LOGO 后约 207px，半屏装不下会溢出）、右列吃剩余 */}
                 <div className="grid grid-cols-[auto_minmax(0,1fr)] lg:grid-cols-4 gap-3 sm:gap-4 items-center min-h-12 sm:min-h-13">
-                  <div className="col-span-1 lg:col-span-2 flex items-center justify-start gap-2 min-w-0">
-                    <TopLogo onClick={() => handlePageChange('home')} />
-                    <TopNav onPageChange={handlePageChange} currentPage={currentPage} presetsNode={<PresetMenu store={store} />} />
-                  </div>
+                  {!wideRail && (
+                    <div className="col-span-1 lg:col-span-2 flex items-center justify-start gap-2 min-w-0">
+                      <TopLogo onClick={() => handlePageChange('home')} />
+                      <TopNav onPageChange={handlePageChange} currentPage={currentPage} presetsNode={<PresetMenu store={store} />} />
+                    </div>
+                  )}
                   <div className="col-span-1 lg:col-span-2" />
                 </div>
               </div>
@@ -207,6 +213,10 @@ export default function App() {
           </div>
         </main>
       </div>
+      {/* 左侧竖向悬浮栏（宽屏单实例，fixed 相对视口、随滚动一直可见；子页面只有左组，下载/数据仅主页） */}
+      {wideRail && (
+        <LeftRail store={store} currentPage={currentPage} onNavigate={handlePageChange} showExtras={!isSubPage} />
+      )}
     </div>
   );
 }

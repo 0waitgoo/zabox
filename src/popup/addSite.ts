@@ -16,7 +16,7 @@ import {
   validateStoreData,
   type StoreData,
 } from '../store/localStore';
-import type { NavGroup, SiteEntry } from '../data/groups';
+import { TAB_GROUP_NAME, type NavGroup, type SiteEntry } from '../data/groups';
 import {
   ghGetFile,
   ghPutFile,
@@ -61,6 +61,31 @@ export function readPopupStore(): ReadStoreResult {
 
 /** 与 addSite 同款的站点 id 生成（localStore 的 genId 未导出，格式一致即可） */
 const genSiteId = () => `s-${Date.now().toString(36)}${Math.random().toString(36).slice(2, 7)}`;
+const genGroupId = () => `g-${Date.now().toString(36)}${Math.random().toString(36).slice(2, 7)}`;
+
+/**
+ * 保证悬浮组（tab）存在：没有就新建一个 list 组，同时写进快照编组与当前编组（同 id），
+ * 与 buildAddedStore 的双写口径一致；快照为空时快照编组即当前编组、只建一份。
+ * 调用方拿到 groupId 后再走 buildAddedStore 写站点。
+ */
+export function ensureTabGroup(data: StoreData): { data: StoreData; groupId: string } {
+  const next: StoreData = structuredClone(data);
+  const snapshotGroups = next.myPreset ? next.myPreset.groups : next.groups;
+  const existing = snapshotGroups.find((g) => g.name === TAB_GROUP_NAME);
+  if (existing) return { data: next, groupId: existing.id };
+  const group: NavGroup = {
+    id: genGroupId(),
+    name: TAB_GROUP_NAME,
+    display: 'list',
+    subtitle: '',
+    tabColor: '',
+    sites: [],
+  };
+  snapshotGroups.push(group);
+  const live = next.groups.find((g) => g.id === group.id);
+  if (!live) next.groups.push(structuredClone(group));
+  return { data: next, groupId: group.id };
+}
 
 /** 网址去重比对：去首尾空白 + 末尾斜杠 */
 export const normalizeSiteUrl = (url: string): string => url.trim().replace(/\/+$/, '');

@@ -8,7 +8,7 @@ export function LangToggle() {
   const { lang, t } = useLang();
   const segCls = (isActive: boolean) =>
     `px-2 py-1 rounded-full text-[11px] font-semibold leading-none transition-colors ${
-      isActive ? 'bg-white text-black shadow' : 'text-white/55 hover:text-white'
+ isActive ? 'bg-white text-black' : 'text-white/55 hover:text-white'
     }`;
   return (
     <div

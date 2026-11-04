@@ -103,6 +103,11 @@ export default function DockBar({ store }: { store: LocalStore }) {
     drag && drag.order.every((k) => byKey.has(k))
       ? drag.order.map((k) => byKey.get(k)!)
       : resolved;
+  // 顺序签名（字符串）：ordered 与 drag 每轮渲染/每次 pointermove 都是新对象，
+  // 绝不能直接作 FLIP effect 的依赖——否则 effect 每轮重跑、cleanup 会把正在
+  // 跑的 200ms 动画当场取消，图标只剩跳变、动画看起来生硬（2026-11-04 实测）。
+  // 只有顺序签名变了（缺口搬家）才重算 FLIP，动画才能跑满全程。
+  const orderKey = ordered.map((item) => item.key).join('|');
   const draggedItem = drag ? byKey.get(drag.key) : undefined;
 
   // 右键菜单：点菜单外 / Esc 即关（栏是 fixed 定位，滚动不挪位，不用滚动关）
@@ -143,9 +148,14 @@ export default function DockBar({ store }: { store: LocalStore }) {
   }, [settingsOpen]);
 
   /** 拖动排序 FLIP 滑移动画：与收起网格/卡面同一套，缺口每搬一次家，其余图标
-   *  从旧槽位 200ms 滑到新槽位而不是跳变；被拖图标本身（透明占位）不参与动画 */
+   *  从旧槽位 200ms 滑到新槽位而不是跳变；被拖图标本身（透明占位）不参与动画。
+   *  依赖只取顺序签名 + 影响布局的偏好：pointermove 每轮都 setDrag 重渲染，
+   *  若依赖 ordered/drag 对象，cleanup 会在下一轮 pointermove 时取消正在跑的
+   *  动画、图标直接跳变——动画生硬的根因。签名不变时 effect 不重跑，动画跑满。 */
   const flipPrevRects = React.useRef(new Map<string, DOMRect>());
   const flipAnims = React.useRef(new Map<string, Animation>());
+  const dragKeyRef = React.useRef<string | null>(null);
+  dragKeyRef.current = drag?.key ?? null;
   React.useLayoutEffect(() => {
     const bar = barRef.current;
     if (!bar) return undefined;
@@ -156,9 +166,10 @@ export default function DockBar({ store }: { store: LocalStore }) {
       const id = el.dataset.siteDragId;
       if (id) curr.set(id, el.getBoundingClientRect());
     });
-    if (drag) {
+    const draggedKey = dragKeyRef.current;
+    if (draggedKey) {
       curr.forEach((rect, id) => {
-        if (id === drag.key) return;
+        if (id === draggedKey) return;
         const prev = flipPrevRects.current.get(id);
         if (!prev) return;
         const dx = prev.left - rect.left;
@@ -180,7 +191,7 @@ export default function DockBar({ store }: { store: LocalStore }) {
       flipAnims.current.forEach((a) => a.cancel());
       flipAnims.current.clear();
     };
-  }, [ordered, drag]);
+  }, [orderKey, dockSize, dockHide]);
 
   if (!dockVisible) return null;
 

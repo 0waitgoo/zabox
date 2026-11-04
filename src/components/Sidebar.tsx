@@ -70,16 +70,19 @@ export function TopNav({
   onPageChange,
   currentPage,
   presetsNode,
+  vertical = false,
 }: {
   onPageChange: (page: string) => void;
   currentPage: string;
   /** 预设入口（第一百零六轮，接替原扳手位）：面板需要 store，由持有方（App / HomePage）
    * 注入 <PresetMenu store={store} />；文件工具卡与商店入口不受影响，仍在主页上 */
   presetsNode?: React.ReactNode;
+  /** 竖排（左侧悬浮栏用）：指南针、预设、中英切换上下排，顺序与横排一致 */
+  vertical?: boolean;
 }) {
   const { t } = useLang();
   return (
-    <nav className="flex items-center gap-1.5 sm:gap-2">
+    <nav className={vertical ? 'flex flex-col items-center gap-1' : 'flex items-center gap-1.5 sm:gap-2'}>
       <NavItem
         icon={<Compass size={20} />}
         label={t('topbar.navAi')}

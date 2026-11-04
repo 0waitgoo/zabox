@@ -728,7 +728,13 @@ export interface DockEntry {
   siteId: string;
   /** 站点地址（跨预设解析与去重的稳定键）；老条目可能为空，按 siteId 解析 */
   url: string;
+  /** 迁入快照：站点已不在任何编组里时，Dock 凭它渲染图标与名字、点开 url。
+   * 只有从悬浮组拖进 Dock 时才写（拖出即删除原站，引用无处解析）；平时追加引用不带快照。 */
+  snapshot?: DockSiteSnapshot;
 }
+
+/** Dock 迁入快照：只存渲染所需字段（名字与图标管线输入），不存频率/置顶等编组内状态 */
+export type DockSiteSnapshot = Pick<SiteEntry, 'name' | 'logo' | 'iconMode' | 'iconText' | 'iconColor' | 'iconImage'>;
 
 /** 内置预设 id（第一百零六轮）：构成数据在 data/presets.ts，本层只认 id */
 export type BuiltinPresetId = 'default' | 'designer' | 'developer' | 'tools' | 'entertainment';
@@ -1205,7 +1211,19 @@ function normalizeDock(raw: unknown): DockEntry[] {
     if (seenIds.has(siteId) || (urlKey && seenUrls.has(urlKey))) continue;
     seenIds.add(siteId);
     if (urlKey) seenUrls.add(urlKey);
-    out.push({ groupId, siteId, url: urlStr });
+    const rawSnap = (item as { snapshot?: unknown }).snapshot;
+    let snapshot: DockSiteSnapshot | undefined;
+    if (rawSnap && typeof rawSnap === 'object') {
+      const s = rawSnap as Record<string, unknown>;
+      if (typeof s.name === 'string' && s.name) {
+        snapshot = { name: s.name, logo: typeof s.logo === 'string' ? s.logo : '' };
+        if (s.iconMode === 'auto' || s.iconMode === 'text' || s.iconMode === 'upload') snapshot.iconMode = s.iconMode;
+        if (typeof s.iconText === 'string') snapshot.iconText = s.iconText;
+        if (typeof s.iconColor === 'string') snapshot.iconColor = s.iconColor;
+        if (typeof s.iconImage === 'string') snapshot.iconImage = s.iconImage;
+      }
+    }
+    out.push(snapshot ? { groupId, siteId, url: urlStr, snapshot } : { groupId, siteId, url: urlStr });
   }
   return out;
 }
@@ -2648,14 +2666,14 @@ export function useLocalStore() {
   /* Dock 栏（2026-11-04）：只改 dock 引用数组，不走 update()——不翻预设、不刷新
    * 「我的」存档、不触发覆盖确认；updatedAt 照常刷新以便同步/导出带走 Dock。
    * 拖入已在 Dock 里的站点 = 无操作（不重复、不改位置）；主页编组与站点一概不动。 */
-  const addDockSite = useCallback((groupId: string, siteId: string, url: string = '') => {
+  const addDockSite = useCallback((groupId: string, siteId: string, url: string = '', snapshot?: DockSiteSnapshot) => {
     if (!groupId || !siteId) return;
     setData((prev) => {
       const dock = prev.dock ?? [];
       // 去重：同一 siteId、或同组同 url（切预设后 siteId 会变，url 是稳定键）都算已在 Dock
       if (dock.some((d) => d.siteId === siteId || (url && d.groupId === groupId && d.url === url))) return prev;
       const next = structuredClone(prev);
-      next.dock = [...dock, { groupId, siteId, url }];
+      next.dock = [...dock, snapshot ? { groupId, siteId, url, snapshot } : { groupId, siteId, url }];
       next.updatedAt = Date.now();
       return next;
     });

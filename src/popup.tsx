@@ -301,7 +301,7 @@ function PopupApp() {
           )}
 
           <div className="flex justify-center py-1">
-            <img src={previewSrc} alt="图标预览" className="h-[76px] w-[76px] rounded-[20px] shadow-lg shadow-black/40" />
+ <img src={previewSrc} alt="图标预览" className="h-[76px] w-[76px] rounded-[20px]" />
           </div>
 
           <div className="grid grid-cols-10 gap-2 px-1">

@@ -1253,6 +1253,56 @@ export function validateStoreData(raw: unknown): StoreData | null {
     独立 key，不进同步 JSON；只在首次加载新版时清一次，之后新计划正常读写 */
 const PLANS_RESET_KEY = 'ainav-plans-reset-20261026';
 
+/** Dock 默认补齐标记（2026-11-05 用户定）：只在首次加载时补一次，之后用户
+ *  删空 Dock 不再补；独立 key，不进同步 JSON */
+const DOCK_DEFAULTS_SEEDED_KEY = 'ainav-dock-defaults-20261105';
+
+/** Dock 默认站（2026-11-05 用户定，顺序即 Dock 顺序）：Dock 为空时默认放这 4 个。
+ *  只按 url 在当前编组里找得到才放引用，找不到的不建站（主页数据不动、站名不猜）。 */
+const DEFAULT_DOCK_URLS: readonly string[] = [
+  'https://chat.openai.com',
+  'https://claude.ai',
+  'https://mp.weixin.qq.com/s/Ak0rWbeGi0LtmbyqngAzlQ',
+  'https://media.hiitun.top/',
+];
+
+/** 按默认 url 在编组里解析 Dock 引用：取首个地址相符的站点（末尾斜杠不计），
+ *  条目用站点自身的 groupId / siteId / url（与 DockBar 解析口径一致）；未找到的跳过。 */
+function resolveDefaultDockEntries(groups: NavGroup[]): DockEntry[] {
+  const norm = (u: string) => u.replace(/\/+$/, '');
+  const out: DockEntry[] = [];
+  for (const target of DEFAULT_DOCK_URLS) {
+    const want = norm(target);
+    for (const group of groups) {
+      const site = group.sites.find((s) => norm(s.url) === want);
+      if (site && typeof site.id === 'string' && site.id) {
+        out.push({ groupId: group.id, siteId: site.id, url: site.url });
+        break;
+      }
+    }
+  }
+  return out;
+}
+
+/** Dock 为空时补默认引用（2026-11-05）：已有 Dock 时原样不动；补齐后立即落盘并
+ *  立标记（之后删空不再补），updatedAt 刷新以便同步把默认 Dock 带走；写盘失败时
+ *  本次仍显示默认、下次加载再补。 */
+function seedDefaultDock(data: StoreData): StoreData {
+  if ((data.dock ?? []).length > 0) return data;
+  try {
+    if (localStorage.getItem(DOCK_DEFAULTS_SEEDED_KEY)) return data;
+    const entries = resolveDefaultDockEntries(data.groups);
+    if (entries.length === 0) return data;
+    data.dock = entries;
+    data.updatedAt = Date.now();
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(data));
+    localStorage.setItem(DOCK_DEFAULTS_SEEDED_KEY, '1');
+  } catch {
+    /* 忽略，下次加载再补，不影响本次显示 */
+  }
+  return data;
+}
+
 function loadInitial(): StoreData {
   try {
     const raw = localStorage.getItem(STORAGE_KEY);
@@ -1272,13 +1322,13 @@ function loadInitial(): StoreData {
         } catch {
           /* 忽略，下次加载再清，不影响本次显示 */
         }
-        return parsed;
+        return seedDefaultDock(parsed);
       }
     }
   } catch {
     // 存储损坏/不可用时回落种子
   }
-  return seedData();
+  return seedDefaultDock(seedData());
 }
 
 /** 用户新增站点的图标：优先内置映射，其次本站 favicon，再由 SiteLogo 兜底。

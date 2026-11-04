@@ -122,7 +122,7 @@ export default function TrendingWidget({
       <div className="relative flex flex-col flex-1 min-h-0">
         <div className="flex items-center justify-between gap-2 mb-3 shrink-0">
           <div className="flex items-center gap-2 min-w-0">
-            <div className="w-7 h-7 rounded-full bg-indigo-500 text-white shadow-[0_1px_4px_rgba(0,0,0,0.3)] ring-1 ring-black/20 flex items-center justify-center shrink-0">
+ <div className="w-7 h-7 rounded-full bg-indigo-500 text-white ring-1 ring-black/20 flex items-center justify-center shrink-0">
               <TrendingUp size={14} />
             </div>
             <h3 className="font-semibold text-base sm:text-lg tracking-tight truncate">{t('widget.trendingTitle')}</h3>

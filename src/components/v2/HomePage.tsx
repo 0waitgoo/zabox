@@ -1,7 +1,7 @@
 import React, { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { AnimatePresence, motion } from 'motion/react';
 import { LayoutGrid, FolderPlus, X, Check, List, Folder, Unlink, Palette, LogOut, ChevronDown } from 'lucide-react';
-import { GROUP_NAME_MAX, clampGroupName, textCharCount, type GroupDisplay, type NavGroup } from '../../data/groups';
+import { GROUP_NAME_MAX, TAB_GROUP_NAME, clampGroupName, textCharCount, type GroupDisplay, type NavGroup } from '../../data/groups';
 import {
   cardFaceStyleOf,
   clampColSpan,
@@ -205,8 +205,15 @@ export default function HomePage({ onNavigate, store }: { onNavigate: (page: str
   } | null>(null);
   const tabSnapRef = useRef<HTMLDivElement>(null);
 
-  const listGroups = useMemo(() => groups.filter((g) => g.display === 'list'), [groups]);
-  const stackGroups = useMemo(() => groups.filter((g) => g.display === 'stack'), [groups]);
+  /* 宽屏下 tab 组不占组卡、改由左侧悬浮组显示（FloatingTabGroup）；窄屏沿用普通组卡 */
+  const listGroups = useMemo(
+    () => groups.filter((g) => g.display === 'list' && !(wideRail && g.name === TAB_GROUP_NAME)),
+    [groups, wideRail],
+  );
+  const stackGroups = useMemo(
+    () => groups.filter((g) => g.display === 'stack' && !(wideRail && g.name === TAB_GROUP_NAME)),
+    [groups, wideRail],
+  );
 
   /* ---------- C 卡组合（第二十一轮）：有效组合 = 两个成员都还在且仍为 stack 型；
      失效组合（成员被删/改型）渲染侧直接忽略，成员组按普通卡出现（store 归一化也会清） ---------- */

@@ -457,7 +457,7 @@ export default function SiteAiAssistant({
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
-            className="fixed inset-0 z-[70] bg-black/60 backdrop-blur-sm flex items-center justify-center p-4"
+            className="fixed inset-0 z-[70] bg-black/60 flex items-center justify-center p-4"
             onClick={closePanel}
           >
             <motion.div
@@ -494,7 +494,7 @@ export default function SiteAiAssistant({
                 </div>
               </div>
 
-              <div className="flex-1 overflow-y-auto px-4 pb-4 min-h-0">
+              <div className="flex-1 overflow-y-auto px-4 pb-4 min-h-0 bg-[#17171d]">
                 {view === 'settings' ? (
                   <div className="flex flex-col gap-3">
                     <p className="text-[11px] text-white/45 leading-relaxed">
@@ -758,7 +758,7 @@ export default function SiteAiAssistant({
                         ) : (
                           <div className="flex flex-col gap-1">
                             {collect.candidates.map((c) => (
-                              <div key={c.url} className="flex items-start gap-2 rounded-xl bg-white/[0.03] border border-white/10 px-2.5 py-2">
+                              <div key={c.url} className="flex items-start gap-2 rounded-xl bg-[#1e1e26] border border-white/10 px-2.5 py-2">
                                 <input
                                   type="checkbox"
                                   data-site-ai-candidate={c.url}

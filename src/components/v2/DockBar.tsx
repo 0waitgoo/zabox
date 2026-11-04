@@ -20,7 +20,8 @@ import { SiteLogo } from './Card';
  *
  * 删除与排序（2026-11-04 用户定）：悬停 × 已删——右键出菜单删除，或把图标
  * 拖出 Dock 栏松手删除；左右拖动改变位置。三种操作都只改 dock 引用数组，
- * 主页数据一概不动。
+ * 主页数据一概不动。拖动排序时其余图标 FLIP 滑移（与收起网格/卡面同一套
+ * 200ms 滑移动画，缺口搬家时滑过去而不是跳变，2026-11-04 用户定）。
  *
  * 名字与设置（2026-11-04 用户定）：Dock 里只显示图标、不显示名字（悬停看
  * 原生 title）；栏右端一个 ⋮ 按钮开设置面板：隐藏三态（一直显示 / 自动隐藏 /
@@ -140,6 +141,46 @@ export default function DockBar({ store }: { store: LocalStore }) {
       document.removeEventListener('keydown', onKey);
     };
   }, [settingsOpen]);
+
+  /** 拖动排序 FLIP 滑移动画：与收起网格/卡面同一套，缺口每搬一次家，其余图标
+   *  从旧槽位 200ms 滑到新槽位而不是跳变；被拖图标本身（透明占位）不参与动画 */
+  const flipPrevRects = React.useRef(new Map<string, DOMRect>());
+  const flipAnims = React.useRef(new Map<string, Animation>());
+  React.useLayoutEffect(() => {
+    const bar = barRef.current;
+    if (!bar) return undefined;
+    flipAnims.current.forEach((a) => a.cancel());
+    flipAnims.current.clear();
+    const curr = new Map<string, DOMRect>();
+    bar.querySelectorAll<HTMLElement>('[data-site-drag-id]').forEach((el) => {
+      const id = el.dataset.siteDragId;
+      if (id) curr.set(id, el.getBoundingClientRect());
+    });
+    if (drag) {
+      curr.forEach((rect, id) => {
+        if (id === drag.key) return;
+        const prev = flipPrevRects.current.get(id);
+        if (!prev) return;
+        const dx = prev.left - rect.left;
+        const dy = prev.top - rect.top;
+        if (Math.abs(dx) < 1 && Math.abs(dy) < 1) return;
+        const el = bar.querySelector<HTMLElement>(`[data-site-drag-id="${id}"]`);
+        if (!el) return;
+        flipAnims.current.set(
+          id,
+          el.animate(
+            [{ transform: `translate(${dx}px, ${dy}px)` }, { transform: 'translate(0px, 0px)' }],
+            { duration: 200, easing: 'ease-out' },
+          ),
+        );
+      });
+    }
+    flipPrevRects.current = curr;
+    return () => {
+      flipAnims.current.forEach((a) => a.cancel());
+      flipAnims.current.clear();
+    };
+  }, [ordered, drag]);
 
   if (!dockVisible) return null;
 

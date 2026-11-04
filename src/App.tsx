@@ -4,6 +4,7 @@ import { TopLogo, TopNav } from './components/Sidebar';
 import HomePage from './components/v2/HomePage';
 import PresetMenu from './components/v2/PresetMenu';
 import LeftRail, { useWideRail } from './components/v2/LeftRail';
+import FloatingTabGroup from './components/v2/FloatingTabGroup';
 import LiquidGlassFilter from './components/v2/LiquidGlassFilter';
 import { backgroundPresetOf, useLocalStore } from './store/localStore';
 import { loadBgImage } from './store/bgImageDb';
@@ -217,6 +218,8 @@ export default function App() {
       {wideRail && (
         <LeftRail store={store} currentPage={currentPage} onNavigate={handlePageChange} showExtras={!isSubPage} />
       )}
+      {/* 左侧悬浮组（宽屏单实例：tab 组有站点时显示，空组隐藏；窄屏组卡照常显示） */}
+      {wideRail && <FloatingTabGroup store={store} />}
     </div>
   );
 }

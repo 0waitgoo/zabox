@@ -1,17 +1,18 @@
 /**
- * 扩展添加面板（popup）：在任意网站点扩展图标，把当前网站加进「我的」预设的某个组。
- * 与新标签页同 origin（chrome-extension://），直接读写同一份 localStorage 数据；
- * 写完立即按现有 GitHub 同步协议推一次（见 src/popup/addSite.ts）。
- * 参考面板字段：名称（默认当前页标题，可改）、组名下拉、颜色、图标文字、确定；
- * 顶部保留「打开主页」「打开侧边栏」两个入口。
+ * 扩展添加面板（popup）：在任意网站点扩展图标，把当前网站直接加进悬浮组（名叫 tab 的组），
+ * 不让用户选分组；悬浮组没有就新建。与新标签页同 origin（chrome-extension://），
+ * 直接读写同一份 localStorage 数据；写完立即按现有 GitHub 同步协议推一次（见 src/popup/addSite.ts）。
+ * 面板字段只留：名称（默认当前页标题，可改）、8 色板、图标文字、确定；
+ * 下载桌面待办 App 的按钮置顶，顶部保留「打开主页」「打开侧边栏」两个入口。
  */
 import { useEffect, useMemo, useState } from 'react';
 import { createRoot } from 'react-dom/client';
-import { Check, ChevronDown, Download, Globe, Home, LayoutGrid, Link2, PanelRightOpen, Type } from 'lucide-react';
+import { Check, Download, Globe, Home, Link2, PanelRightOpen, Type } from 'lucide-react';
 import './index.css';
-import { letterIconDataUri } from './data/groups';
+import { LETTER_ICON_COLORS, letterIconDataUri, TAB_GROUP_NAME } from './data/groups';
 import {
   buildAddedStore,
+  ensureTabGroup,
   isSiteInGroup,
   normalizeSiteUrl,
   pushAddedStore,
@@ -19,23 +20,15 @@ import {
   savePopupStore,
   type ReadStoreResult,
 } from './popup/addSite';
-import type { NavGroup } from './data/groups';
 
 const HOME_URL = 'https://zahe.hiitun.top/';
-const LAST_GROUP_KEY = 'zabox-popup-last-group';
 
 /** 计划桌面版下载直链：与计划卡头部按钮同一地址（GitHub 滚动 Release「plan-desktop」0.1.8 版；
  * 中文界面走 Gitee 的口径待 Gitee 上有了发行版再接——Gitee 公开核查暂无 zabox 仓库） */
 const PLAN_DESKTOP_DOWNLOAD_URL =
   'https://github.com/0waitgoo/zabox/releases/download/plan-desktop/_0.1.8_x64-setup.exe';
 
-/** 色板（贴近参考面板两排配色；最后一格彩虹 = 自动配色） */
-const PALETTE: string[] = [
-  '#f5a623', '#22c55e', '#14b8a6', '#3b82f6', '#2563eb',
-  '#8b5cf6', '#ec4899', '#ef4444', '#f43f5e', '#c9a98a',
-  '#b08968', '#a68a64', '#6b7c5e', '#7da08a', '#8fa3b8',
-  '#7c8aa5', '#9ca3af', '#1f2937', '#111827',
-];
+/** 色板 = 字母图标同一块 8 色板（与表单选色/自动取色共用）；不选 = 自动配色 */
 
 interface ExtTab {
   url?: string;
@@ -91,9 +84,7 @@ function PopupApp() {
   const [manualUrl, setManualUrl] = useState(false);
   const [name, setName] = useState('');
   const [nameTouched, setNameTouched] = useState(false);
-  const [groupId, setGroupId] = useState('');
   const [color, setColor] = useState('');
-  const [pickerOpen, setPickerOpen] = useState(false);
   const [iconText, setIconText] = useState('');
   const [status, setStatus] = useState('');
   const [added, setAdded] = useState(false);
@@ -102,11 +93,6 @@ function PopupApp() {
   useEffect(() => {
     const loaded = readPopupStore();
     setStore(loaded);
-    if (loaded.status === 'ok') {
-      const last = localStorage.getItem(LAST_GROUP_KEY);
-      const first = loaded.myGroups[0];
-      setGroupId(loaded.myGroups.some((g) => g.id === last) ? (last as string) : (first?.id ?? ''));
-    }
     void getCurrentPage().then((page) => {
       if (page) {
         setPageUrl(page.url);
@@ -117,8 +103,7 @@ function PopupApp() {
     });
   }, []);
 
-  const groups: NavGroup[] = store?.status === 'ok' ? store.myGroups : [];
-  const selectedGroup = groups.find((g) => g.id === groupId);
+  const tabGroup = store?.status === 'ok' ? store.myGroups.find((g) => g.name === TAB_GROUP_NAME) : undefined;
   const url = pageUrl;
   const urlValid = useMemo(() => {
     try {
@@ -128,8 +113,7 @@ function PopupApp() {
       return false;
     }
   }, [url]);
-  const duplicate = Boolean(selectedGroup && urlValid && isSiteInGroup(selectedGroup, url));
-  const isCustomColor = color !== '' && !PALETTE.includes(color);
+  const duplicate = Boolean(tabGroup && urlValid && isSiteInGroup(tabGroup, url));
   const previewText = iconText.trim() || [...name.trim()][0] || '?';
   const previewSrc = letterIconDataUri(previewText, color || undefined);
 
@@ -167,25 +151,25 @@ function PopupApp() {
   };
 
   const onConfirm = async () => {
-    if (store?.status !== 'ok' || !selectedGroup || !name.trim() || !urlValid || duplicate || saving) return;
+    if (store?.status !== 'ok' || !name.trim() || !urlValid || duplicate || saving) return;
     setSaving(true);
     setStatus('正在保存…');
     try {
       const finalUrl = normalizeSiteUrl(url);
-      const built = buildAddedStore(store.data, {
-        groupId: selectedGroup.id,
+      const prepared = ensureTabGroup(store.data);
+      const built = buildAddedStore(prepared.data, {
+        groupId: prepared.groupId,
         name: name.trim(),
         url: finalUrl,
         iconText: iconText.trim(),
         iconColor: color,
       });
       if (built.status !== 'added') {
-        setStatus('这个网站已在该组里了');
+        setStatus('这个网站已在悬浮组里了');
         setSaving(false);
         return;
       }
       savePopupStore(built.data);
-      localStorage.setItem(LAST_GROUP_KEY, selectedGroup.id);
       setStore(readPopupStore());
       setAdded(true);
       setSaving(false);
@@ -206,6 +190,14 @@ function PopupApp() {
 
   return (
     <div className="w-[360px] min-h-[520px] bg-[#17171d] text-white p-4 flex flex-col gap-3 font-sans">
+      <button
+        type="button"
+        data-testid="popup-download-desktop"
+        onClick={openDesktopDownload}
+        className="flex items-center justify-center gap-1.5 rounded-xl bg-white/[0.07] border border-white/10 px-2 py-2.5 text-sm hover:bg-white/10"
+      >
+        <Download size={16} /> 下载桌面待办 App
+      </button>
       <div className="flex gap-2">
         <button
           type="button"
@@ -273,39 +265,12 @@ function PopupApp() {
             </p>
           )}
 
-          <div className="relative">
-            <div className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-white/50">
-              <LayoutGrid size={16} />
-            </div>
-            <select
-              data-testid="popup-group"
-              value={groupId}
-              onChange={(e) => {
-                setGroupId(e.target.value);
-                resetAdded();
-              }}
-              className="w-full appearance-none rounded-xl bg-white/[0.07] border border-white/10 pl-9 pr-8 py-2.5 text-sm outline-none focus:border-violet-400/60 [&>option]:text-black"
-            >
-              {groups.map((g) => (
-                <option key={g.id} value={g.id}>
-                  {g.name}（{g.sites.length} 个站点）
-                </option>
-              ))}
-            </select>
-            <div className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-white/50">
-              <ChevronDown size={16} />
-            </div>
-          </div>
-          {store?.status === 'ok' && !store.hasMyPreset && (
-            <p className="px-1 text-xs text-white/45">当前显示主页编组，加进去后自动存为「我的」。</p>
-          )}
-
           <div className="flex justify-center py-1">
  <img src={previewSrc} alt="图标预览" className="h-[76px] w-[76px] rounded-[20px]" />
           </div>
 
-          <div className="grid grid-cols-10 gap-2 px-1">
-            {PALETTE.map((c) => (
+          <div className="grid grid-cols-9 gap-2 px-1">
+            {LETTER_ICON_COLORS.map((c) => (
               <button
                 key={c}
                 type="button"
@@ -313,7 +278,6 @@ function PopupApp() {
                 aria-label={`颜色 ${c}`}
                 onClick={() => {
                   setColor(c);
-                  setPickerOpen(false);
                   resetAdded();
                 }}
                 className={`h-6 w-6 rounded-full transition-transform hover:scale-110 ${color === c ? 'ring-2 ring-white ring-offset-2 ring-offset-[#17171d]' : ''}`}
@@ -323,47 +287,16 @@ function PopupApp() {
             <button
               type="button"
               data-testid="popup-color-auto"
-              aria-label="自定义颜色"
-              onClick={() => setPickerOpen((v) => !v)}
-              title="自定义颜色"
-              className={`h-6 w-6 rounded-full transition-transform hover:scale-110 ${color === '' || isCustomColor ? 'ring-2 ring-white ring-offset-2 ring-offset-[#17171d]' : ''}`}
-              style={
-                isCustomColor
-                  ? { backgroundColor: color }
-                  : { background: 'conic-gradient(#f43f5e, #f59e0b, #22c55e, #3b82f6, #8b5cf6, #f43f5e)' }
-              }
+              aria-label="自动配色"
+              title="自动配色"
+              onClick={() => {
+                setColor('');
+                resetAdded();
+              }}
+              className={`h-6 w-6 rounded-full transition-transform hover:scale-110 ${color === '' ? 'ring-2 ring-white ring-offset-2 ring-offset-[#17171d]' : ''}`}
+              style={{ background: 'conic-gradient(#f43f5e, #f59e0b, #22c55e, #3b82f6, #8b5cf6, #f43f5e)' }}
             />
           </div>
-
-          {pickerOpen && (
-            <div data-testid="popup-color-panel" className="flex items-center gap-2 px-1">
-              <input
-                type="color"
-                data-testid="popup-custom-color"
-                aria-label="选择颜色"
-                value={color || '#8b5cf6'}
-                onChange={(e) => {
-                  setColor(e.target.value);
-                  resetAdded();
-                }}
-                className="h-8 w-11 shrink-0 cursor-pointer rounded-lg border border-white/15 bg-transparent p-0.5"
-              />
-              <span className="min-w-0 flex-1 truncate text-xs text-white/60">
-                {color ? `当前 ${color}` : '自动配色（选个颜色用自定义）'}
-              </span>
-              <button
-                type="button"
-                data-testid="popup-color-auto-reset"
-                onClick={() => {
-                  setColor('');
-                  resetAdded();
-                }}
-                className="shrink-0 rounded-lg bg-white/[0.07] border border-white/10 px-2.5 py-1.5 text-xs hover:bg-white/10"
-              >
-                自动配色
-              </button>
-            </div>
-          )}
 
           <label className={fieldCls}>
             <Type size={16} className="shrink-0 text-white/50" />
@@ -383,30 +316,21 @@ function PopupApp() {
             type="button"
             data-testid="popup-confirm"
             onClick={() => void onConfirm()}
-            disabled={saving || !name.trim() || !urlValid || !groupId || duplicate || added}
+            disabled={saving || !name.trim() || !urlValid || duplicate || added}
             className="mt-1 flex items-center justify-center gap-1.5 rounded-xl bg-blue-500 py-3 text-[15px] font-medium hover:bg-blue-400 disabled:cursor-not-allowed disabled:opacity-50"
           >
             {added && <Check size={17} />}
-            {added ? '已添加' : duplicate ? '已在该组里' : saving ? '保存中…' : '确定'}
+            {added ? '已添加' : duplicate ? '已在悬浮组里' : saving ? '保存中…' : '确定'}
           </button>
 
           <p data-testid="popup-status" className="min-h-[18px] px-1 text-center text-xs text-white/60">
-            {duplicate && !added ? '这个网站已在该组里了，换个组试试。' : status}
+            {duplicate && !added ? '这个网站已在悬浮组里了。' : status}
           </p>
           {!nameTouched && pageUrl && (
             <p className="px-1 text-center text-[11px] text-white/35">名称默认取当前网页标题，可以改。</p>
           )}
         </>
       )}
-
-      <button
-        type="button"
-        data-testid="popup-download-desktop"
-        onClick={openDesktopDownload}
-        className="mt-auto flex items-center justify-center gap-1.5 rounded-xl bg-white/[0.07] border border-white/10 px-2 py-2.5 text-sm hover:bg-white/10"
-      >
-        <Download size={16} /> 下载桌面待办 App
-      </button>
     </div>
   );
 }

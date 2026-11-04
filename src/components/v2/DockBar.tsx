@@ -86,7 +86,34 @@ export default function DockBar({ store }: { store: LocalStore }) {
     const site =
       group?.sites.find((s) => s.id === entry.siteId) ??
       group?.sites.find((s) => !!entry.url && s.url === entry.url);
-    if (!site) continue;
+    if (!site) {
+      // 悬浮组迁入的孤儿条目：站点已不在任何编组里，凭快照渲染（名字/图标/点开 url 与普通条目一致）
+      const snap = entry.snapshot;
+      if (snap?.name && entry.url) {
+        const dedupeKey = `${entry.groupId}|${entry.url}`;
+        if (seen.has(dedupeKey)) continue;
+        seen.add(dedupeKey);
+        resolved.push({
+          key: `${entry.groupId}|${entry.siteId}`,
+          entryGroupId: entry.groupId,
+          entrySiteId: entry.siteId,
+          entryUrl: entry.url,
+          site: {
+            id: entry.siteId,
+            name: snap.name,
+            url: entry.url,
+            description: '',
+            logo: snap.logo ?? '',
+            frequency: 0,
+            iconMode: snap.iconMode,
+            iconText: snap.iconText,
+            iconColor: snap.iconColor,
+            iconImage: snap.iconImage,
+          },
+        });
+      }
+      continue;
+    }
     const dedupeKey = `${entry.groupId}|${site.url}`;
     if (seen.has(dedupeKey)) continue;
     seen.add(dedupeKey);

@@ -5,8 +5,7 @@
  * - 落盘走 store.update() 系方法（addGroup/addSite），预设快照与自动同步与手动添加一致。
  */
 import type { LocalStore } from '../store/localStore';
-
-const TAB_GROUP_NAME = 'tab';
+import { TAB_GROUP_NAME } from '../data/groups';
 const PENDING_KEY = 'zabox-pending-adds';
 
 interface PendingSite {

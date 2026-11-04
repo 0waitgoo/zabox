@@ -95,7 +95,7 @@ function NewsPage() {
       {newsItem.url && newsItem.url !== '#' && (
         <button 
           onClick={() => handleNewsLink(newsItem.url)}
-          className="mt-4 flex items-center gap-2 px-6 py-3 bg-indigo-500/80 hover:bg-indigo-600/90 backdrop-blur-md rounded-xl text-white font-medium transition-all shadow-lg shadow-indigo-500/20"
+ className="mt-4 flex items-center gap-2 px-6 py-3 bg-indigo-500/80 hover:bg-indigo-600/90 backdrop-blur-md rounded-xl text-white font-medium transition-all"
         >
           {t('nav.newsReadOriginal')}
           <ArrowUpRight size={18} />
@@ -211,7 +211,7 @@ function NewsPage() {
                           className="relative z-10"
                         >
                           <div className="flex justify-between items-start mb-4">
-                            <span className="px-3 py-1.5 text-[11px] font-bold tracking-wider uppercase bg-indigo-500/80 backdrop-blur-md rounded-full text-white shadow-lg shadow-indigo-500/20">
+ <span className="px-3 py-1.5 text-[11px] font-bold tracking-wider uppercase bg-indigo-500/80 backdrop-blur-md rounded-full text-white">
                               {item.category}
                             </span>
                             <button className="w-10 h-10 rounded-full bg-white/10 backdrop-blur-md flex items-center justify-center hover:bg-white/20 transition-colors border border-white/10">

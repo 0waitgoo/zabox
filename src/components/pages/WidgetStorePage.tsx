@@ -380,7 +380,7 @@ export default function WidgetStorePage({
           本页没有为悬浮预留过额外底部 padding/占位（sticky 本就占自身文档位），无需清理。 */}
       <div
         data-store-actionbar
-        className="group-card-scope store-panel rounded-[24px] bg-[#17171d] border border-white/12 px-3 py-3 sm:px-4 flex items-center gap-2.5 flex-wrap sm:sticky sm:bottom-3 sm:z-10 sm:shadow-2xl sm:shadow-black/50"
+ className="group-card-scope store-panel rounded-[24px] bg-[#17171d] border border-white/12 px-3 py-3 sm:px-4 flex items-center gap-2.5 flex-wrap sm:sticky sm:bottom-3 sm:z-10"
       >
         <span className="text-xs text-white/50 shrink-0">{isAdded ? t('store.homeSize') : t('store.addSize')}</span>
         <div className="flex gap-1.5 flex-wrap">

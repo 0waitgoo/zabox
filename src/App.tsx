@@ -1,4 +1,5 @@
-import React, { useEffect, useState, Suspense } from 'react';
+import React, { useEffect, useRef, useState, Suspense } from 'react';
+import { startTabAddBridge } from './extension/tabAddBridge';
 import { TopLogo, TopNav } from './components/Sidebar';
 import HomePage from './components/v2/HomePage';
 import PresetMenu from './components/v2/PresetMenu';
@@ -20,6 +21,11 @@ export default function App() {
   const store = useLocalStore();
   const background = store.data.background;
   const preset = backgroundPresetOf(background.presetId);
+
+  // 右键菜单「添加到杂盒主页」的桥接（只在扩展内生效；网站版无 chrome.runtime，直接 no-op）
+  const storeRef = useRef(store);
+  storeRef.current = store;
+  useEffect(() => startTabAddBridge(() => storeRef.current), []);
 
   // 本机显示偏好（第四十二轮）：外观模式 + 编组卡底框透明度，写到 <html> 供样式层消费。
   // 白天模式的最终定义（第五十八轮收敛）：与暗夜完全相同、只有 B/C/组合卡卡面变白底深字——

@@ -106,6 +106,7 @@ export default function SiteAiAssistant({
   const [checkedHitIds, setCheckedHitIds] = useState<Set<string>>(new Set());
   const [iconProgress, setIconProgress] = useState<{ done: number; total: number } | null>(null);
   const [iconNotFound, setIconNotFound] = useState(0);
+  const [iconSkipped, setIconSkipped] = useState(0);
   const [iconAiFailed, setIconAiFailed] = useState(false);
   const [iconAiWorking, setIconAiWorking] = useState(false);
   const iconScanRunRef = useRef(0);
@@ -144,6 +145,7 @@ export default function SiteAiAssistant({
     setCheckedHitIds(new Set());
     setIconProgress({ done: 0, total: 0 });
     setIconNotFound(0);
+    setIconSkipped(0);
     setIconAiFailed(false);
     setIconAiWorking(false);
     const aiCfg = loadSiteAiConfig();
@@ -174,6 +176,7 @@ export default function SiteAiAssistant({
       setIconHits(res.hits);
       setCheckedHitIds(new Set(res.hits.map((h) => h.siteId)));
       setIconNotFound(res.notFound);
+      setIconSkipped(res.skipped);
       setIconAiFailed(res.aiFailed);
       setIconAiWorking(false);
       setIconProgress({ done: res.scanned, total: res.scanned });
@@ -835,6 +838,9 @@ export default function SiteAiAssistant({
                                 ? t('ai.fillNotFound', { scanned: iconProgress?.total ?? 0, missing: iconNotFound })
                                 : t('ai.fillNone')}
                             </p>
+                            {iconSkipped > 0 && (
+                              <p className="text-[11px] text-white/45">{t('ai.fillSkipped', { skipped: iconSkipped })}</p>
+                            )}
                             {iconAiFailed && (
                               <p className="text-[11px] text-amber-200/80">{t('ai.fillAiFallback')}</p>
                             )}
@@ -844,6 +850,9 @@ export default function SiteAiAssistant({
                             <p className="text-xs text-white/70">
                               {t('ai.fillFound', { found: iconHits.length, missing: iconNotFound })}
                             </p>
+                            {iconSkipped > 0 && (
+                              <p className="text-[11px] text-white/45">{t('ai.fillSkipped', { skipped: iconSkipped })}</p>
+                            )}
                             {iconAiFailed && (
                               <p className="text-[11px] text-amber-200/80">{t('ai.fillAiFallback')}</p>
                             )}

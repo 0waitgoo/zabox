@@ -884,7 +884,24 @@ export default function SiteAiAssistant({
                         {collect.candidates.length === 0 ? (
                           <p className="text-xs text-white/45">没有可用候选，换句话再试一次。</p>
                         ) : (
-                          <div className="flex flex-col gap-1">
+                          <>
+                            <div className="flex items-center justify-between">
+                              <span className="text-[11px] text-white/45">
+                                已选 {checkedUrls.size}/{collect.candidates.length} 个
+                              </span>
+                              <button
+                                type="button"
+                                data-site-ai-select-all
+                                onClick={() => {
+                                  if (checkedUrls.size === collect.candidates.length) setCheckedUrls(new Set());
+                                  else setCheckedUrls(new Set(collect.candidates.map((c) => c.url)));
+                                }}
+                                className="text-xs text-indigo-300 hover:text-indigo-200 transition-colors"
+                              >
+                                {checkedUrls.size === collect.candidates.length ? '取消全选' : '全选'}
+                              </button>
+                            </div>
+                            <div className="flex flex-col gap-1">
                             {collect.candidates.map((c) => (
                               <div key={c.url} className="flex items-start gap-2 rounded-xl bg-[#1e1e26] border border-white/10 px-2.5 py-2">
                                 <input
@@ -912,7 +929,8 @@ export default function SiteAiAssistant({
                                 </div>
                               </div>
                             ))}
-                          </div>
+                            </div>
+                          </>
                         )}
                         <div className="flex items-center gap-2">
                           <span className="text-xs text-white/60 shrink-0">加到</span>

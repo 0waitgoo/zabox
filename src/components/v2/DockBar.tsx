@@ -6,6 +6,7 @@ import { setDisplayPrefs, useDisplayPrefs, type DockHide, type DockSize } from '
 import { useLang } from '../../i18n/useLang';
 import { siteIconSrc, type SiteEntry } from '../../data/groups';
 import { SiteLogo } from './Card';
+import { DragTrashZone, isOverDragTrash } from './DragTrashZone';
 
 /**
  * 底部 Dock 栏（2026-11-04 用户定，参考另一新标签页底部的居中 Dock）：
@@ -20,7 +21,8 @@ import { SiteLogo } from './Card';
  *
  * 删除与排序（2026-11-04 用户定）：悬停 × 已删——右键出菜单删除，或把图标
  * 拖出 Dock 栏松手删除；左右拖动改变位置。三种操作都只改 dock 引用数组，
- * 主页数据一概不动。拖动排序时其余图标 FLIP 滑移（与收起网格/卡面同一套
+ * 主页数据一概不动。2026-11-05 用户定：拖动中右侧出现垃圾桶，拖过去松手同样删除
+ * （与拖出栏删除同一效果）。拖动排序时其余图标 FLIP 滑移（与收起网格/卡面同一套
  * 200ms 滑移动画，缺口搬家时滑过去而不是跳变，2026-11-04 用户定）。
  *
  * 名字与设置（2026-11-04 用户定）：Dock 里只显示图标、不显示名字（悬停看
@@ -48,6 +50,8 @@ type DragState = {
   x: number;
   y: number;
   outside: boolean;
+  /** 指针是否在右侧垃圾桶上（拖 Dock 图标时垃圾桶出现，松手即删引用） */
+  trash: boolean;
   order: string[];
 };
 
@@ -275,7 +279,7 @@ export default function DockBar({ store }: { store: LocalStore }) {
         if (rect && ev.clientX > rect.left + rect.width / 2) insertAt++;
       }
       lastOrder = [...rest.slice(0, insertAt), item.key, ...rest.slice(insertAt)];
-      setDrag({ key: item.key, x: ev.clientX, y: ev.clientY, outside: isOutsideBar(ev.clientX, ev.clientY), order: lastOrder });
+      setDrag({ key: item.key, x: ev.clientX, y: ev.clientY, outside: isOutsideBar(ev.clientX, ev.clientY), trash: isOverDragTrash(ev.clientX, ev.clientY), order: lastOrder });
     };
     const onUp = (ev: PointerEvent) => {
       window.removeEventListener('pointermove', onMove);
@@ -285,6 +289,11 @@ export default function DockBar({ store }: { store: LocalStore }) {
       // 只抑制本次被拖 item 紧随其后的那次 click（拖出删除后点别的图标不受影响）
       suppressClickRef.current = item.key;
       setDrag(null);
+      // 垃圾桶优先：拖到右侧垃圾桶松手即删引用（与拖出栏删除同一效果，只改引用、不动主页）
+      if (isOverDragTrash(ev.clientX, ev.clientY)) {
+        store.removeDockSite(item.entryGroupId, item.entrySiteId, item.entryUrl);
+        return;
+      }
       if (isOutsideBar(ev.clientX, ev.clientY)) {
         store.removeDockSite(item.entryGroupId, item.entrySiteId, item.entryUrl);
         return;
@@ -425,6 +434,9 @@ export default function DockBar({ store }: { store: LocalStore }) {
           </div>,
           document.body,
         )}
+
+      {/* 拖 Dock 图标时右侧出现垃圾桶（与主页拖拽同一组件），松手即删引用 */}
+      {drag && createPortal(<DragTrashZone hot={drag.trash} />, document.body)}
 
       {settingsOpen &&
         (() => {

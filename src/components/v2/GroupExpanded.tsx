@@ -575,6 +575,7 @@ export default function GroupExpandedBody({
     groupId: group.id,
     onMoveToGroup: (siteId, targetGroupId) => store.moveSite(group.id, siteId, targetGroupId),
     onDropToDock: (siteId) => store.addDockSite(group.id, siteId, sorted.find((s) => s.id === siteId)?.url ?? ''),
+    onDropToTrash: (siteId) => store.deleteSite(group.id, siteId),
   });
 
   /** 拖动排序 FLIP 滑移动画：缺口每搬一次家，其余行从旧槽位滑到新槽位

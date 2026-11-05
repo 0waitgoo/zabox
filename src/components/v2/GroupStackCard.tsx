@@ -320,6 +320,7 @@ export function StackSiteTiles({
     groupId: group.id,
     onMoveToGroup: (siteId, targetGroupId) => store.moveSite(group.id, siteId, targetGroupId),
     onDropToDock: (siteId) => store.addDockSite(group.id, siteId, visible.find((s) => s.id === siteId)?.url ?? ''),
+    onDropToTrash: (siteId) => store.deleteSite(group.id, siteId),
     getEscapeBoundary: () => zoneRef.current?.closest('[data-stack-body]') as HTMLElement | null,
   });
 

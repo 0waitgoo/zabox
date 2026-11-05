@@ -105,6 +105,12 @@ export default function StickySearch({
           if (hit) store.addDockSite(hit.group.id, siteId, hit.site.url);
         }
       : undefined,
+    onDropToTrash: store
+      ? (siteId) => {
+          const src = groupBySiteId.get(siteId);
+          if (src) store.deleteSite(src.id, siteId);
+        }
+      : undefined,
   });
 
   useEffect(() => {

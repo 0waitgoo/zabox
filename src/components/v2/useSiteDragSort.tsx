@@ -1,5 +1,7 @@
 import React, { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
+import { createPortal } from 'react-dom';
 import type { SiteEntry } from '../../data/groups';
+import { DragTrashZone, isOverDragTrash } from './DragTrashZone';
 
 /**
  * 组内站点拖动排序（第三十八轮）：C 卡弹窗瓷砖网格与 B 卡展开行网格共用。
@@ -36,6 +38,10 @@ import type { SiteEntry } from '../../data/groups';
  * 配了 onDropToDock 的实例，松手时指针落在 [data-dock-bar] 上即只调 onDropToDock、
  * 不排序也不跨组（排序/跨组两个模式都判）；拖动经过 Dock 时描边高亮，与跨组高亮同口径。
  *
+ * 拖拽删除（2026-11-05 用户定）：拖动中右侧中部出现垃圾桶（DragTrashZone），
+ * 配了 onDropToTrash 的实例，松手时指针落在垃圾桶上即调 onDropToTrash 删除该站、
+ * 不排序也不跨组（排序/跨组两个模式都判，Dock 之前先判）；拖动经过垃圾桶时它变红。
+ *
  * 多组混排容器（搜索下拉，2026-11-04 用户定：下拉站点行可直接拖到主页组卡/Dock）：
  * 容器内站点分属不同组，容器级 groupId 无法表示源组——配 getSourceGroupId
  * 按被拖站点 id 返回其实际所属组，跨组高亮与同组取消按它判定；缺省仍用 groupId。
@@ -57,6 +63,7 @@ export function useSiteDragSort({
   onEscapeToCross,
   onDragEnd,
   onDropToDock,
+  onDropToTrash,
   getSourceGroupId,
 }: {
   /** 当前显示顺序（已经过 sortSites：置顶区在前） */
@@ -77,6 +84,8 @@ export function useSiteDragSort({
   onDragEnd?: (result: { moved: boolean }) => void;
   /** 拖到 Dock 栏松手：只加 Dock 引用、不移动（siteId）；调用方负责按组 id 追加引用 */
   onDropToDock?: (siteId: string) => void;
+  /** 拖到右侧垃圾桶松手：删除该站（siteId）；调用方负责按源组删站（Dock 图标不走这里，见 DockBar） */
+  onDropToTrash?: (siteId: string) => void;
   /** 被拖站点实际所属组 id（多组混排容器用；缺省用容器 groupId 判定同组） */
   getSourceGroupId?: (siteId: string) => string | undefined;
 }) {
@@ -123,6 +132,11 @@ export function useSiteDragSort({
   onDragEndRef.current = onDragEnd;
   const onDropToDockRef = useRef(onDropToDock);
   onDropToDockRef.current = onDropToDock;
+  const onDropToTrashRef = useRef(onDropToTrash);
+  onDropToTrashRef.current = onDropToTrash;
+  /** 垃圾桶热区状态（指针在垃圾桶上时变红；只在变化时 setState，避免 pointermove 每轮重渲染） */
+  const [trashHot, setTrashHot] = useState(false);
+  const trashHotRef = useRef(false);
   const getSourceGroupIdRef = useRef(getSourceGroupId);
   getSourceGroupIdRef.current = getSourceGroupId;
   /** 被拖站点的源组：多组混排时按站点实际所属组，否则用容器组 */
@@ -215,6 +229,8 @@ export function useSiteDragSort({
       const crossTarget = crossTargetRef.current;
       clearCrossHighlight();
       clearDockHighlight();
+      trashHotRef.current = false;
+      setTrashHot(false);
       document.body.style.cursor = '';
       document.body.style.userSelect = '';
       const finalIds = previewRef.current;
@@ -224,6 +240,13 @@ export function useSiteDragSort({
       originRef.current = null;
       // moved = 跨组模式下确实落到了异组（onMoveToGroup 即将/已经触发；源组按被拖站点实际所属组判）
       const moved = d.mode === 'cross' && commit && !!crossTarget && crossTarget.groupId !== sourceGroupIdOf(d.id);
+      // 垃圾桶优先（两个模式都判）：落在垃圾桶上即删除该站，不排序也不跨组
+      if (commit && onDropToTrashRef.current && isOverDragTrash(d.lastX, d.lastY)) {
+        onDropToTrashRef.current(d.id);
+        suppressUntilRef.current = Date.now() + 350;
+        onDragEndRef.current?.({ moved: false });
+        return;
+      }
       if (d.mode === 'cross') {
         // Dock 优先：落在 Dock 上只加引用，不跨组移动
         if (commit && onDropToDockRef.current && isOverDock(d.lastX, d.lastY)) {
@@ -376,6 +399,16 @@ export function useSiteDragSort({
       return true;
     };
 
+    /** 垃圾桶热区：指针在垃圾桶上时变红（未配 onDropToTrash 的实例不显示垃圾桶，不判） */
+    const updateTrashHot = (x: number, y: number) => {
+      if (!onDropToTrashRef.current) return;
+      const hot = isOverDragTrash(x, y);
+      if (hot !== trashHotRef.current) {
+        trashHotRef.current = hot;
+        setTrashHot(hot);
+      }
+    };
+
     const onPointerMove = (e: PointerEvent) => {
       const pending = pendingRef.current;
       if (!activeRef.current && pending && e.pointerId === pending.pointerId) {
@@ -415,6 +448,7 @@ export function useSiteDragSort({
           }
         }
         updateDockHighlight(e.clientX, e.clientY);
+        updateTrashHot(e.clientX, e.clientY);
       }
     };
 
@@ -500,19 +534,23 @@ export function useSiteDragSort({
 
   /** 拖动中的浮动快照（渲染在容器外层即可，fixed 定位；样式与主页拖拽快照同语言。
    * 注意：fixed 的实际原点受 transform 祖先影响（C 卡框 whileHover），定位时须减去
-   * 挂载瞬间量到的原点（见 originRef），否则快照会按卡片原点整体错位、看着像从别处拖起） */
+   * 挂载瞬间量到的原点（见 originRef），否则快照会按卡片原点整体错位、看着像从别处拖起）
+   * 垃圾桶经 portal 挂 body（同款 transform 原因，见 DragTrashZone），只在拖动中出现 */
   const dragLayer = clone ? (
-    <div
-      ref={cloneRef}
-      data-drag-clone
-      className="fixed left-0 top-0 z-[85] pointer-events-none will-change-transform"
-      style={{ width: clone.w, height: clone.h, visibility: 'hidden' }}
-    >
+    <>
       <div
+        ref={cloneRef}
+        data-drag-clone
+        className="fixed left-0 top-0 z-[85] pointer-events-none will-change-transform"
+        style={{ width: clone.w, height: clone.h, visibility: 'hidden' }}
+      >
+        <div
  className="w-full h-full rounded-2xl overflow-hidden bg-[#26262e] ring-1 ring-white/25 opacity-95 scale-[1.03] [&>*]:w-full [&>*]:h-full"
-        dangerouslySetInnerHTML={{ __html: clone.html }}
-      />
-    </div>
+          dangerouslySetInnerHTML={{ __html: clone.html }}
+        />
+      </div>
+      {onDropToTrash && createPortal(<DragTrashZone hot={trashHot} />, document.body)}
+    </>
   ) : null;
 
   return { items, isDragging, onContainerPointerDown, onContainerDragStart, consumeSuppressClick, dragLayer };

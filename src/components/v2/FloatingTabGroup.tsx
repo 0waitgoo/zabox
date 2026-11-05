@@ -39,6 +39,9 @@ export default function FloatingTabGroup({ store }: { store: LocalStore }) {
       });
       store.deleteSite(group.id, siteId);
     },
+    onDropToTrash: (siteId) => {
+      if (group) store.deleteSite(group.id, siteId);
+    },
   });
   if (!group || group.sites.length === 0) return null;
   return (
@@ -48,7 +51,7 @@ export default function FloatingTabGroup({ store }: { store: LocalStore }) {
       aria-label={group.name}
       onPointerDown={siteDrag.onContainerPointerDown}
       onDragStart={siteDrag.onContainerDragStart}
-      className="fixed left-4 top-[76px] z-30 w-[232px] max-h-[calc(100vh-96px)] overflow-y-auto rounded-[20px] border border-white/10 bg-[#14141a]/70 p-2 backdrop-blur-md"
+      className="fixed left-4 top-1/2 z-30 w-[232px] max-h-[calc(100vh-32px)] -translate-y-1/2 overflow-y-auto rounded-[20px] border border-white/10 bg-[#14141a]/70 p-2 backdrop-blur-md"
     >
       {siteDrag.items.map((site) => (
         <button

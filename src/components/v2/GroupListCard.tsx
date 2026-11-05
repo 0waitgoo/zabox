@@ -90,6 +90,7 @@ export default function GroupListCard({
     groupId: group.id,
     onMoveToGroup: (siteId, targetGroupId) => store.moveSite(group.id, siteId, targetGroupId),
     onDropToDock: (siteId) => store.addDockSite(group.id, siteId, rows.find((s) => s.id === siteId)?.url ?? ''),
+    onDropToTrash: (siteId) => store.deleteSite(group.id, siteId),
   });
 
   /** 收起态拖动 FLIP 滑移动画：与展开态同一套，缺口搬家时其余行滑过去而不是跳变 */

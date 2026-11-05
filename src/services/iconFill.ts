@@ -5,11 +5,13 @@ import { autoSiteLogo, type NavGroup, type SiteEntry } from '../data/groups';
  * 若调用方给了 suggestLogos（AI 找官网 Logo 地址），再用 AI 推荐的地址验证一轮——
  * 验证通过的才算命中，同样经面板逐项确认后才写回（调用方负责）。
  * 判定口径与渲染兜底链一致（见 Card.tsx nextFallbackIconSrc）：本地品牌图标 → 本站
- * /favicon.ico → 字母。扫描只处理“当前显示字标”的站：手动设过文字图标、自己上传
- * 过图标的站一律跳过；已有地址的站（远端地址或本地品牌图路径）先验证现地址能不
- * 能加载，加载成功就不动——本地路径按名猜的居多（/icon_APP/<站名>.svg），文件不
- * 存在时卡面实际显示字标，旧口径“本地路径一律跳过”会把这类站漏出计数（2026-11-04
- * 用户报：报 7 个没找到，主页仍有大量字标站）。
+ * /favicon.ico → 字母。扫描处理所有“当前显示字标”的站，包括手动设过文字图标
+ * 的站（2026-11-05 用户定：手动替换过的文字图标也要扫描）；自己上传过图标的站
+ * 一律跳过。已有地址的站（远端地址或本地品牌图路径）先验证现地址能不能加载，
+ * 加载成功就不动——但文字图标站例外：它现在显示的是字标，现地址能加载说明有
+ * 可用品牌图标，列入命中、应用时切回自动图标；本地路径按名猜的居多
+ * （/icon_APP/<站名>.svg），文件不存在时卡面实际显示字标，旧口径“本地路径一律
+ * 跳过”会把这类站漏出计数（2026-11-04 用户报：报 7 个没找到，主页仍有大量字标站）。
  * 候选只取三处：种子库已知的同域品牌图标、本站 /favicon.ico、本站 apple-touch-icon；
  * 全部加载失败且 AI 也没找到的站保持字标不动。写回前必须经面板逐项确认（调用方负责）。
  */
@@ -35,9 +37,9 @@ export function probeImageUrl(url: string, timeoutMs = 4000): Promise<boolean> {
 
 type ProbeKind = 'skip' | 'fill' | 'verify';
 
-/** 该站是否参与补图标：skip = 手动图标（text/upload）/无 id（无法定位写回）；fill = 无可用地址；verify = 有地址待验证（远端地址或本地品牌图路径，加载失败才列入补齐） */
+/** 该站是否参与补图标：skip = 上传过图标（已有图片）/无 id（无法定位写回）；fill = 无可用地址；verify = 有地址待验证（远端地址或本地品牌图路径，加载失败才列入补齐；文字图标站加载成功也列入命中，应用时切回自动） */
 export function iconFillProbeKind(site: SiteEntry): ProbeKind {
-  if (site.iconMode === 'text' || site.iconMode === 'upload') return 'skip';
+  if (site.iconMode === 'upload') return 'skip';
   if (!site.id) return 'skip';
   const logo = (site.logo ?? '').trim();
   if (!logo) return 'fill';
@@ -77,7 +79,7 @@ export interface IconFillScan {
   hits: IconFillHit[];
   /** 进入验证/补齐流程的站数 */
   scanned: number;
-  /** 跳过的站数（手动图标/本地品牌图/无 id） */
+  /** 跳过的站数（上传过图标/无 id） */
   skipped: number;
   /** 候选全部加载失败的站数（含 AI 也没找到的） */
   notFound: number;
@@ -118,8 +120,18 @@ export async function scanIconFill(
   const runOne = async (job: Job): Promise<void> => {
     const { site } = job;
     const logo = (site.logo ?? '').trim();
-    // 有地址的站（远端或本地品牌图）：现地址能加载就不动，加载失败才试候选
+    // 有地址的站（远端或本地品牌图）：现地址能加载就不动，加载失败才试候选；
+    // 文字图标站例外：它现在显示字标，现地址能加载即列入命中，应用时切回自动
     if (iconFillProbeKind(site) === 'verify' && logo && (await load(logo, timeoutMs))) {
+      if (site.iconMode === 'text') {
+        hits.push({
+          groupId: job.groupId,
+          groupName: job.groupName,
+          siteId: site.id as string,
+          siteName: site.name,
+          logo,
+        });
+      }
       done++;
       report();
       return;

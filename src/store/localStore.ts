@@ -1606,6 +1606,26 @@ export function useLocalStore() {
   );
 
   /**
+   * 只改一个站的标签（补标签功能专用）：调用方传合并后的完整标签列表，
+   * 这里再清洗一道（最多 2 个）；空列表即移除标签（徽标随之消失）。
+   */
+  const updateSiteTags = useCallback(
+    (groupId: string, siteId: string, tags: string[]) => {
+      update((d) => {
+        const site = d.groups.find((g) => g.id === groupId)?.sites.find((s) => s.id === siteId);
+        if (site) {
+          const next = cleanSiteTags(tags);
+          if (next.length) site.tags = next;
+          else delete site.tags;
+          delete site.tag;
+        }
+        return d;
+      });
+    },
+    [update],
+  );
+
+  /**
    * 组内站点手动排序落盘（第三十八轮）：入参为完整的显示顺序（站点 id 数组，
    * 已由拖动侧按置顶分区夹好）。存储数组即显示顺序（sortSites 只做置顶分区稳定划分），
    * 这里再按 pinned 稳定分区一次兜底，保证任何调用方传错序也不会跨区；
@@ -2800,6 +2820,7 @@ export function useLocalStore() {
     addSite,
     updateSite,
     updateSiteLogo,
+    updateSiteTags,
     deleteSite,
     moveSite,
     reorderSites,

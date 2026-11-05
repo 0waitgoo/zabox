@@ -7,6 +7,10 @@
  * 补图标：点一下扫描当前页显示字标的站，逐个试本站 favicon；探测不到的站
  * 若配了 AI 口令，再由 AI 找官网 Logo 地址、加载验证通过才列出（见 services/iconFill）。
  * 找到的列出预览、逐项勾选后点应用才写回 site.logo；没配 AI 时只用探测。
+ * 补标签：点一下扫描当前页标签未满的站，先按规则补 VPN（种子 needVpn＋境外
+ * 需翻墙域名清单），规则判不出的站若配了 AI 口令，再由 AI 建议 VPN/APP
+ * （MARK 不自动建议；见 services/tagFill、services/siteAi）。找到的列出预览、
+ * 逐项勾选后点应用才写回 site.tags；没配 AI 时只用规则。
  * 绝不静默改分组与站点；应用走 store 现有方法（moveSite/addSite/addGroup），
  * 应用后主页布局自动保存为「我的」预设，内置预设模板本身不动。
  * `active` 为 false 时只藏起整理条（display:none，不卸载）：输入内容保留在
@@ -19,10 +23,13 @@ import { Settings, Sparkles, X } from 'lucide-react';
 import type { LocalStore } from '../../store/localStore';
 import { useLang } from '../../i18n/useLang';
 import { scanIconFill, type IconFillHit } from '../../services/iconFill';
+import { mergeTagSuggestion, scanTagFill, type TagFillHit } from '../../services/tagFill';
+import { siteTagBadgeCls } from './GroupExpanded';
 import {
   buildCategorizeMessages,
   buildCollectMessages,
   buildIconLogoMessages,
+  buildTagMessages,
   callSiteAi,
   extractJson,
   fetchSiteAiModels,
@@ -30,6 +37,7 @@ import {
   resolveCategorizePlan,
   resolveCollectCandidates,
   resolveIconLogoPlan,
+  resolveTagPlan,
   saveSiteAiConfig,
   siteAiConfigured,
   SITE_AI_PROVIDER_DEFAULTS,
@@ -39,7 +47,7 @@ import {
   type SiteAiProvider,
 } from '../../services/siteAi';
 
-type Mode = 'categorize' | 'collect' | 'icons';
+type Mode = 'categorize' | 'collect' | 'icons' | 'tags';
 type Phase = 'idle' | 'thinking' | 'error' | 'review' | 'done';
 
 interface MoveEdit {
@@ -111,6 +119,15 @@ export default function SiteAiAssistant({
   const [iconAiFailed, setIconAiFailed] = useState(false);
   const [iconAiWorking, setIconAiWorking] = useState(false);
   const iconScanRunRef = useRef(0);
+  /* 补标签（规则 VPN + AI 建议 VPN/APP）：扫描结果与待确认建议 */
+  const [tagHits, setTagHits] = useState<TagFillHit[]>([]);
+  const [checkedTagHitIds, setCheckedTagHitIds] = useState<Set<string>>(new Set());
+  const [tagScanned, setTagScanned] = useState(0);
+  const [tagNoSuggestion, setTagNoSuggestion] = useState(0);
+  const [tagAlreadyFull, setTagAlreadyFull] = useState(0);
+  const [tagAiFailed, setTagAiFailed] = useState(false);
+  const [tagAiWorking, setTagAiWorking] = useState(false);
+  const tagScanRunRef = useRef(0);
   const { t } = useLang();
 
   const groups = store.data.groups;
@@ -133,6 +150,7 @@ export default function SiteAiAssistant({
     abortRef.current?.abort();
     abortRef.current = null;
     iconScanRunRef.current++;
+    tagScanRunRef.current++;
     setOpen(false);
     setPhase('idle');
   };
@@ -201,6 +219,88 @@ export default function SiteAiAssistant({
     const picked = iconHits.filter((h) => checkedHitIds.has(h.siteId));
     for (const h of picked) store.updateSiteLogo(h.groupId, h.siteId, h.logo);
     setDoneText(t('ai.fillDone', { n: picked.length }));
+    setPhase('done');
+  };
+
+  /** 补标签：打开面板即开始扫描；规则先补 VPN，规则判不出的站配了 AI 口令时再由 AI 建议 VPN/APP；面板关闭则丢弃本次扫描结果 */
+  const runTagScan = async () => {
+    const runId = ++tagScanRunRef.current;
+    setPhase('thinking');
+    setStatus('');
+    setTagHits([]);
+    setCheckedTagHitIds(new Set());
+    setTagScanned(0);
+    setTagNoSuggestion(0);
+    setTagAlreadyFull(0);
+    setTagAiFailed(false);
+    setTagAiWorking(false);
+    const aiCfg = loadSiteAiConfig();
+    try {
+      const res = scanTagFill(store.data.groups);
+      if (tagScanRunRef.current !== runId) return;
+      setTagScanned(res.scanned);
+      setTagAlreadyFull(res.alreadyFull);
+      const hits: TagFillHit[] = [...res.hits];
+      let noSuggestion = res.noSuggestion;
+      if (siteAiConfigured(aiCfg) && res.noSuggestion.length > 0) {
+        setTagAiWorking(true);
+        try {
+          const text = await callSiteAi(
+            aiCfg,
+            buildTagMessages(
+              res.noSuggestion.map((s) => {
+                const site = store.data.groups
+                  .find((g) => g.id === s.groupId)
+                  ?.sites.find((x) => x.id === s.siteId);
+                return { id: s.siteId, name: s.siteName, url: site?.url ?? '', description: site?.description ?? '' };
+              }),
+            ),
+            abortRef.current?.signal,
+          );
+          const plan = resolveTagPlan(
+            extractJson(text),
+            new Set(res.noSuggestion.map((s) => s.siteId)),
+          );
+          const still: TagFillHit[] = [];
+          for (const s of res.noSuggestion) {
+            const suggested = (plan.get(s.siteId) ?? []).filter((tag) => !s.existing.includes(tag));
+            const room = 2 - s.existing.length;
+            if (suggested.length > 0) {
+              hits.push({ ...s, tags: suggested.slice(0, room), source: 'ai' });
+            } else still.push(s);
+          }
+          noSuggestion = still;
+        } catch {
+          if (tagScanRunRef.current !== runId) return;
+          setTagAiFailed(true);
+        } finally {
+          if (tagScanRunRef.current === runId) setTagAiWorking(false);
+        }
+      }
+      if (tagScanRunRef.current !== runId) return;
+      setTagHits(hits);
+      setCheckedTagHitIds(new Set(hits.map((h) => h.siteId)));
+      setTagNoSuggestion(noSuggestion.length);
+      setPhase('review');
+    } catch {
+      if (tagScanRunRef.current !== runId) return;
+      setPhase('error');
+      setStatus('扫描被中断，请重新扫描');
+    }
+  };
+
+  const openTagsPanel = () => {
+    setMode('tags');
+    setView('work');
+    setPanelIntent(input);
+    setOpen(true);
+    void runTagScan();
+  };
+
+  const applyTags = () => {
+    const picked = tagHits.filter((h) => checkedTagHitIds.has(h.siteId));
+    for (const h of picked) store.updateSiteTags(h.groupId, h.siteId, mergeTagSuggestion(h.existing, h.tags));
+    setDoneText(t('ai.tagDone', { n: picked.length }));
     setPhase('done');
   };
 
@@ -445,6 +545,14 @@ export default function SiteAiAssistant({
             {t('ai.fillIcons')}
           </button>
           <button
+            data-site-ai-tags
+            onClick={openTagsPanel}
+            title={t('ai.tagNote')}
+            className={compactBar ? 'px-2.5 py-1.5 rounded-xl bg-white/8 hover:bg-white/12 text-white/80 text-xs transition-colors shrink-0' : btnGhost}
+          >
+            {t('ai.fillTags')}
+          </button>
+          <button
             data-site-ai-settings
             onClick={() => openPanel(mode, true)}
             title={t('ai.settingsTitle')}
@@ -476,10 +584,10 @@ export default function SiteAiAssistant({
               <div className="flex items-center justify-between px-4 pt-4 pb-2 shrink-0">
                 <h3 className="font-semibold text-sm flex items-center gap-2">
                   <Sparkles size={15} className="text-indigo-300" />
-                  {mode === 'categorize' ? t('ai.categorize') : mode === 'collect' ? t('ai.collectAction') : t('ai.fillTitle')}
+                  {mode === 'categorize' ? t('ai.categorize') : mode === 'collect' ? t('ai.collectAction') : mode === 'tags' ? t('ai.tagTitle') : t('ai.fillTitle')}
                 </h3>
                 <div className="flex items-center gap-1">
-                  {mode !== 'icons' && (
+                  {mode !== 'icons' && mode !== 'tags' && (
                   <button
                     onClick={() => setView(view === 'settings' ? 'work' : 'settings')}
                     title={t('ai.settings')}
@@ -603,7 +711,7 @@ export default function SiteAiAssistant({
                   </div>
                 ) : (
                   <div className="flex flex-col gap-3">
-                    {mode !== 'icons' && (
+                    {mode !== 'icons' && mode !== 'tags' && (
                     <div className="flex gap-2">
                       <input
                         data-site-ai-intent
@@ -637,6 +745,9 @@ export default function SiteAiAssistant({
                     {mode === 'icons' && (
                       <p className="text-[11px] text-white/45 leading-relaxed">{t('ai.fillNote')}</p>
                     )}
+                    {mode === 'tags' && (
+                      <p className="text-[11px] text-white/45 leading-relaxed">{t('ai.tagNote')}</p>
+                    )}
                     {status && phase !== 'done' && <p className="text-[11px] text-white/50">{status}</p>}
                     {phase === 'thinking' && mode === 'icons' && iconProgress && (
                       <p className="text-[11px] text-indigo-300">
@@ -645,7 +756,12 @@ export default function SiteAiAssistant({
                           : t('ai.fillScanning', { done: iconProgress.done, total: iconProgress.total })}
                       </p>
                     )}
-                    {phase === 'thinking' && mode !== 'icons' && (
+                    {phase === 'thinking' && mode === 'tags' && (
+                      <p className="text-[11px] text-indigo-300">
+                        {tagAiWorking ? t('ai.tagAiWorking') : t('ai.tagScanning')}
+                      </p>
+                    )}
+                    {phase === 'thinking' && mode !== 'icons' && mode !== 'tags' && (
                       <p className="text-[11px] text-indigo-300">AI 正在看你的分组…稍等一下</p>
                     )}
                     {phase === 'error' && mode === 'icons' && (
@@ -656,7 +772,15 @@ export default function SiteAiAssistant({
                         </button>
                       </div>
                     )}
-                    {phase === 'error' && mode !== 'icons' && (
+                    {phase === 'error' && mode === 'tags' && (
+                      <div className="rounded-xl bg-red-500/10 border border-red-400/30 px-3 py-2">
+                        <p className="text-xs text-red-200">{status}</p>
+                        <button onClick={() => void runTagScan()} className={`${btnGhost} mt-2`}>
+                          {t('ai.tagRescan')}
+                        </button>
+                      </div>
+                    )}
+                    {phase === 'error' && mode !== 'icons' && mode !== 'tags' && (
                       <div className="rounded-xl bg-red-500/10 border border-red-400/30 px-3 py-2">
                         <p className="text-xs text-red-200">{status}</p>
                         <button onClick={run} className={`${btnGhost} mt-2`}>
@@ -907,6 +1031,85 @@ export default function SiteAiAssistant({
                       </>
                     )}
 
+                    {phase === 'review' && mode === 'tags' && (
+                      <>
+                        {tagHits.length === 0 ? (
+                          <>
+                            <p className="text-xs text-white/45">
+                              {tagNoSuggestion > 0
+                                ? t('ai.tagNotFound', { scanned: tagScanned, missing: tagNoSuggestion })
+                                : t('ai.tagNone')}
+                            </p>
+                            {tagAlreadyFull > 0 && (
+                              <p className="text-[11px] text-white/45">{t('ai.tagSkipped', { skipped: tagAlreadyFull })}</p>
+                            )}
+                            {tagAiFailed && (
+                              <p className="text-[11px] text-amber-200/80">{t('ai.tagAiFallback')}</p>
+                            )}
+                          </>
+                        ) : (
+                          <>
+                            <p className="text-xs text-white/70">
+                              {t('ai.tagFound', { found: tagHits.length, missing: tagNoSuggestion })}
+                            </p>
+                            {tagAlreadyFull > 0 && (
+                              <p className="text-[11px] text-white/45">{t('ai.tagSkipped', { skipped: tagAlreadyFull })}</p>
+                            )}
+                            {tagAiFailed && (
+                              <p className="text-[11px] text-amber-200/80">{t('ai.tagAiFallback')}</p>
+                            )}
+                            <div className="flex flex-col gap-1">
+                              {tagHits.map((h) => (
+                                <div key={h.siteId} className="flex items-center gap-2 rounded-xl bg-white/[0.03] border border-white/10 px-2.5 py-2">
+                                  <input
+                                    type="checkbox"
+                                    data-site-ai-tag-row={h.siteId}
+                                    checked={checkedTagHitIds.has(h.siteId)}
+                                    onChange={(e) =>
+                                      setCheckedTagHitIds((prev) => {
+                                        const next = new Set(prev);
+                                        if (e.target.checked) next.add(h.siteId);
+                                        else next.delete(h.siteId);
+                                        return next;
+                                      })
+                                    }
+                                    className="shrink-0 accent-indigo-500"
+                                  />
+                                  <span className="flex-1 min-w-0 truncate text-xs">
+                                    {h.siteName}
+                                    <span className="text-white/35">（{h.groupName}）</span>
+                                    {h.existing.length > 0 && (
+                                      <span className="text-white/35"> 已有 {h.existing.join('、')}</span>
+                                    )}
+                                    {h.source === 'ai' && (
+                                      <span className="ml-1 rounded bg-indigo-500/25 px-1 py-px text-[10px] text-indigo-200">
+                                        {t('ai.tagAiBadge')}
+                                      </span>
+                                    )}
+                                  </span>
+                                  <span className="flex gap-1 shrink-0">
+                                    {h.tags.map((tag) => (
+                                      <span key={tag} className={`rounded border px-1 py-px text-[10px] ${siteTagBadgeCls(tag)}`}>
+                                        {tag}
+                                      </span>
+                                    ))}
+                                  </span>
+                                </div>
+                              ))}
+                            </div>
+                            {checkedTagHitIds.size > 0 && (
+                              <button data-site-ai-apply-tags onClick={applyTags} className={btnPrimary}>
+                                {t('ai.tagApply', { n: checkedTagHitIds.size })}
+                              </button>
+                            )}
+                          </>
+                        )}
+                        <button onClick={() => void runTagScan()} className={btnGhost}>
+                          {t('ai.tagRescan')}
+                        </button>
+                      </>
+                    )}
+
                     {phase === 'done' && (
                       <div className="rounded-xl bg-emerald-500/10 border border-emerald-400/30 px-3 py-2">
                         <p className="text-xs text-emerald-200">{doneText}</p>
@@ -923,6 +1126,10 @@ export default function SiteAiAssistant({
                                 void runIconScan();
                                 return;
                               }
+                              if (mode === 'tags') {
+                                void runTagScan();
+                                return;
+                              }
                               setPhase('idle');
                               setPlan(null);
                               setCollect(null);
@@ -930,7 +1137,7 @@ export default function SiteAiAssistant({
                             }}
                             className={btnGhost}
                           >
-                            {mode === 'icons' ? t('ai.fillRescan') : '再来一句'}
+                            {mode === 'icons' ? t('ai.fillRescan') : mode === 'tags' ? t('ai.tagRescan') : '再来一句'}
                           </button>
                         </div>
                       </div>

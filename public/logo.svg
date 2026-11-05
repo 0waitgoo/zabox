@@ -3,11 +3,12 @@
   <defs>
     <style>
       .cls-1{fill:#ffffff}
-      .cls-2{fill:#000000}
+      .cls-2{fill:#ffffff}
     </style>
   </defs>
   <title>杂盒.ai</title>
   <g id="Layer_1" data-name="Layer 1">
+    <rect x="0" y="0" width="958.137" height="798.598" rx="90" fill="#000000"/>
     <g>
       <g>
         <g>

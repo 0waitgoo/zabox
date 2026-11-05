@@ -1587,13 +1587,18 @@ export function useLocalStore() {
 
   /**
    * 只改一个站的图标地址（补图标功能专用）：不碰名称/网址/描述/置顶等其它字段，
-   * 手动文字图标与上传图标的站调用方已跳过，这里再守一道（不覆盖）。
+   * 上传图标的站不覆盖（调用方已跳过，这里再守一道）；文字图标站应用品牌图标
+   * 时一并切回自动图标，否则 logo 写了也不会显示（2026-11-05 用户定：手动文字
+   * 图标也要扫描补齐）。
    */
   const updateSiteLogo = useCallback(
     (groupId: string, siteId: string, logo: string) => {
       update((d) => {
         const site = d.groups.find((g) => g.id === groupId)?.sites.find((s) => s.id === siteId);
-        if (site && site.iconMode !== 'text' && site.iconMode !== 'upload') site.logo = logo;
+        if (site && site.iconMode !== 'upload') {
+          site.logo = logo;
+          if (site.iconMode === 'text') site.iconMode = 'auto';
+        }
         return d;
       });
     },

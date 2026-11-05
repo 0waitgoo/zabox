@@ -219,6 +219,54 @@ export function resolveIconLogoPlan(raw: unknown, knownIds: Set<string>): Map<st
   return out;
 }
 
+/* ---------------- 补标签：AI 建议 VPN/APP ---------------- */
+
+/** AI 补标签的系统提示：只要 JSON、只给 VPN/APP；MARK 是用户个人的重点标记，绝不建议；拿不准就别列 */
+const TAG_SYSTEM = `你是网站标签助手。用户会给一批网站（id、名称、网址、简介），这些站都没有或只有 1 个标签。你只输出一个 JSON 对象，不要解释、不要 markdown。格式：{"tags":[{"id":"网站 id","tags":["VPN","APP"]}]}。规则：tags 只能从 VPN、APP 里选；VPN = 该站在中国大陆无法直接访问、必须翻墙才能打开（如 Google、YouTube、X、OpenAI、Claude 等境外服务）；APP = 该服务主要以手机/桌面 App 形态提供、官网主推 App 下载；拿不准的站不要列出、不要猜；MARK 是用户个人的重点标记，绝不要建议；每个站最多 2 个标签。`;
+
+export interface TagSite {
+  id: string;
+  name: string;
+  url: string;
+  description?: string;
+}
+
+export function buildTagMessages(sites: TagSite[]): ChatMessage[] {
+  const list = sites
+    .map((s) => `${s.name}（id:${s.id}）${s.url}${s.description ? ` — ${s.description.slice(0, 30)}` : ''}`)
+    .join('\n');
+  return [
+    { role: 'system', content: TAG_SYSTEM },
+    { role: 'user', content: `需要补标签的网站：\n${list}` },
+  ];
+}
+
+const TAG_AI_ALLOWED = ['VPN', 'APP'];
+
+/** 解析 AI 返回：只收已知 id、只收 VPN/APP（清洗、去重、每站最多 2 个）；非法结构一律返回空表 */
+export function resolveTagPlan(raw: unknown, knownIds: Set<string>): Map<string, string[]> {
+  const out = new Map<string, string[]>();
+  if (!raw || typeof raw !== 'object' || Array.isArray(raw)) return out;
+  const tags = (raw as { tags?: unknown }).tags;
+  if (!Array.isArray(tags)) return out;
+  for (const entry of tags) {
+    if (!entry || typeof entry !== 'object' || Array.isArray(entry)) continue;
+    const id = (entry as { id?: unknown }).id;
+    const list = (entry as { tags?: unknown }).tags;
+    if (typeof id !== 'string' || !knownIds.has(id) || !Array.isArray(list)) continue;
+    const clean: string[] = [];
+    for (const t of list) {
+      if (typeof t !== 'string') continue;
+      const v = t.replace(/[^a-zA-Z]/g, '').toUpperCase().slice(0, 4);
+      if (!TAG_AI_ALLOWED.includes(v) || clean.includes(v)) continue;
+      clean.push(v);
+      if (clean.length >= 2) break;
+    }
+    if (clean.length > 0) out.set(id, clean);
+  }
+  return out;
+}
+
 /* ---------------- 一键分类 ---------------- */
 
 const CATEGORIZE_SYSTEM = `你是杂盒网站整理助手。用户会给一句话意图和现有编组与站点清单。你只输出一个 JSON 对象，不要解释、不要 markdown。格式：{"newGroups":[{"name":"新组名"}],"moves":[{"siteId":"站点的 id","target":"目标组 id，或 new:新组名"}]}。规则：只移动与用户意图相关的站点，不相关的站点一个都不动、不列出；target 只能是清单里已有的组 id，或 new:新组名（新组名不超过 8 个字）；不要编造站点 id、组 id、站点名；不要删除任何组或站点；如果意图与现有分组无关或无法判断，返回空 moves（newGroups 也为空），不要硬凑。`;

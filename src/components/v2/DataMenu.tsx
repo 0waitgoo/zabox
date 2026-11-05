@@ -348,6 +348,22 @@ export default function DataMenu({
     return githubConfigComplete(m) ? m : null;
   };
 
+  /**
+   * 本机是否已有同步基准（2026-11-05 新机覆盖云端事故后立的规矩）：
+   * baseUpdatedAt / lastSyncedAt 任一有值 = 这台设备曾经同步成功过一次。
+   * 新机种子数据的 updatedAt 就是当前时间，拿它跟云端比“新旧”毫无意义——没有基准时，
+   * 本地再“新”也不能证明本地更新，任何自动路径都绝不能回推覆盖云端；只能停下问用户
+   * （以云端为准就拉取、以本地为准就手动强推）。手动的立即推送/首次推送/冲突裁决不受此限。
+   */
+  const hasSyncBaselineGh = (): boolean => {
+    const m = ghMetaRef.current;
+    return m.baseUpdatedAt > 0 || m.lastSyncedAt !== null;
+  };
+  const hasSyncBaselineGe = (): boolean => {
+    const m = geMetaRef.current;
+    return m.baseUpdatedAt > 0 || m.lastSyncedAt !== null;
+  };
+
   /** 用云端数据覆盖本地：先落基准再导入，导入触发的变化 effect 会因 updatedAt 已对齐而跳过回推；
    * 信封携带的组件独立数据（widgetStorage）在主数据导入成功后一并恢复并通知组件重读 */
   const applyRemote = (
@@ -445,6 +461,12 @@ export default function DataMenu({
       if (opts?.forceApply || res.updatedAt > localUpdatedAt) {
         applyRemote(res.data, res.sha, res.updatedAt, res.widgetStorage);
       } else if (res.updatedAt < localUpdatedAt) {
+        if (!hasSyncBaselineGh()) {
+          // 从未同步过的设备：本地“新”只是种子时间戳新，不代表本地更新；绝不自动回推
+          updateGhMeta({ lastSha: res.sha });
+          setGhStatus({ kind: 'conflict', text: t('data.divergedGh') });
+          return;
+        }
         updateGhMeta({ lastSha: res.sha, baseUpdatedAt: res.updatedAt });
         setGhStatus({ kind: 'ok', text: t('data.localNewerPushing') });
         ghBusyRef.current = false;
@@ -633,6 +655,12 @@ export default function DataMenu({
       if (opts?.forceApply || res.updatedAt > localUpdatedAt) {
         applyRemoteGe(res.data, res.sha, res.updatedAt, res.widgetStorage);
       } else if (res.updatedAt < localUpdatedAt) {
+        if (!hasSyncBaselineGe()) {
+          // 从未同步过的设备：本地“新”只是种子时间戳新，不代表本地更新；绝不自动回推
+          updateGeMeta({ lastSha: res.sha });
+          setGeStatus({ kind: 'conflict', text: t('data.divergedGe') });
+          return;
+        }
         updateGeMeta({ lastSha: res.sha, baseUpdatedAt: res.updatedAt });
         setGeStatus({ kind: 'ok', text: t('data.localNewerPushing') });
         geBusyRef.current = false;
@@ -1077,6 +1105,8 @@ export default function DataMenu({
     if (providerRef.current === 'gitee') {
       const m = geMetaRef.current;
       if (!m.enabled || !giteeConfigComplete(m)) return;
+      // 未同步过的设备不自动推：首次同步必须先拉取（或手动首次推送），否则新机种子会盖掉云端
+      if (m.baseUpdatedAt <= 0 && m.lastSyncedAt === null) return;
       if (store.data.updatedAt <= m.baseUpdatedAt) return;
       const timer = setTimeout(() => {
         void pushToGitee();
@@ -1085,6 +1115,8 @@ export default function DataMenu({
     }
     const m = ghMetaRef.current;
     if (!m.enabled || !githubConfigComplete(m)) return;
+    // 未同步过的设备不自动推：首次同步必须先拉取（或手动首次推送），否则新机种子会盖掉云端
+    if (m.baseUpdatedAt <= 0 && m.lastSyncedAt === null) return;
     if (store.data.updatedAt <= m.baseUpdatedAt) return;
     const timer = setTimeout(() => {
       void pushToGithub();

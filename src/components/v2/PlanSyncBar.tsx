@@ -140,6 +140,12 @@ export default function PlanSyncBar({
         return;
       }
       if (remote.updatedAt < localUpdatedAt) {
+        if (shaRef.current === null) {
+          // 从未同步过的设备：本机 sha 未知，本地“新”可能只是新机种子时间戳新；
+          // 绝不自动回推覆盖云端。桌面栏没有冲突选择界面，请到网站数据菜单裁决。
+          setStatus('云端已有数据，但本机从未同步过，已拦截推送防覆盖：请到网站数据菜单选以哪边为准');
+          return;
+        }
         await push(c, remote.sha);
         return;
       }

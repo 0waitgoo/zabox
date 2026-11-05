@@ -12,12 +12,11 @@ export function DragTrashZone({ hot }: { hot: boolean }) {
     <div
       data-drag-trash
       aria-hidden
-      className={`fixed right-4 top-1/2 z-[86] -translate-y-1/2 pointer-events-none flex w-[76px] flex-col items-center justify-center gap-1.5 rounded-2xl border py-4 transition-colors ${
+      className={`fixed right-4 top-1/2 z-[86] -translate-y-1/2 pointer-events-none flex w-[104px] items-center justify-center rounded-2xl border py-6 transition-colors ${
         hot ? 'border-red-400/80 bg-red-500/30' : 'border-white/15 bg-[#14141a]/80 backdrop-blur-md'
       }`}
     >
-      <Trash2 size={26} className={hot ? 'text-red-300' : 'text-white/70'} />
-      <span className={`text-[11px] ${hot ? 'text-red-200' : 'text-white/60'}`}>松手删除</span>
+      <Trash2 size={40} className={hot ? 'text-red-300' : 'text-white/70'} />
     </div>
   );
 }

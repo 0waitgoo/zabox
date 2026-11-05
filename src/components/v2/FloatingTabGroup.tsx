@@ -66,7 +66,7 @@ export default function FloatingTabGroup({ store }: { store: LocalStore }) {
           }}
           className="flex w-full items-center gap-2.5 rounded-xl px-2 py-2 text-left text-sm text-white/90 hover:bg-white/10"
         >
-          <SiteLogo logo={siteIconSrc(site)} name={site.name} url={site.url} size={30} grayscale={site.dead} />
+          <SiteLogo logo={siteIconSrc(site)} name={site.name} url={site.url} size={22} grayscale={site.dead} />
           <span className="min-w-0 flex-1 truncate">{site.name}</span>
         </button>
       ))}

@@ -1148,7 +1148,7 @@ export default function DataMenu({
       const parsed: unknown = JSON.parse(text);
       /* 信封文件（带组件独立数据）先拆包；历史纯主数据文件 widgetStorage 为 null、行为不变 */
       const { store: storePart, widgetStorage } = unpackDataEnvelope(parsed);
-      if (store.importData(storePart)) {
+      if (store.importData(storePart, { refreshTimestamp: true })) {
         if (widgetStorage) {
           restoreWidgetStorage(widgetStorage);
           reloadColorsData();

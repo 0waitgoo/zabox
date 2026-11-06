@@ -4,6 +4,7 @@ import {
   findMappedLogo,
   navGroups,
   siteLogoFallback,
+  siteTags,
   type GroupDisplay,
   type NavGroup,
   type SiteEntry,
@@ -802,6 +803,99 @@ function compositionFingerprint(d: StoreData): string {
   });
 }
 
+/** 网址归一键（标签按站走、跨预设认站就靠它：末尾斜杠不计） */
+function tagUrlKey(url: unknown): string {
+  return typeof url === 'string' ? url.replace(/\/+$/, '') : '';
+}
+
+/** 去掉全部站点标签后的编组副本（只改标签的判定用：tag / tags 都不要） */
+function groupsWithoutTags(groups: NavGroup[]): NavGroup[] {
+  return groups.map((g) => ({
+    ...g,
+    sites: g.sites.map((s) => {
+      const c = { ...s };
+      delete c.tags;
+      delete c.tag;
+      return c;
+    }),
+  }));
+}
+
+/** 只改了标签？——去掉标签后构成指纹相同，即本次改动没动排版、没动站、没动外观 */
+function isTagsOnlyChange(prev: StoreData, next: StoreData): boolean {
+  return (
+    compositionFingerprint({ ...prev, groups: groupsWithoutTags(prev.groups) }) ===
+    compositionFingerprint({ ...next, groups: groupsWithoutTags(next.groups) })
+  );
+}
+
+/**
+ * 把改动的标签并进“我的”存档（2026-11-06 用户令：保存/上传时标签要一起保存）：
+ * 标签是站点元数据、不动排版，绝不能因为人在内置预设上就丢掉。
+ * 只动本次改动过的站（按 id 比 prev/next 的标签差异找出来），按网址认进快照里的同站；
+ * 没改过的站一律不动——内置预设种子站没标签，不能把存档里已有的标签反向清掉。
+ * 快照排版原样不动，也不切走当前预设。
+ */
+function mergeChangedTagsIntoSnapshot(
+  snap: CompositionSnapshot,
+  prev: StoreData,
+  next: StoreData,
+): CompositionSnapshot {
+  const changed = new Map<string, string[]>();
+  const prevById = new Map<string, SiteEntry>();
+  for (const g of prev.groups) for (const s of g.sites) if (s.id) prevById.set(s.id, s);
+  for (const g of next.groups) {
+    for (const s of g.sites) {
+      if (!s.id) continue;
+      const before = prevById.get(s.id);
+      const a = before ? siteTags(before) : [];
+      const b = siteTags(s);
+      if (a.join('|') !== b.join('|')) changed.set(tagUrlKey(s.url), b);
+    }
+  }
+  if (changed.size === 0) return snap;
+  const out = structuredClone(snap);
+  for (const g of out.groups) {
+    for (const s of g.sites) {
+      const tags = changed.get(tagUrlKey(s.url));
+      if (tags === undefined) continue;
+      if (tags.length) s.tags = [...tags];
+      else delete s.tags;
+      delete s.tag;
+    }
+  }
+  return out;
+}
+
+/**
+ * 加载/导入时补标签（2026-11-06）：现排版里的站有标签、“我的”快照里同站没有时，
+ * 把标签补进快照。只加不删——现排版没标签的站，快照里原有的标签原样保留；
+ * 这一步只救“内置预设上补了标签、没点覆盖确认就切走”丢掉的那批，下次切预设不再丢。
+ */
+function rescueTagsIntoSnapshot(snap: CompositionSnapshot, groups: NavGroup[]): CompositionSnapshot {
+  const liveByUrl = new Map<string, string[]>();
+  for (const g of groups) {
+    for (const s of g.sites) {
+      const tags = siteTags(s);
+      if (tags.length) liveByUrl.set(tagUrlKey(s.url), tags);
+    }
+  }
+  if (liveByUrl.size === 0) return snap;
+  let touched = false;
+  const out = structuredClone(snap);
+  for (const g of out.groups) {
+    for (const s of g.sites) {
+      if (siteTags(s).length) continue;
+      const tags = liveByUrl.get(tagUrlKey(s.url));
+      if (!tags) continue;
+      s.tags = [...tags];
+      delete s.tag;
+      touched = true;
+    }
+  }
+  return touched ? out : snap;
+}
+
 /** 主页卡片的稳定 key：编组用 group id、原生组件用 widget key，加前缀防撞 */
 export const groupCardKey = (groupId: string) => `group:${groupId}`;
 export const widgetCardKey = (widgetId: WidgetId) => `widget:${widgetId}`;
@@ -1262,7 +1356,12 @@ export function validateStoreData(raw: unknown): StoreData | null {
     widgetStacks: normalizeWidgetStacks((data as { widgetStacks?: unknown }).widgetStacks, widgets),
     widgetTints: normalizeWidgetTints((data as { widgetTints?: unknown }).widgetTints),
     activePreset: normalizeActivePreset((data as { activePreset?: unknown }).activePreset),
-    myPreset: normalizeSnapshot((data as { myPreset?: unknown }).myPreset, fallbackAppearance(background.presetId)),
+    // 加载/导入时把现排版的标签补进“我的”快照（只加不删）：救内置预设上补过标签
+    // 却没点覆盖确认的那批，下次切预设不再丢
+    myPreset: (() => {
+      const snap = normalizeSnapshot((data as { myPreset?: unknown }).myPreset, fallbackAppearance(background.presetId));
+      return snap ? rescueTagsIntoSnapshot(snap, groups) : null;
+    })(),
     dock: normalizeDock((data as { dock?: unknown }).dock),
   };
 }
@@ -1509,6 +1608,11 @@ export function useLocalStore() {
           next.activePreset = 'my';
           next.myPreset = structuredClone(compositionOf(next));
           overwritePendingRef.current = false;
+        } else if (isTagsOnlyChange(prev, next)) {
+          // 只改标签：标签是站点元数据、不动排版，直接按网址并进“我的”存档——
+          // 不弹覆盖确认（2026-11-04 的确认只拦排版覆盖），也不切走当前内置预设
+          next.myPreset = mergeChangedTagsIntoSnapshot(prev.myPreset, prev, next);
+          overwritePendingRef.current = false;
         } else {
           overwritePendingRef.current = true;
         }
@@ -1555,8 +1659,13 @@ export function useLocalStore() {
           site.name = draft.name;
           site.url = draft.url;
           site.description = draft.description;
-          site.aliases = draft.aliases;
-          site.pinned = draft.pinned;
+          // 别名：表单无编辑入口、只是原样回传——内容没变就不写，
+          // 否则 undefined → [] 这种空写也会被算成“改动”（标签单改判定会因此失效）
+          const nextAliases = draft.aliases ?? [];
+          if (JSON.stringify(nextAliases) !== JSON.stringify(site.aliases ?? [])) site.aliases = nextAliases;
+          // 置顶：没变就不写——undefined → false 这种空写也会被算成“改动”
+          // （标签单改判定会因此失效）
+          if (!!site.pinned !== draft.pinned) site.pinned = draft.pinned;
           // 图标（第四十九轮）：表单带回的 autoLogo 优先（auto 模式保存时表单已按当前名称/网址重取）；
           // 没带回则维持既有 logo，不再每次保存都无条件重算（图标已可手动管理）
           site.logo = draft.autoLogo || site.logo || logoForSite(draft.name, draft.url);

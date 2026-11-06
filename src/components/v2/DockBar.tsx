@@ -14,7 +14,8 @@ import { DragTrashZone, isOverDragTrash } from './DragTrashZone';
  * 内容是 store.data.dock 里的引用：渲染时按组 id 解析、组内先按站点 id 再按 url
  * 找实时站点数据（预设模板会重配站点 id，url 才是跨预设的稳定键）——
  * 拖网站进来只追加引用，主页编组与站点原样不动，同一网站同时在主页与 Dock 出现；
- * 主页删站后引用自动跳过、改名换图标后 Dock 里同步变。点 Dock 图标打开网站。
+ * 入 Dock 时带名字/图标快照，主页删站后 Dock 凭快照保留（改名换图标后 Dock 里同步变，
+ * 因渲染优先用组内实时站点）；点 Dock 图标打开网站。
  * 图标与页面保持一致：渲染完整站点条目，走与列表行/瓷砖同一条管线——
  * siteIconSrc（文字图标/自传图标/品牌 logo）+ SiteLogo（会话缓存与回落链），
  * 绝不直接用 site.logo（文字/自传图标会走样）。

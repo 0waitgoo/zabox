@@ -9,6 +9,7 @@
  */
 import { siteIconSrc, TAB_GROUP_NAME, type NavGroup } from '../../data/groups';
 import type { LocalStore } from '../../store/localStore';
+import { dockSiteSnapshot } from '../../store/localStore';
 import { SiteLogo } from './Card';
 import { useSiteDragSort } from './useSiteDragSort';
 
@@ -29,14 +30,7 @@ export default function FloatingTabGroup({ store }: { store: LocalStore }) {
     onDropToDock: (siteId) => {
       const site = sites.find((s) => s.id === siteId);
       if (!group || !site) return;
-      store.addDockSite(group.id, siteId, site.url, {
-        name: site.name,
-        logo: site.logo,
-        iconMode: site.iconMode,
-        iconText: site.iconText,
-        iconColor: site.iconColor,
-        iconImage: site.iconImage,
-      });
+      store.addDockSite(group.id, siteId, site.url, dockSiteSnapshot(site));
       store.deleteSite(group.id, siteId);
     },
     onDropToTrash: (siteId) => {

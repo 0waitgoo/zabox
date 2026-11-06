@@ -1,7 +1,7 @@
 import React, { useLayoutEffect, useRef, useState } from 'react';
 import { Pin, Plus, Check, X, RefreshCw, Upload, Trash2 } from 'lucide-react';
 import { LETTER_ICON_COLORS, SITE_TAG_MAX, SITE_TAGS_MAX_COUNT, cleanSiteTag, cleanSiteTags, letterIconDataUri, siteIconSrc, siteLogoFallback, siteTags, sortSites, type NavGroup, type SiteEntry } from '../../data/groups';
-import { logoForSite, type LocalStore, type SiteDraft } from '../../store/localStore';
+import { dockSiteSnapshot, logoForSite, type LocalStore, type SiteDraft } from '../../store/localStore';
 import { useLang } from '../../i18n/useLang';
 import { SiteLogo } from './Card';
 import SiteContextMenu, { siteMenuPosition, type SiteMenuState } from './SiteContextMenu';
@@ -574,7 +574,10 @@ export default function GroupExpandedBody({
     onReorder: (ids) => store.reorderSites(group.id, ids),
     groupId: group.id,
     onMoveToGroup: (siteId, targetGroupId) => store.moveSite(group.id, siteId, targetGroupId),
-    onDropToDock: (siteId) => store.addDockSite(group.id, siteId, sorted.find((s) => s.id === siteId)?.url ?? ''),
+    onDropToDock: (siteId) => {
+      const site = sorted.find((s) => s.id === siteId);
+      store.addDockSite(group.id, siteId, site?.url ?? '', site ? dockSiteSnapshot(site) : undefined);
+    },
     onDropToTrash: (siteId) => store.deleteSite(group.id, siteId),
   });
 

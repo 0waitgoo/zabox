@@ -3,6 +3,7 @@ import { motion } from 'motion/react';
 import { Pin, Pencil, Trash2, ChevronDown, ChevronUp, Check } from 'lucide-react';
 import { GROUP_NAME_MAX, siteIconSrc, sortSites, textCharCount, type NavGroup, type SiteEntry } from '../../data/groups';
 import type { LocalStore } from '../../store/localStore';
+import { dockSiteSnapshot } from '../../store/localStore';
 import { useLang } from '../../i18n/useLang';
 import { displayGroupName } from '../../i18n/groupNames';
 import { SiteLogo } from './Card';
@@ -90,7 +91,10 @@ export default function GroupListCard({
     onReorder: (ids) => store.reorderSites(group.id, ids),
     groupId: group.id,
     onMoveToGroup: (siteId, targetGroupId) => store.moveSite(group.id, siteId, targetGroupId),
-    onDropToDock: (siteId) => store.addDockSite(group.id, siteId, rows.find((s) => s.id === siteId)?.url ?? ''),
+    onDropToDock: (siteId) => {
+      const site = rows.find((s) => s.id === siteId);
+      store.addDockSite(group.id, siteId, site?.url ?? '', site ? dockSiteSnapshot(site) : undefined);
+    },
     onDropToTrash: (siteId) => store.deleteSite(group.id, siteId),
   });
 

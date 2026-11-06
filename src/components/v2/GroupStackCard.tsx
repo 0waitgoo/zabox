@@ -2,6 +2,7 @@ import React from 'react';
 import { motion } from 'motion/react';
 import { groupIcon, siteIconSrc, siteTags, sortSites, type NavGroup, type SiteEntry } from '../../data/groups';
 import type { LocalStore } from '../../store/localStore';
+import { dockSiteSnapshot } from '../../store/localStore';
 import { cachedIconSrc, nextFallbackIconSrc, storeIconSrc } from './Card';
 import { siteTagBadgeCls } from './GroupExpanded';
 import { SITE_DRAG_PLACEHOLDER_STYLE, useSiteDragSort } from './useSiteDragSort';
@@ -337,12 +338,15 @@ export function StackSiteTiles({
     // （组合卡面切了 tab），用它会把源组算成新 tab 组、跨组移动成同组空操作
     onMoveToGroup: (siteId, targetGroupId, fromGroupId) =>
       store.moveSite(fromGroupId ?? group.id, siteId, targetGroupId),
-    onDropToDock: (siteId, fromGroupId) =>
+    onDropToDock: (siteId, fromGroupId) => {
+      const site = visible.find((s) => s.id === siteId);
       store.addDockSite(
         fromGroupId ?? group.id,
         siteId,
-        siteUrlByIdRef.current.get(siteId) ?? visible.find((s) => s.id === siteId)?.url ?? '',
-      ),
+        siteUrlByIdRef.current.get(siteId) ?? site?.url ?? '',
+        site ? dockSiteSnapshot(site) : undefined,
+      );
+    },
     onDropToTrash: (siteId, fromGroupId) => store.deleteSite(fromGroupId ?? group.id, siteId),
     getEscapeBoundary: () => zoneRef.current?.closest('[data-stack-body]') as HTMLElement | null,
   });

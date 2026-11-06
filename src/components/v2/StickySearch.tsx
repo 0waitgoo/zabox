@@ -3,6 +3,7 @@ import { Search, LayoutGrid, CornerDownLeft } from 'lucide-react';
 import { AnimatePresence, motion } from 'motion/react';
 import { siteIconSrc, type NavGroup, type SiteEntry } from '../../data/groups';
 import type { LocalStore } from '../../store/localStore';
+import { dockSiteSnapshot } from '../../store/localStore';
 import { searchAll } from '../../utils/search';
 import { useLang } from '../../i18n/useLang';
 import { displayGroupName } from '../../i18n/groupNames';
@@ -102,7 +103,7 @@ export default function StickySearch({
     onDropToDock: store
       ? (siteId) => {
           const hit = results.sites.find((h) => h.site.id === siteId);
-          if (hit) store.addDockSite(hit.group.id, siteId, hit.site.url);
+          if (hit) store.addDockSite(hit.group.id, siteId, hit.site.url, dockSiteSnapshot(hit.site));
         }
       : undefined,
     onDropToTrash: store

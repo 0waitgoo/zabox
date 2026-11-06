@@ -216,6 +216,8 @@ function SiteTile({ site, guardClick, dragging }: { site: SiteEntry; guardClick?
   };
   // 瓷砖角标（2026-11-06 用户令）：有标签的站，瓷砖右上角贴一个标签徽标（只贴第一个，
   // 瓷砖小、两个贴不下）；无标签不显示。配色与 B 卡行徽标同一套。
+  // 位置必须贴在瓷砖内（top-0 right-0）：1x 单行容器是 overflow-hidden，徽标探出
+  // 瓷砖顶部会被裁掉一半（2026-11-06 实测 VPN 只剩半截）；贴内侧则任何形态都不裁。
   const firstTag = siteTags(site)[0];
   return (
     <button
@@ -230,7 +232,7 @@ function SiteTile({ site, guardClick, dragging }: { site: SiteEntry; guardClick?
       {firstTag && (
         <span
           data-face-site-tag={firstTag}
-          className={`absolute -top-1.5 -right-1.5 z-10 pointer-events-none text-[8px] leading-none font-bold border px-1 py-[2px] rounded-md ${siteTagBadgeCls(firstTag)}`}
+          className={`absolute top-0 right-0 z-10 pointer-events-none text-[8px] leading-none font-bold border px-1 py-[2px] rounded-md ${siteTagBadgeCls(firstTag)}`}
         >
           {firstTag}
         </span>

@@ -730,12 +730,25 @@ export interface DockEntry {
   /** 站点地址（跨预设解析与去重的稳定键）；老条目可能为空，按 siteId 解析 */
   url: string;
   /** 迁入快照：站点已不在任何编组里时，Dock 凭它渲染图标与名字、点开 url。
-   * 只有从悬浮组拖进 Dock 时才写（拖出即删除原站，引用无处解析）；平时追加引用不带快照。 */
+   * 任何入口拖进 Dock 都带快照（悬浮组迁入时站点随即删除，平时追加时站点还在组里、
+   * 快照是删站后保留的底牌）；渲染优先用组内实时站点，找不到才回落快照。 */
   snapshot?: DockSiteSnapshot;
 }
 
 /** Dock 迁入快照：只存渲染所需字段（名字与图标管线输入），不存频率/置顶等编组内状态 */
 export type DockSiteSnapshot = Pick<SiteEntry, 'name' | 'logo' | 'iconMode' | 'iconText' | 'iconColor' | 'iconImage'>;
+
+/** 从实时站点取 Dock 快照：各入 Dock 入口共用，字段与 DockSiteSnapshot 同口径 */
+export function dockSiteSnapshot(site: SiteEntry): DockSiteSnapshot {
+  return {
+    name: site.name,
+    logo: site.logo,
+    iconMode: site.iconMode,
+    iconText: site.iconText,
+    iconColor: site.iconColor,
+    iconImage: site.iconImage,
+  };
+}
 
 /** 内置预设 id（第一百零六轮）：构成数据在 data/presets.ts，本层只认 id */
 export type BuiltinPresetId = 'default' | 'designer' | 'developer' | 'tools' | 'entertainment';
@@ -1291,7 +1304,7 @@ function normalizeSnapshot(raw: unknown, appearanceFallback: PresetAppearance): 
  * url 缺失时补空串；按 siteId、或（同组 + 同 url）去重保序；是否真实存在由 DockBar
  * 渲染时按当前编组过滤（切预设后组 id 可能暂不存在，引用须保留、切回后恢复显示，
  * 故此处不按组过滤）。 */
-function normalizeDock(raw: unknown): DockEntry[] {
+function normalizeDock(raw: unknown, groups?: NavGroup[]): DockEntry[] {
   if (!Array.isArray(raw)) return [];
   const seenIds = new Set<string>();
   const seenUrls = new Set<string>();
@@ -1316,6 +1329,15 @@ function normalizeDock(raw: unknown): DockEntry[] {
         if (typeof s.iconColor === 'string') snapshot.iconColor = s.iconColor;
         if (typeof s.iconImage === 'string') snapshot.iconImage = s.iconImage;
       }
+    }
+    // 存量条目补快照：站点还在组里、条目却没快照（老版本入 Dock 时不带快照），
+    // 下次加载即补上，之后删站 Dock 凭快照保留；站点已删的补不回来，保持原样
+    if (!snapshot && groups) {
+      const group = groups.find((g) => g.id === groupId);
+      const site =
+        group?.sites.find((s) => s.id === siteId) ??
+        group?.sites.find((s) => !!urlStr && s.url === urlStr);
+      if (site) snapshot = dockSiteSnapshot(site);
     }
     out.push(snapshot ? { groupId, siteId, url: urlStr, snapshot } : { groupId, siteId, url: urlStr });
   }
@@ -1362,7 +1384,7 @@ export function validateStoreData(raw: unknown): StoreData | null {
       const snap = normalizeSnapshot((data as { myPreset?: unknown }).myPreset, fallbackAppearance(background.presetId));
       return snap ? rescueTagsIntoSnapshot(snap, groups) : null;
     })(),
-    dock: normalizeDock((data as { dock?: unknown }).dock),
+    dock: normalizeDock((data as { dock?: unknown }).dock, groups),
   };
 }
 
@@ -2836,7 +2858,14 @@ export function useLocalStore() {
       const key = (d: DockEntry) => `${d.groupId}|${d.siteId}|${d.url}`;
       if (ordered.length === dock.length && ordered.every((d, i) => key(d) === key(dock[i]))) return prev;
       const next = structuredClone(prev);
-      next.dock = ordered.map((d) => ({ groupId: d.groupId, siteId: d.siteId, url: d.url }));
+      // 重排只换顺序：快照跟原条目走，删站后 Dock 保留靠它，绝不能丢
+      const byKey = new Map<string, DockEntry>(dock.map((d) => [key(d), d] as [string, DockEntry]));
+      next.dock = ordered.map((d) => {
+        const prevEntry = byKey.get(key(d));
+        return prevEntry?.snapshot
+          ? { groupId: d.groupId, siteId: d.siteId, url: d.url, snapshot: prevEntry.snapshot }
+          : { groupId: d.groupId, siteId: d.siteId, url: d.url };
+      });
       next.updatedAt = Date.now();
       return next;
     });

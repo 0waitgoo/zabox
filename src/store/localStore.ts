@@ -677,7 +677,8 @@ export interface StoreData {
   background: BackgroundSetting;
   /**
    * 数据最后变更时间戳（毫秒）：每次经 update() 的用户变更都会刷新；
-   * importData 不刷新（保留来源的时间戳），供 GitHub 同步按新旧裁决冲突。
+   * importData 默认不刷新（保留来源的时间戳），供 GitHub 同步按新旧裁决冲突；
+   * 只有用户手动导入文件时刷新——导入的即最新，同步按它为准。
    * 老数据无此字段时为 0（任何带真实时间戳的一端都比它新）。
    */
   updatedAt: number;
@@ -2871,9 +2872,12 @@ export function useLocalStore() {
     });
   }, []);
 
-  const importData = useCallback((raw: unknown): boolean => {
+  const importData = useCallback((raw: unknown, opts?: { refreshTimestamp?: boolean }): boolean => {
     const validated = validateStoreData(raw);
     if (!validated) return false;
+    // 手动导入文件是用户明确操作：导入的即最新，刷新时间戳，同步按它为准（随后自动推上云）；
+    // 同步拉取（applyRemote / 计划栏）绝不能刷新——拉取后时间戳须与云端基准对齐，否则每次拉取都会触发回推。
+    if (opts?.refreshTimestamp) validated.updatedAt = Date.now();
     overwritePendingRef.current = false;
     setOverwriteConfirmOpen(false);
     setData(validated);

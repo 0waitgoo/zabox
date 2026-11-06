@@ -45,6 +45,18 @@ import { DragTrashZone, isOverDragTrash } from './DragTrashZone';
  * 多组混排容器（搜索下拉，2026-11-04 用户定：下拉站点行可直接拖到主页组卡/Dock）：
  * 容器内站点分属不同组，容器级 groupId 无法表示源组——配 getSourceGroupId
  * 按被拖站点 id 返回其实际所属组，跨组高亮与同组取消按它判定；缺省仍用 groupId。
+ *
+ * 组合卡面边缘悬停切 tab（2026-11-06 用户定）：拖动中悬停在组合卡左右边缘即切换
+ * 其当前 tab——切换由 ComboCard 的边缘监听触发；卡面落点按组合当前 tab 组判定
+ * （主页组合卡 wrapper 的 data-group-card = 当前 tab 组 id，随切换更新）。
+ * 切 tab 后被拖站点若已不在当前显示列表里，本钩会把排序拖动转为跨组移动
+ * （拖动不中断、松手按跨组规则落到新 tab 组），否则排序预览会拿着旧组 id 落盘。
+ *
+ * 组合弹窗内跨组移动（2026-11-06 用户定）：弹窗里两组上下排列，瓷砖可从一组
+ * 拖到另一组。跨组落点除主页组卡 [data-group-card] 外，也认弹窗组区
+ * [data-panel-section]（组头/内容区/网格都带此标记，描边高亮落在实框元素上）；
+ * embedded 组区配 getEscapeRect（组区头+内容并集）作排序转跨组的边界，拖出组区
+ * 即转跨组，弹窗不隐藏、目标就是弹窗里另一组。
  */
 const DRAG_THRESHOLD = 7;
 export { DRAG_THRESHOLD };
@@ -60,6 +72,7 @@ export function useSiteDragSort({
   onMoveToGroup,
   crossGroupOnly = false,
   getEscapeBoundary,
+  getEscapeRect,
   onEscapeToCross,
   onDragEnd,
   onDropToDock,
@@ -72,20 +85,24 @@ export function useSiteDragSort({
   onReorder?: (orderedIds: string[]) => void;
   /** 本容器所属组 id（跨组模式判定同组取消用） */
   groupId?: string;
-  /** 跨组移动落盘（siteId, targetGroupId） */
-  onMoveToGroup?: (siteId: string, targetGroupId: string) => void;
+  /** 跨组移动落盘（siteId, targetGroupId, sourceGroupId）：第 3 个参数是激活时锁定的源组——
+   * 调用方闭包里的组 id 可能在拖动中变化（如组合卡面切了 tab），落盘必须用锁定值 */
+  onMoveToGroup?: (siteId: string, targetGroupId: string, sourceGroupId?: string) => void;
   /** 只做跨组移动、不做组内排序（暂无调用方保留：B 卡收起网格与 C 卡面现已用排序实例兼跨组） */
   crossGroupOnly?: boolean;
   /** 排序转跨组的边界元素（弹窗等不在组卡内的容器）：提供时按它判定拖出，缺省用源组卡 */
   getEscapeBoundary?: () => HTMLElement | null;
+  /** 排序转跨组的边界矩形（多个不相邻区域的并集，如组合弹窗里一组的管理区）：
+   * 提供时优先于 getEscapeBoundary 的元素矩形 */
+  getEscapeRect?: () => { left: number; top: number; right: number; bottom: number } | null;
   /** 排序转跨组时回调（弹窗可据此隐藏面板、露出底下组卡） */
   onEscapeToCross?: () => void;
   /** 拖拽结束回调（moved = 跨组模式下落到异组、实际发生了移动） */
   onDragEnd?: (result: { moved: boolean }) => void;
-  /** 拖到 Dock 栏松手：只加 Dock 引用、不移动（siteId）；调用方负责按组 id 追加引用 */
-  onDropToDock?: (siteId: string) => void;
-  /** 拖到右侧垃圾桶松手：删除该站（siteId）；调用方负责按源组删站（Dock 图标不走这里，见 DockBar） */
-  onDropToTrash?: (siteId: string) => void;
+  /** 拖到 Dock 栏松手：只加 Dock 引用、不移动（siteId, sourceGroupId）；调用方负责按组 id 追加引用 */
+  onDropToDock?: (siteId: string, sourceGroupId?: string) => void;
+  /** 拖到右侧垃圾桶松手：删除该站（siteId, sourceGroupId）；调用方负责按源组删站（Dock 图标不走这里，见 DockBar） */
+  onDropToTrash?: (siteId: string, sourceGroupId?: string) => void;
   /** 被拖站点实际所属组 id（多组混排容器用；缺省用容器 groupId 判定同组） */
   getSourceGroupId?: (siteId: string) => string | undefined;
 }) {
@@ -111,6 +128,9 @@ export function useSiteDragSort({
     mode: 'sort' | 'cross';
     /** 激活瞬间源卡片（[data-group-card] 祖先）：排序转跨组按指针是否拖出它判定 */
     sourceCard: HTMLElement | null;
+    /** 激活瞬间被拖站点的源组（激活时锁定）：切 tab 等中途变化会改组 id 读数，
+     * 同组判定与落点组比较必须用激活时的源组，不能用变化后的当前组 */
+    sourceGroupId: string | undefined;
   } | null>(null);
   /** 跨组模式当前高亮的目标组卡（同组不算目标）；高亮用内联 outline，结束时清除 */
   const crossTargetRef = useRef<{ groupId: string; el: HTMLElement } | null>(null);
@@ -126,6 +146,11 @@ export function useSiteDragSort({
   groupIdRef.current = groupId;
   const getEscapeBoundaryRef = useRef(getEscapeBoundary);
   getEscapeBoundaryRef.current = getEscapeBoundary;
+  const getEscapeRectRef = useRef(getEscapeRect);
+  getEscapeRectRef.current = getEscapeRect;
+  /** 跨组目标重算（供拖动中列表变化时调用：如组合卡切 tab 后被拖站点已不在当前列表，
+   * 排序拖动需转为跨组移动，落点按当前指针位置重判） */
+  const refreshCrossTargetRef = useRef<((x: number, y: number) => void) | null>(null);
   const onEscapeToCrossRef = useRef(onEscapeToCross);
   onEscapeToCrossRef.current = onEscapeToCross;
   const onDragEndRef = useRef(onDragEnd);
@@ -226,7 +251,6 @@ export function useSiteDragSort({
       }
       activeRef.current = null;
       pendingRef.current = null;
-      const crossTarget = crossTargetRef.current;
       clearCrossHighlight();
       clearDockHighlight();
       trashHotRef.current = false;
@@ -238,11 +262,14 @@ export function useSiteDragSort({
       setDragId(null);
       setClone(null);
       originRef.current = null;
-      // moved = 跨组模式下确实落到了异组（onMoveToGroup 即将/已经触发；源组按被拖站点实际所属组判）
-      const moved = d.mode === 'cross' && commit && !!crossTarget && crossTarget.groupId !== sourceGroupIdOf(d.id);
+      // 松手时按当前指针位置重算落点（不用缓存的 crossTarget）：切 tab 等中途变化
+      // 会改落点组 id，缓存还是旧组；同组比较用激活时锁定的源组
+      const dropTarget = resolveCrossTarget(d.lastX, d.lastY);
+      // moved = 跨组模式下确实落到了异组（onMoveToGroup 即将/已经触发；源组按激活时锁定值判）
+      const moved = d.mode === 'cross' && commit && !!dropTarget && dropTarget.groupId !== d.sourceGroupId;
       // 垃圾桶优先（两个模式都判）：落在垃圾桶上即删除该站，不排序也不跨组
       if (commit && onDropToTrashRef.current && isOverDragTrash(d.lastX, d.lastY)) {
-        onDropToTrashRef.current(d.id);
+        onDropToTrashRef.current(d.id, d.sourceGroupId);
         suppressUntilRef.current = Date.now() + 350;
         onDragEndRef.current?.({ moved: false });
         return;
@@ -250,14 +277,14 @@ export function useSiteDragSort({
       if (d.mode === 'cross') {
         // Dock 优先：落在 Dock 上只加引用，不跨组移动
         if (commit && onDropToDockRef.current && isOverDock(d.lastX, d.lastY)) {
-          onDropToDockRef.current(d.id);
+          onDropToDockRef.current(d.id, d.sourceGroupId);
           suppressUntilRef.current = Date.now() + 350;
           onDragEndRef.current?.({ moved: false });
           return;
         }
         // 跨组提交：目标组存在且不是源组才移动；同组/空白 = 取消
-        if (moved) {
-          onMoveToGroupRef.current?.(d.id, crossTarget.groupId);
+        if (moved && dropTarget) {
+          onMoveToGroupRef.current?.(d.id, dropTarget.groupId, d.sourceGroupId);
         }
         // 跨组拖拽只要拖起来过，松手那次 click 都不该打开站点（提交/取消、落在源行/目标行都一样）
         suppressUntilRef.current = Date.now() + 350;
@@ -266,7 +293,7 @@ export function useSiteDragSort({
       }
       // Dock 落点（排序模式）：落在 Dock 上只加引用，不落盘排序
       if (commit && onDropToDockRef.current && isOverDock(d.lastX, d.lastY)) {
-        onDropToDockRef.current(d.id);
+        onDropToDockRef.current(d.id, d.sourceGroupId);
         suppressUntilRef.current = Date.now() + 350;
         onDragEndRef.current?.({ moved: false });
         return;
@@ -333,27 +360,38 @@ export function useSiteDragSort({
       if (next.join('|') !== preview.join('|')) setPreview(next);
     };
 
-    /** 跨组模式：按指针下 data-group-card 卡片判定目标组（同组不算目标），变化时换高亮 */
-    const updateCrossTarget = (x: number, y: number) => {
+    /** 按指针位置解析跨组落点（元素 + 组 id），不改高亮；供拖动中与松手时共用——
+     * 松手时重算一次，避免切 tab 等中途变化让缓存的目标组过期（2026-11-06 实测：
+     * 边缘悬停切 tab 后若只用缓存，落点还是旧 tab 组） */
+    const resolveCrossTarget = (x: number, y: number) => {
       const hit = document.elementFromPoint(x, y);
-      const card = hit?.closest?.('[data-group-card]') as HTMLElement | null;
-      const targetId = card?.dataset.groupCard ?? null;
-      const sourceGroupId = sourceGroupIdOf(activeRef.current?.id ?? '');
-      const next = targetId && targetId !== sourceGroupId ? targetId : null;
+      const el = hit?.closest?.('[data-group-card], [data-panel-section]') as HTMLElement | null;
+      const groupId = el?.dataset.groupCard ?? el?.dataset.panelSection ?? null;
+      return el && groupId ? { groupId, el } : null;
+    };
+
+    /** 跨组模式：按指针下 data-group-card 卡片或 data-panel-section 组区判定目标组
+     * （同组不算目标），变化时换高亮；组合弹窗里的另一组区同样可落 */
+    const updateCrossTarget = (x: number, y: number) => {
+      const found = resolveCrossTarget(x, y);
+      const sourceGroupId = activeRef.current?.sourceGroupId;
+      const next = found && found.groupId !== sourceGroupId ? found : null;
       const prev = crossTargetRef.current;
-      if ((prev?.groupId ?? null) === next) return;
+      if ((prev?.groupId ?? null) === (next?.groupId ?? null)) return;
       if (prev) {
         prev.el.style.outline = '';
         prev.el.style.outlineOffset = '';
       }
-      if (next && card) {
-        card.style.outline = '2px solid rgba(129, 140, 248, 0.9)';
-        card.style.outlineOffset = '2px';
-        crossTargetRef.current = { groupId: next, el: card };
+      if (next) {
+        next.el.style.outline = '2px solid rgba(129, 140, 248, 0.9)';
+        next.el.style.outlineOffset = '2px';
+        crossTargetRef.current = { groupId: next.groupId, el: next.el };
       } else {
         crossTargetRef.current = null;
       }
     };
+    // 供列表中途变化时重判跨组落点（见下方的 sites 变化 effect）
+    refreshCrossTargetRef.current = (x: number, y: number) => updateCrossTarget(x, y);
 
     /** 由待命转激活（onPointerMove 越阈值）：建快照、置 active；
      * forceCross = 跨组容器直接进跨组模式（排序预览不建） */
@@ -387,6 +425,7 @@ export function useSiteDragSort({
         rects,
         mode,
         sourceCard: container.closest('[data-group-card]') as HTMLElement | null,
+        sourceGroupId: sourceGroupIdOf(pending.id),
       };
       if (mode === 'sort') {
         setPreview(sitesRef.current.map((s) => s.id).filter((x): x is string => !!x));
@@ -429,11 +468,14 @@ export function useSiteDragSort({
         if (d.mode === 'cross') {
           updateCrossTarget(e.clientX, e.clientY);
         } else {
-          // 排序转跨组：配了 onMoveToGroup 的实例，指针拖出边界（源组卡或 getEscapeBoundary 指定的
-          // 弹窗面板）边距即转交；预览与占位随模式切换丢弃（isDragging 只认 sort），松手按跨组规则提交/取消
+          // 排序转跨组：配了 onMoveToGroup 的实例，指针拖出边界（源组卡、getEscapeBoundary
+          // 指定的弹窗面板，或 getEscapeRect 给的并集矩形）边距即转交；预览与占位随模式切换
+          // 丢弃（isDragging 只认 sort），松手按跨组规则提交/取消
           const boundary = getEscapeBoundaryRef.current?.() ?? d.sourceCard;
-          if (onMoveToGroupRef.current && boundary) {
-            const r = boundary.getBoundingClientRect();
+          const escapeRect =
+            getEscapeRectRef.current?.() ?? (boundary ? boundary.getBoundingClientRect() : null);
+          if (onMoveToGroupRef.current && escapeRect) {
+            const r = escapeRect;
             const m = CROSS_ESCAPE_MARGIN;
             if (e.clientX < r.left - m || e.clientX > r.right + m || e.clientY < r.top - m || e.clientY > r.bottom + m) {
               d.mode = 'cross';
@@ -488,8 +530,22 @@ export function useSiteDragSort({
       window.removeEventListener('pointerup', onPointerUp);
       window.removeEventListener('pointercancel', onPointerCancel);
       window.removeEventListener('keydown', onKeyDown);
+      refreshCrossTargetRef.current = null;
     };
   }, []);
+
+  /** 拖动中显示列表变化、被拖站点已不在列表里（如组合卡面切了 tab）：排序预览
+   * 已无意义，转为跨组移动（不丢拖动、不弹回），落点按当前指针位置重判；
+   * 此时不触发 onEscapeToCross（不是拖出弹窗，只是列表换了） */
+  useEffect(() => {
+    const d = activeRef.current;
+    if (!d || d.mode !== 'sort') return;
+    if (sites.some((s) => s.id === d.id)) return;
+    d.mode = 'cross';
+    previewRef.current = null;
+    setPreviewIds(null);
+    refreshCrossTargetRef.current?.(d.lastX, d.lastY);
+  }, [sites]);
 
   // 快照挂载后先定位到抓起处，避免首帧闪到角落；挂载瞬间尚未设 transform，
   // 此时量到的 rect 就是 fixed 的实际原点（有 transform 祖先时为该祖先原点）。

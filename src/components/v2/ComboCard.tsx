@@ -5,6 +5,12 @@ import { useLang } from '../../i18n/useLang';
 import { displayGroupName } from '../../i18n/groupNames';
 import { StackCardFrame, StackGroupIcon, StackSiteTiles } from './GroupStackCard';
 
+/** 边缘悬停切 tab（2026-11-06 用户定）：拖动网站图标时，指针悬停在组合卡左右边缘
+ * 此宽度内并停留片刻，即自动切到对应 tab；普通悬停（无拖动）不切换 */
+const TAB_EDGE_ZONE_PX = 32;
+/** 边缘悬停后切换的停留时长（ms）：扫过卡面不误切，刻意停一下才切 */
+const TAB_SWITCH_DWELL_MS = 500;
+
 /**
  * C 卡组合卡（第二十一轮）：两个文件夹式编组合并成一张卡，占一个网格位。
  * - 顶部左右双 tab 头：各显示该组的头图标（与普通 C 卡同规则）+ 组名；当前 tab 高亮、另一个变暗
@@ -14,6 +20,8 @@ import { StackCardFrame, StackGroupIcon, StackSiteTiles } from './GroupStackCard
  *   点卡身空白处（tab 头与瓷砖以外的区域）= 打开组合弹窗（ComboPanel）
  * - 按住任一 tab 头拖动 = 把该组拖出组合（拖影为该组的普通 C 卡面，落点即独立卡位置，组合随之解散）；
  *   尺寸与拆分走主页右键菜单（尺寸存 groupLayouts 的 combo key）
+ * - 拖网站图标时悬停在卡身左右边缘 32px 内满 500ms = 自动切到对应 tab（2026-11-06 用户定）；
+ *   松手落到当前 tab 组（主页落点按组合当前 tab 组判定）；普通悬停不切 tab
  */
 export default function ComboCard({
   combo,
@@ -44,6 +52,68 @@ export default function ComboCard({
     e.stopPropagation();
     if (groupId !== active.id) store.setComboActive(combo.id, groupId);
   };
+
+  /** 边缘悬停切 tab：只在站点拖动进行中响应（站点拖拽快照 [data-drag-clone] 存在时）；
+   * 整卡拖动（拖 tab 头解组、拖整卡排序）没有站点快照，不触发。指针落在卡身左右边缘带
+   * 内并停满 TAB_SWITCH_DWELL_MS 即切到对应 tab；离开边缘带或拖动结束即取消计时。
+   * 切 tab 后卡面换组显示；若被拖的正是本卡瓷砖，拖动侧（useSiteDragSort）会把排序
+   * 转为跨组移动，松手落到新 tab 组（见其 sites 变化 effect）。 */
+  const cardBodyRef = React.useRef<HTMLElement | null>(null);
+  const dwellRef = React.useRef<{ zone: 'left' | 'right'; timer: number } | null>(null);
+  React.useEffect(() => {
+    const clearDwell = () => {
+      if (dwellRef.current) {
+        window.clearTimeout(dwellRef.current.timer);
+        dwellRef.current = null;
+      }
+    };
+    const onMove = (e: PointerEvent) => {
+      if (!document.querySelector('[data-drag-clone]')) {
+        clearDwell();
+        return;
+      }
+      if (!cardBodyRef.current) {
+        cardBodyRef.current = document.querySelector(
+          `[data-combo-card="${combo.id}"] [data-stack-body]`,
+        ) as HTMLElement | null;
+        if (!cardBodyRef.current) return;
+      }
+      const r = cardBodyRef.current.getBoundingClientRect();
+      let zone: 'left' | 'right' | null = null;
+      if (e.clientY >= r.top && e.clientY <= r.bottom) {
+        if (e.clientX >= r.left && e.clientX <= r.left + TAB_EDGE_ZONE_PX) zone = 'left';
+        else if (e.clientX >= r.right - TAB_EDGE_ZONE_PX && e.clientX <= r.right) zone = 'right';
+      }
+      if (!zone) {
+        clearDwell();
+        return;
+      }
+      const targetId = zone === 'left' ? groups[0].id : groups[1].id;
+      if (targetId === active.id) {
+        clearDwell();
+        return;
+      }
+      if (dwellRef.current?.zone === zone) return;
+      clearDwell();
+      dwellRef.current = {
+        zone,
+        timer: window.setTimeout(() => {
+          dwellRef.current = null;
+          store.setComboActive(combo.id, targetId);
+        }, TAB_SWITCH_DWELL_MS),
+      };
+    };
+    const onUp = () => clearDwell();
+    window.addEventListener('pointermove', onMove);
+    window.addEventListener('pointerup', onUp);
+    window.addEventListener('pointercancel', onUp);
+    return () => {
+      window.removeEventListener('pointermove', onMove);
+      window.removeEventListener('pointerup', onUp);
+      window.removeEventListener('pointercancel', onUp);
+      clearDwell();
+    };
+  }, [combo.id, groups[0].id, groups[1].id, active.id, store]);
 
   return (
     <StackCardFrame

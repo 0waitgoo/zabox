@@ -1623,7 +1623,15 @@ export default function HomePage({ onNavigate, store }: { onNavigate: (page: str
                 else wrapperRefs.current.delete(key);
               }}
               data-card-key={key}
-              data-group-card={item.group ? item.group.id : undefined}
+              data-group-card={
+                item.group
+                  ? item.group.id
+                  : item.combo
+                    ? // 组合卡同样是跨组落点（2026-11-06）：落点组 = 当前 tab 组，随切 tab 更新；
+                      // 拖到组合卡边缘悬停切 tab 后，松手即落到新 tab 组
+                      item.combo.activeGroupId
+                    : undefined
+              }
               className="scroll-mt-20 relative"
               style={{
                 gridColumn: `${(pos?.col ?? 0) + 1} / span ${span}`,

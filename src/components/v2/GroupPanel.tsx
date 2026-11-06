@@ -151,9 +151,23 @@ export function GroupPanelSection({
   };
 
   const sorted = useMemo(() => sortSites(group.sites), [group]);
-  /** 组内拖动排序（第三十八轮）：每个 Section 一套，组合弹窗里两组互不串组；
-   * 单组弹窗另配跨组移动：拖出面板边距即转跨组（面板隐藏、露出底下组卡），
-   * 组合弹窗（embedded）不传边界、保持只排序 */
+  /** 组内拖动排序（第三十八轮）：每个 Section 一套；单组弹窗另配跨组移动：
+   * 拖出面板边距即转跨组（面板隐藏、露出底下组卡）。组合弹窗（embedded）见下。 */
+  /** 组合弹窗内跨组移动（2026-11-06 用户定）：组区头+内容并集作排序转跨组的边界，
+   * 拖出本组区即转跨组，落点是弹窗里另一组区（[data-panel-section]），弹窗不隐藏 */
+  const sectionHeadRef = useRef<HTMLDivElement | null>(null);
+  const sectionBodyRef = useRef<HTMLDivElement | null>(null);
+  const sectionEscapeRect = () => {
+    const a = sectionHeadRef.current?.getBoundingClientRect();
+    const b = sectionBodyRef.current?.getBoundingClientRect();
+    if (!a && !b) return null;
+    return {
+      left: Math.min(a?.left ?? Infinity, b?.left ?? Infinity),
+      top: Math.min(a?.top ?? Infinity, b?.top ?? Infinity),
+      right: Math.max(a?.right ?? -Infinity, b?.right ?? -Infinity),
+      bottom: Math.max(a?.bottom ?? -Infinity, b?.bottom ?? -Infinity),
+    };
+  };
   const siteDrag = useSiteDragSort({
     sites: sorted,
     onReorder: (ids) => store.reorderSites(group.id, ids),
@@ -162,6 +176,7 @@ export function GroupPanelSection({
     onDropToDock: (siteId) => store.addDockSite(group.id, siteId, sorted.find((s) => s.id === siteId)?.url ?? ''),
     onDropToTrash: (siteId) => store.deleteSite(group.id, siteId),
     getEscapeBoundary,
+    getEscapeRect: embedded ? sectionEscapeRect : undefined,
     onEscapeToCross,
     onDragEnd,
   });
@@ -215,7 +230,7 @@ export function GroupPanelSection({
           已删除「自定义标题」输入行与「按使用频率排序」提示行（subtitle 仅保留在数据模型兼容老数据）。
           第六十七轮：「改组名」按钮与组名旁「N 个站点」计数删除——点组名本身就地改名
           （行内输入预填全选，回车/失焦确认、Esc 取消，空名不保存，沿用旧校验） */}
-      <div className="px-5 sm:px-6 pt-5 pb-4 shrink-0">
+      <div ref={sectionHeadRef} data-panel-section={group.id} className="px-5 sm:px-6 pt-5 pb-4 shrink-0">
         <div className="flex flex-wrap items-center gap-x-2 gap-y-2">
           {renaming ? (
             <span className="relative block">
@@ -366,7 +381,7 @@ export function GroupPanelSection({
       </div>
 
       {/* 内容区：表单（添加/编辑） + 瓷砖网格 */}
-      <div className={embedded ? 'px-5 sm:px-6 pb-4' : 'flex-1 overflow-y-auto px-5 sm:px-6 pb-4 min-h-0'}>
+      <div ref={sectionBodyRef} data-panel-section={group.id} className={embedded ? 'px-5 sm:px-6 pb-4' : 'flex-1 overflow-y-auto px-5 sm:px-6 pb-4 min-h-0'}>
         {showForm && (
           <div className="mb-3">
             <SiteForm
@@ -396,6 +411,7 @@ export function GroupPanelSection({
           <div
             ref={gridFlipRef}
             data-cross-source
+            data-panel-section={group.id}
             className="grid grid-cols-4 sm:grid-cols-5 md:grid-cols-6 gap-2"
             onPointerDown={siteDrag.onContainerPointerDown}
             onDragStart={siteDrag.onContainerDragStart}

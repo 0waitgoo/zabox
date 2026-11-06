@@ -312,15 +312,26 @@ export function StackSiteTiles({
   const fitCount = useRowFitCount(zoneRef, heightUnits === 1);
   const stretched = useStretchedTileSize(zoneRef);
   const visible = heightUnits === 1 ? sorted.slice(0, fitCount) : sorted;
+  /** 拖动中切 tab 后被拖站点的 url 仍要能查到（Dock 落点用）：按 id 累积，不随切组丢失 */
+  const siteUrlByIdRef = React.useRef(new Map<string, string>());
+  for (const s of sorted) if (s.id && s.url) siteUrlByIdRef.current.set(s.id, s.url);
   // 卡面瓷砖拖动换位（与 B 卡收起网格同规则）：按可见瓷砖做组内排序，拖出卡身即转跨组移动；
   // 组合卡 active 组瓷砖同样走这里；边界取卡身（data-stack-body），组合卡面同样适用
   const siteDrag = useSiteDragSort({
     sites: visible,
     onReorder: (ids) => store.reorderSites(group.id, ids),
     groupId: group.id,
-    onMoveToGroup: (siteId, targetGroupId) => store.moveSite(group.id, siteId, targetGroupId),
-    onDropToDock: (siteId) => store.addDockSite(group.id, siteId, visible.find((s) => s.id === siteId)?.url ?? ''),
-    onDropToTrash: (siteId) => store.deleteSite(group.id, siteId),
+    // 落盘组用拖动激活时锁定的源组（第 3 参数）：闭包里的 group.id 可能在拖动中变化
+    // （组合卡面切了 tab），用它会把源组算成新 tab 组、跨组移动成同组空操作
+    onMoveToGroup: (siteId, targetGroupId, fromGroupId) =>
+      store.moveSite(fromGroupId ?? group.id, siteId, targetGroupId),
+    onDropToDock: (siteId, fromGroupId) =>
+      store.addDockSite(
+        fromGroupId ?? group.id,
+        siteId,
+        siteUrlByIdRef.current.get(siteId) ?? visible.find((s) => s.id === siteId)?.url ?? '',
+      ),
+    onDropToTrash: (siteId, fromGroupId) => store.deleteSite(fromGroupId ?? group.id, siteId),
     getEscapeBoundary: () => zoneRef.current?.closest('[data-stack-body]') as HTMLElement | null,
   });
 

@@ -1,8 +1,9 @@
 import React from 'react';
 import { motion } from 'motion/react';
-import { groupIcon, siteIconSrc, sortSites, type NavGroup, type SiteEntry } from '../../data/groups';
+import { groupIcon, siteIconSrc, siteTags, sortSites, type NavGroup, type SiteEntry } from '../../data/groups';
 import type { LocalStore } from '../../store/localStore';
 import { cachedIconSrc, nextFallbackIconSrc, storeIconSrc } from './Card';
+import { siteTagBadgeCls } from './GroupExpanded';
 import { SITE_DRAG_PLACEHOLDER_STYLE, useSiteDragSort } from './useSiteDragSort';
 import { useLang } from '../../i18n/useLang';
 import { displayGroupName } from '../../i18n/groupNames';
@@ -212,6 +213,9 @@ function SiteTile({ site, guardClick, dragging }: { site: SiteEntry; guardClick?
     if (guardClick?.()) return;
     window.open(site.url, '_blank');
   };
+  // 瓷砖角标（2026-11-06 用户令）：有标签的站，瓷砖右上角贴一个标签徽标（只贴第一个，
+  // 瓷砖小、两个贴不下）；无标签不显示。配色与 B 卡行徽标同一套。
+  const firstTag = siteTags(site)[0];
   return (
     <button
       type="button"
@@ -219,9 +223,17 @@ function SiteTile({ site, guardClick, dragging }: { site: SiteEntry; guardClick?
       data-face-site={site.name}
       data-site-drag-id={site.id}
       onClick={openSite}
-      className="group/face shrink-0 rounded-[13px] hover:z-20 flex flex-col items-center"
+      className="group/face relative shrink-0 rounded-[13px] hover:z-20 flex flex-col items-center"
       style={{ width: 'var(--face-tile-size)', ...(dragging ? SITE_DRAG_PLACEHOLDER_STYLE : {}) }}
     >
+      {firstTag && (
+        <span
+          data-face-site-tag={firstTag}
+          className={`absolute -top-1.5 -right-1.5 z-10 pointer-events-none text-[8px] leading-none font-bold border px-1 py-[2px] rounded-md ${siteTagBadgeCls(firstTag)}`}
+        >
+          {firstTag}
+        </span>
+      )}
       <span
         className="site-icon-frame block w-full rounded-[13px] overflow-hidden transition-transform duration-150 group-hover/face:scale-110"
         style={{ height: 'var(--face-tile-size)' }}

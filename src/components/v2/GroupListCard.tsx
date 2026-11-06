@@ -1,13 +1,14 @@
 import React, { useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { motion } from 'motion/react';
 import { Pin, Pencil, Trash2, ChevronDown, ChevronUp, Check } from 'lucide-react';
-import { GROUP_NAME_MAX, siteIconSrc, sortSites, textCharCount, type NavGroup } from '../../data/groups';
+import { GROUP_NAME_MAX, siteIconSrc, sortSites, textCharCount, type NavGroup, type SiteEntry } from '../../data/groups';
 import type { LocalStore } from '../../store/localStore';
 import { useLang } from '../../i18n/useLang';
 import { displayGroupName } from '../../i18n/groupNames';
 import { SiteLogo } from './Card';
-import GroupExpandedBody, { SiteTagBadges } from './GroupExpanded';
+import GroupExpandedBody, { SiteForm, SiteTagBadges } from './GroupExpanded';
 import { SITE_DRAG_PLACEHOLDER_STYLE, useSiteDragSort } from './useSiteDragSort';
+import SiteContextMenu, { siteMenuPosition, type SiteMenuState } from './SiteContextMenu';
 
 /**
  * B 型 · 编组列表卡（收起态占格由右键布局决定：默认 2 栏 × 2x）
@@ -137,6 +138,16 @@ export default function GroupListCard({
   useEffect(() => {
     if (!expanded) setEditMode(false);
   }, [expanded]);
+
+  /** 收起态站点右键菜单（2026-11-06 用户令）：鼠标指着站点行点右键出「打开网站/编辑/删除」，
+   * 与展开态同一套；只出站点菜单——阻止冒泡到卡片包装层，否则会同时弹出卡的尺寸菜单 */
+  const [menu, setMenu] = useState<SiteMenuState | null>(null);
+  const [editingSiteId, setEditingSiteId] = useState<string | null>(null);
+  const handleSiteMenu = (e: React.MouseEvent, site: SiteEntry) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setMenu({ ...siteMenuPosition(e), site });
+  };
 
   const stop = (e: React.MouseEvent) => e.stopPropagation();
 
@@ -343,6 +354,18 @@ export default function GroupListCard({
           >
             {siteDrag.items.map((site) => (
               <React.Fragment key={site.id ?? site.name}>
+                {editingSiteId !== null && editingSiteId === site.id ? (
+                  <div className="col-span-1 min-[480px]:col-span-3">
+                    <SiteForm
+                      initial={site}
+                      onSubmit={(draft) => {
+                        if (site.id) store.updateSite(group.id, site.id, draft);
+                        setEditingSiteId(null);
+                      }}
+                      onCancel={() => setEditingSiteId(null)}
+                    />
+                  </div>
+                ) : (
                   <button
                     data-site-drag-id={site.id}
                     style={siteDrag.isDragging(site) ? SITE_DRAG_PLACEHOLDER_STYLE : undefined}
@@ -351,6 +374,7 @@ export default function GroupListCard({
                       if (siteDrag.consumeSuppressClick()) return;
                       window.open(site.url, '_blank');
                     }}
+                    onContextMenu={(e) => handleSiteMenu(e, site)}
                     className="flex items-center gap-2.5 px-2 py-[7px] w-full rounded-2xl hover:bg-white/6 text-left transition-colors"
                   >
                     <SiteLogo logo={siteIconSrc(site)} name={site.name} url={site.url} size={34} imgSize={23} grayscale={site.dead} />
@@ -367,6 +391,7 @@ export default function GroupListCard({
                       <span className="block text-[11px] text-white/45 truncate mt-0.5">{site.description}</span>
                     </span>
                   </button>
+                )}
               </React.Fragment>
             ))}
           </div>
@@ -375,6 +400,18 @@ export default function GroupListCard({
         </div>
       )}
       {siteDrag.dragLayer}
+      {/* 收起态站点右键菜单（打开/编辑/删除）：渲染在滚动区之外，fixed 定位不被裁剪 */}
+      {menu && (
+        <SiteContextMenu
+          state={menu}
+          onClose={() => setMenu(null)}
+          onOpen={(site) => window.open(site.url, '_blank')}
+          onEdit={(site) => setEditingSiteId(site.id ?? null)}
+          onDelete={(site) => {
+            if (site.id) store.deleteSite(group.id, site.id);
+          }}
+        />
+      )}
     </motion.div>
   );
 }

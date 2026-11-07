@@ -951,6 +951,10 @@ export const ALL_WIDGETS: { id: WidgetId; name: string; desc: string }[] = [
 ];
 
 const STORAGE_KEY = 'ainav-store-v1';
+/** 上一个存档（2026-11-08 用户令：数据面板加回退）：每次用户改动落盘前把旧数据存一份，
+ *  只留一步；回退时把它恢复为当前数据（时间戳刷新为现在，同步按它为准）。
+ *  静默写回（挂载迁移等，不刷新 updatedAt）不留档，见落盘 effect。 */
+const PREV_SNAPSHOT_KEY = 'ainav-store-prev-v1';
 /** 本地存储 key（扩展 popup 与主应用共用同一份数据，见 src/popup/addSite.ts） */
 export const STORE_STORAGE_KEY = STORAGE_KEY;
 const DEFAULT_WIDGETS: WidgetId[] = ['task', 'news', 'trending', 'tools'];
@@ -1471,6 +1475,28 @@ function loadInitial(): StoreData {
   return seedDefaultDock(seedData());
 }
 
+/** 上一个存档的信息：只给面板显示“回退到几点那版”，恢复时读整份快照 */
+export interface PrevSnapshotInfo {
+  updatedAt: number;
+}
+
+/** 读上一个存档（损坏/没有时返回 null；校验失败不抛） */
+export function readPrevSnapshot(): StoreData | null {
+  try {
+    const raw = localStorage.getItem(PREV_SNAPSHOT_KEY);
+    if (!raw) return null;
+    return validateStoreData(JSON.parse(raw));
+  } catch {
+    return null;
+  }
+}
+
+/** 只读上一个存档的时间戳（面板按钮用） */
+export function readPrevSnapshotInfo(): PrevSnapshotInfo | null {
+  const prev = readPrevSnapshot();
+  return prev ? { updatedAt: prev.updatedAt } : null;
+}
+
 /** 用户新增站点的图标：优先内置映射，其次本站 favicon，再由 SiteLogo 兜底。
  *  不再走 Google favicon 服务：它对拿不到的域名回通用地球占位图（语雀实测 16×16 地球），
  *  按第 84 轮规矩不得用占位图顶替；本站 favicon 拿不到时渲染层回落字标。 */
@@ -1542,14 +1568,34 @@ export function useLocalStore() {
    * 只写 ref 不直接 setState），state 经下方 effect 同步后由 PresetMenu 渲染提示。 */
   const overwritePendingRef = useRef(false);
   const [overwriteConfirmOpen, setOverwriteConfirmOpen] = useState(false);
+  /* 上一个存档的时间戳（2026-11-08 回退功能）：落盘 effect 里随旧档一起更新，面板按钮据此显示/禁用 */
+  const [prevInfo, setPrevInfo] = useState<PrevSnapshotInfo | null>(() => readPrevSnapshotInfo());
   useEffect(() => {
     if (overwritePendingRef.current) setOverwriteConfirmOpen(true);
   }, [data]);
   if (lastAppearance === null) lastAppearance = appearanceOf(data, getDisplayPrefs());
 
+  /* 落盘前留一步回退点（2026-11-08）：只对“用户改动”留档——新数据时间戳比已落盘的
+   * 更新才存旧档。静默写回（挂载迁移、栏锚点补写、底色补抽）不刷新 updatedAt，
+   * 不留档：否则每次打开页面都会把真回退点盖掉，新装时按钮也会无故可用。
+   * 首渲染两边一致不存；跨上下文采纳时本页 localStorage 已是新值，同样不重复存。
+   * 存旧档失败（读不出/空间不足）不阻断落盘，下次改动再留。 */
   useEffect(() => {
     try {
-      localStorage.setItem(STORAGE_KEY, JSON.stringify(data));
+      const nextRaw = JSON.stringify(data);
+      const prevRaw = localStorage.getItem(STORAGE_KEY);
+      if (prevRaw && prevRaw !== nextRaw) {
+        try {
+          const parsed = validateStoreData(JSON.parse(prevRaw));
+          if (parsed && data.updatedAt > parsed.updatedAt) {
+            localStorage.setItem(PREV_SNAPSHOT_KEY, JSON.stringify(parsed));
+            setPrevInfo({ updatedAt: parsed.updatedAt });
+          }
+        } catch {
+          /* 旧档读不出就不留回退点 */
+        }
+      }
+      localStorage.setItem(STORAGE_KEY, nextRaw);
     } catch {
       // 存储空间不足等情况下静默失败，不阻断使用
     }
@@ -2900,6 +2946,25 @@ export function useLocalStore() {
   }, []);
 
   /**
+   * 回退到上一个存档（2026-11-08 用户令）：把 PREV_SNAPSHOT_KEY 的整份数据
+   * 恢复为当前数据；回退即最新，刷新时间戳，随后自动推上云，不会被云端旧数据盖回。
+   * 回退本身也会经过落盘 effect——当前数据自动成为新的上一个存档，所以回退
+   * 可以再回退（等于撤销本次回退）。没有上一个存档时返回 null。
+   */
+  const rollbackToPrevSnapshot = useCallback((): number | null => {
+    const prev = readPrevSnapshot();
+    if (!prev) return null;
+    const prevUpdatedAt = prev.updatedAt;
+    prev.updatedAt = Date.now();
+    overwritePendingRef.current = false;
+    setOverwriteConfirmOpen(false);
+    setData(prev);
+    // 外观基线同步跟上（与 resetData 同口径），否则下一次偏好比对会拿旧外观作基准
+    lastAppearance = appearanceOf(prev, getDisplayPrefs());
+    return prevUpdatedAt;
+  }, []);
+
+  /**
    * 应用预设（第一百零六轮建、第一百零九轮改语义、第一百一十一轮起含外观）：
    * 一键把整套主页构成 + 外观换成目标快照，计划数据（tasks/plans）一概不动。状态机：
    * - 切到内置预设（须传该预设的构成快照）：若当前是自定义态（activePreset='my'），
@@ -3014,6 +3079,8 @@ export function useLocalStore() {
     setCardFaceStyle,
     importData,
     resetData,
+    prevSnapshotInfo: prevInfo,
+    rollbackToPrevSnapshot,
     applyPreset,
     myPresetOverwritePending: overwriteConfirmOpen,
     confirmMyPresetOverwrite,

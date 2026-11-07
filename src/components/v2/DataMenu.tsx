@@ -1,5 +1,5 @@
 import React, { useEffect, useRef, useState } from 'react';
-import { Database, Download, Upload, RotateCcw, Save, FolderOpen, RefreshCw, Undo2, X, AlertTriangle, LogIn, LogOut, KeyRound, ExternalLink } from 'lucide-react';
+import { Archive, Cloud, Database, Download, FileText, HardDrive, Upload, RotateCcw, Save, FolderOpen, RefreshCw, Undo2, User, X, AlertTriangle, LogIn, LogOut, KeyRound, ExternalLink } from 'lucide-react';
 import { AnimatePresence, motion } from 'motion/react';
 import { IS_EXTENSION_BUILD } from '../../services/apiBase';
 import type { LocalStore } from '../../store/localStore';
@@ -1224,6 +1224,11 @@ export default function DataMenu({
     'w-full flex items-center gap-2.5 px-3 py-2 rounded-xl text-left text-xs text-white/75 hover:bg-white/8 hover:text-white transition-colors';
   const itemDisabledCls =
     'w-full flex items-center gap-2.5 px-3 py-2 rounded-xl text-left text-xs text-white/30 cursor-not-allowed';
+  /* 同步三按钮（拉取/推送/退出）：三等分一排，文字不换行（itemCls 在此会折行） */
+  const syncBtnCls =
+    'flex-1 flex items-center justify-center gap-1.5 px-1 py-2 rounded-xl text-xs text-white/75 hover:bg-white/8 hover:text-white transition-colors whitespace-nowrap';
+  /* 分区小标题（2026-11-08 弹窗重排版）：图标 + 简约文字，与行按钮同一口径 */
+  const sectionHeadCls = 'text-[10px] font-medium text-white/50 tracking-wide flex items-center gap-1.5';
   const ghStatusTextCls = (kind: string) =>
     kind === 'ok'
       ? 'text-emerald-300'
@@ -1257,10 +1262,13 @@ export default function DataMenu({
             exit={{ opacity: 0, y: 6 }}
             transition={{ duration: 0.15 }}
             /* 面板全不透明实色（第十二轮，与背景面板/搜索下拉同口径）：不用 glass-panel 的半透明毛玻璃，避免透出后面的卡片内容 */
- className={`absolute ${panelAlign === 'left' ? 'left-0' : 'right-0'} top-full mt-2 w-64 max-h-[82vh] overflow-y-auto rounded-3xl bg-[#17171d] border border-white/15 p-2 z-50`}
+ className={`absolute ${panelAlign === 'left' ? 'left-0' : 'right-0'} top-full mt-2 w-72 max-h-[82vh] overflow-y-auto rounded-3xl bg-[#17171d] border border-white/15 p-2 z-50`}
           >
             <p className="px-3 pt-2 pb-1 text-[10px] text-white/35 leading-relaxed">
               {t('data.intro')}
+            </p>
+            <p className={`px-3 pt-1.5 pb-0.5 ${sectionHeadCls}`}>
+              <Archive size={11} className="text-white/40" /> {t('data.backupHeading')}
             </p>
             <button onClick={exportJson} className={itemCls}>
               <Download size={14} className="text-white/45" /> {t('data.exportJson')}
@@ -1384,12 +1392,13 @@ export default function DataMenu({
 
             {/* ---- 本地文件保存（第十四轮）：设置一次保存文件，之后点击保存 / 变化自动保存都写回它 ---- */}
             <div className="mt-1 border-t border-white/8 px-3 pt-2.5 pb-1">
-              <p className="text-[10px] font-medium text-white/50 tracking-wide">{t('data.localFileHeading')}</p>
+              <p className={sectionHeadCls}><HardDrive size={11} className="text-white/40" /> {t('data.localFileHeading')}</p>
               {supported ? (
                 <>
                   {handle ? (
                     <>
                       <p className="mt-1.5 text-[11px] text-white/70 break-all">
+                        <FileText size={12} className="inline mr-1 -mt-0.5 text-white/45" />
                         {t('data.saveFileLabel')}<span className="text-white/90">{meta.fileName || handle.name}</span>
                       </p>
                       <div className="mt-1 -mx-3">
@@ -1476,7 +1485,7 @@ export default function DataMenu({
                  同一时间只一条在跑；网站版一键登录（OAuth，仓库固定 ainav-data），
                  扩展构建走方案 B 粘贴令牌（OAuth 回跳不可用），仓库约定与 OAuth 相同 ---- */}
             <div className="mt-1 border-t border-white/8 px-3 pt-2.5 pb-1">
-              <p className="text-[10px] font-medium text-white/50 tracking-wide">{t('data.cloudSync')}</p>
+              <p className={sectionHeadCls}><Cloud size={11} className="text-white/40" /> {t('data.cloudSync')}</p>
               <div className="mt-1.5 flex gap-1.5" data-sync-provider-tabs>
                 <button
                   onClick={() => void switchProvider('github')}
@@ -1493,15 +1502,12 @@ export default function DataMenu({
               </div>
               {provider === 'github' && (
                 <>
-              <p className="mt-2 text-[10px] font-medium text-white/50 tracking-wide">{t('data.githubSyncHeading')}</p>
               {isGhLoggedIn ? (
                 <>
                   <p className="mt-1.5 text-[11px] text-white/70 break-all">
+                    <User size={12} className="inline mr-1 -mt-0.5 text-white/45" />
                     {isPatLoggedIn ? t('data.connectedGhToken') : t('data.loggedInGhLabel')}
                     <span className="text-white/90">{ghMeta.oauthLogin || ghMeta.owner}</span>
-                  </p>
-                  <p className="mt-0.5 text-[11px] text-white/40 break-all">
-                    {t('data.fixedRepo')}{ghMeta.owner}/{ghMeta.repo} · {ghMeta.branch} · {ghMeta.path}
                   </p>
                   <button
                     onClick={toggleGhEnabled}
@@ -1514,13 +1520,13 @@ export default function DataMenu({
                   </button>
                   <div className="mt-0.5 -mx-3">
                     <div className="flex">
-                      <button onClick={() => void pullFromGithub()} className={`${itemCls} w-auto flex-1`}>
+                      <button onClick={() => void pullFromGithub()} className={syncBtnCls}>
                         <Download size={14} className="text-white/45" /> {t('data.pullNow')}
                       </button>
-                      <button onClick={() => void pushToGithub()} className={`${itemCls} w-auto flex-1`}>
+                      <button onClick={() => void pushToGithub()} className={syncBtnCls}>
                         <Upload size={14} className="text-white/45" /> {t('data.pushNow')}
                       </button>
-                      <button onClick={logoutOAuth} className={`${itemCls} w-auto flex-1`}>
+                      <button onClick={logoutOAuth} className={syncBtnCls}>
                         <LogOut size={14} className="text-white/45" /> {t('data.logout')}
                       </button>
                     </div>
@@ -1631,6 +1637,7 @@ export default function DataMenu({
               {isGeLoggedIn ? (
                 <>
                   <p className="mt-1.5 text-[11px] text-white/70 break-all">
+                    <User size={12} className="inline mr-1 -mt-0.5 text-white/45" />
                     {isGePatLoggedIn ? t('data.connectedGeToken') : t('data.loggedInGeLabel')}
                     <span className="text-white/90">{geMeta.oauthLogin || geMeta.owner}</span>
                   </p>
@@ -1645,13 +1652,13 @@ export default function DataMenu({
                   </button>
                   <div className="mt-0.5 -mx-3">
                     <div className="flex">
-                      <button onClick={() => void pullFromGitee()} className={`${itemCls} w-auto flex-1`}>
+                      <button onClick={() => void pullFromGitee()} className={syncBtnCls}>
                         <Download size={14} className="text-white/45" /> {t('data.pullNow')}
                       </button>
-                      <button onClick={() => void pushToGitee()} className={`${itemCls} w-auto flex-1`}>
+                      <button onClick={() => void pushToGitee()} className={syncBtnCls}>
                         <Upload size={14} className="text-white/45" /> {t('data.pushNow')}
                       </button>
-                      <button onClick={logoutGiteeOAuth} className={`${itemCls} w-auto flex-1`}>
+                      <button onClick={logoutGiteeOAuth} className={syncBtnCls}>
                         <LogOut size={14} className="text-white/45" /> {t('data.logout')}
                       </button>
                     </div>

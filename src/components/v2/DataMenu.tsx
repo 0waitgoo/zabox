@@ -1,5 +1,5 @@
 import React, { useEffect, useRef, useState } from 'react';
-import { Archive, Check, Clock, Cloud, Database, Download, FileText, HardDrive, Upload, RotateCcw, Save, FolderOpen, RefreshCw, Undo2, User, X, AlertTriangle, LogIn, LogOut, KeyRound, ExternalLink } from 'lucide-react';
+import { Archive, Check, Cloud, Database, Download, FileText, HardDrive, Upload, RotateCcw, Save, FolderOpen, RefreshCw, Undo2, User, X, AlertTriangle, LogIn, LogOut, KeyRound, ExternalLink } from 'lucide-react';
 import { AnimatePresence, motion } from 'motion/react';
 import { IS_EXTENSION_BUILD } from '../../services/apiBase';
 import type { LocalStore } from '../../store/localStore';
@@ -1221,10 +1221,12 @@ export default function DataMenu({
   })();
 
   const itemDisabledCls =
-    'w-full flex items-center gap-2.5 px-3 py-2 rounded-xl text-left text-xs text-white/30 cursor-not-allowed';
+    'w-full flex items-center justify-end gap-2.5 px-3 py-2 rounded-xl text-left text-xs text-white/30 cursor-not-allowed';
   /* 图标按钮（2026-11-08 大改版：能用图标就不用文字）：方形居中，hover 才亮 */
   const iconBtnCls =
-    'flex-1 flex items-center justify-center h-10 rounded-xl text-white/70 hover:bg-white/8 hover:text-white transition-colors disabled:text-white/25 disabled:cursor-not-allowed disabled:hover:bg-transparent';
+    'flex-1 flex flex-col items-center justify-center gap-0.5 h-12 rounded-xl text-white/70 hover:bg-white/8 hover:text-white transition-colors disabled:text-white/25 disabled:cursor-not-allowed disabled:hover:bg-transparent';
+  /* 图标按钮下的小字标签 */
+  const iconLabelCls = 'text-[10px] leading-none text-white/45';
   /* 确认框里的 ✓ / ✕ 小按钮 */
   const confirmIconBtnCls =
     'flex items-center justify-center h-8 w-8 rounded-lg transition-colors';
@@ -1274,15 +1276,19 @@ export default function DataMenu({
             <div className="flex gap-1.5 px-3 py-1">
               <button onClick={exportJson} className={iconBtnCls} title={t('data.exportJson')}>
                 <Download size={18} />
+                <span className={iconLabelCls}>{t('data.iconExport')}</span>
               </button>
               <button onClick={() => fileRef.current?.click()} className={iconBtnCls} title={t('data.importJson')}>
                 <Upload size={18} />
+                <span className={iconLabelCls}>{t('data.iconImport')}</span>
               </button>
               <button onClick={() => wetabFileRef.current?.click()} className={iconBtnCls} title={t('data.importWetab')} data-wetab-import>
                 <FolderOpen size={18} />
+                <span className={iconLabelCls}>{t('data.iconImportWetab')}</span>
               </button>
               <button onClick={() => setConfirmReset(true)} className={iconBtnCls} title={t('data.resetData')}>
                 <RotateCcw size={18} />
+                <span className={iconLabelCls}>{t('data.iconReset')}</span>
               </button>
               {store.prevSnapshotInfo ? (
                 <button
@@ -1292,10 +1298,12 @@ export default function DataMenu({
                   data-rollback
                 >
                   <Undo2 size={18} />
+                  <span className={iconLabelCls}>{t('data.iconRollback')}</span>
                 </button>
               ) : (
                 <button disabled className={iconBtnCls} title={t('data.rollbackEmpty')}>
                   <Undo2 size={18} />
+                  <span className={iconLabelCls}>{t('data.iconRollback')}</span>
                 </button>
               )}
             </div>
@@ -1403,12 +1411,15 @@ export default function DataMenu({
                       <div className="mt-1 flex gap-1.5">
                         <button onClick={() => void manualSave()} className={iconBtnCls} title={t('data.saveToFile')}>
                           <Save size={18} />
+                          <span className={iconLabelCls}>{t('data.iconSave')}</span>
                         </button>
                         <button onClick={() => void pickAndSetFile()} className={iconBtnCls} title={t('data.replaceFile')}>
                           <RefreshCw size={18} />
+                          <span className={iconLabelCls}>{t('data.iconReplaceFile')}</span>
                         </button>
                         <button onClick={() => void clearFile()} className={iconBtnCls} title={t('data.clearFileSetting')}>
                           <X size={18} />
+                          <span className={iconLabelCls}>{t('data.iconClearFile')}</span>
                         </button>
                       </div>
                     </>
@@ -1416,6 +1427,7 @@ export default function DataMenu({
                     <div className="mt-1 flex gap-1.5">
                       <button onClick={() => void pickAndSetFile()} className={iconBtnCls} title={t('data.setSaveFile')}>
                         <FolderOpen size={18} />
+                        <span className={iconLabelCls}>{t('data.iconSetSaveFile')}</span>
                       </button>
                     </div>
                   )}
@@ -1423,9 +1435,8 @@ export default function DataMenu({
                     onClick={() => handle && setMeta((m) => ({ ...m, autoSave: !m.autoSave }))}
                     disabled={!handle}
                     title={t('data.autoSave')}
-                    className={`mt-1 w-full flex items-center justify-between py-1.5 text-xs ${handle ? 'text-white/75' : 'text-white/30 cursor-not-allowed'}`}
+                    className={`mt-1 w-full flex items-center justify-end py-1.5 text-xs ${handle ? 'text-white/75' : 'text-white/30 cursor-not-allowed'}`}
                   >
-                    <Clock size={14} className="text-white/45" />
                     <span
                       className={`relative h-4.5 w-8 rounded-full transition-colors ${meta.autoSave && handle ? 'bg-violet-500' : 'bg-white/15'}`}
                     >
@@ -1464,10 +1475,10 @@ export default function DataMenu({
                   <div className="mt-1 flex gap-1.5">
                     <button onClick={() => void manualSave()} className={iconBtnCls} title={t('data.saveToFile')}>
                       <Save size={18} />
+                      <span className={iconLabelCls}>{t('data.iconSave')}</span>
                     </button>
                   </div>
                   <div className={itemDisabledCls}>
-                    <Clock size={14} className="text-white/30 shrink-0" />
                     <span className="relative h-4.5 w-8 rounded-full bg-white/10">
                       <span className="absolute top-0.5 left-0.5 h-3.5 w-3.5 rounded-full bg-white/50" />
                     </span>
@@ -1510,9 +1521,8 @@ export default function DataMenu({
                   <button
                     onClick={toggleGhEnabled}
                     title={t('data.enableSync')}
-                    className="mt-1 w-full flex items-center justify-between py-1.5 text-xs text-white/75"
+                    className="mt-1 w-full flex items-center justify-end py-1.5 text-xs text-white/75"
                   >
-                    <Cloud size={14} className="text-white/45" />
                     <span className={`relative h-4.5 w-8 shrink-0 rounded-full transition-colors ${ghMeta.enabled ? 'bg-violet-500' : 'bg-white/15'}`}>
                       <span className={`absolute top-0.5 h-3.5 w-3.5 rounded-full bg-white transition-all ${ghMeta.enabled ? 'left-4' : 'left-0.5'}`} />
                     </span>
@@ -1521,12 +1531,15 @@ export default function DataMenu({
                     <div className="flex">
                       <button onClick={() => void pullFromGithub()} className={iconBtnCls} title={t('data.pullNow')}>
                         <Download size={18} />
+                        <span className={iconLabelCls}>{t('data.iconPull')}</span>
                       </button>
                       <button onClick={() => void pushToGithub()} className={iconBtnCls} title={t('data.pushNow')}>
                         <Upload size={18} />
+                        <span className={iconLabelCls}>{t('data.iconPush')}</span>
                       </button>
                       <button onClick={logoutOAuth} className={iconBtnCls} title={t('data.logout')}>
                         <LogOut size={18} />
+                        <span className={iconLabelCls}>{t('data.iconLogout')}</span>
                       </button>
                     </div>
                   </div>
@@ -1643,9 +1656,8 @@ export default function DataMenu({
                   <button
                     onClick={toggleGeEnabled}
                     title={t('data.enableSync')}
-                    className="mt-1 w-full flex items-center justify-between py-1.5 text-xs text-white/75"
+                    className="mt-1 w-full flex items-center justify-end py-1.5 text-xs text-white/75"
                   >
-                    <Cloud size={14} className="text-white/45" />
                     <span className={`relative h-4.5 w-8 shrink-0 rounded-full transition-colors ${geMeta.enabled ? 'bg-violet-500' : 'bg-white/15'}`}>
                       <span className={`absolute top-0.5 h-3.5 w-3.5 rounded-full bg-white transition-all ${geMeta.enabled ? 'left-4' : 'left-0.5'}`} />
                     </span>
@@ -1654,12 +1666,15 @@ export default function DataMenu({
                     <div className="flex">
                       <button onClick={() => void pullFromGitee()} className={iconBtnCls} title={t('data.pullNow')}>
                         <Download size={18} />
+                        <span className={iconLabelCls}>{t('data.iconPull')}</span>
                       </button>
                       <button onClick={() => void pushToGitee()} className={iconBtnCls} title={t('data.pushNow')}>
                         <Upload size={18} />
+                        <span className={iconLabelCls}>{t('data.iconPush')}</span>
                       </button>
                       <button onClick={logoutGiteeOAuth} className={iconBtnCls} title={t('data.logout')}>
                         <LogOut size={18} />
+                        <span className={iconLabelCls}>{t('data.iconLogout')}</span>
                       </button>
                     </div>
                   </div>

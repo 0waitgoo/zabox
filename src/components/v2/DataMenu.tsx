@@ -1,5 +1,5 @@
 import React, { useEffect, useRef, useState } from 'react';
-import { Database, Download, Upload, RotateCcw, Save, FolderOpen, RefreshCw, X, AlertTriangle, LogIn, LogOut, KeyRound, ExternalLink } from 'lucide-react';
+import { Database, Download, Upload, RotateCcw, Save, FolderOpen, RefreshCw, Undo2, X, AlertTriangle, LogIn, LogOut, KeyRound, ExternalLink } from 'lucide-react';
 import { AnimatePresence, motion } from 'motion/react';
 import { IS_EXTENSION_BUILD } from '../../services/apiBase';
 import type { LocalStore } from '../../store/localStore';
@@ -132,6 +132,7 @@ export default function DataMenu({
   const [open, setOpen] = useState(false);
   const [message, setMessage] = useState<{ ok: boolean; text: string } | null>(null);
   const [confirmReset, setConfirmReset] = useState(false);
+  const [confirmRollback, setConfirmRollback] = useState(false);
   const [pendingWetab, setPendingWetab] = useState<{ groups: NavGroup[]; skipped: number } | null>(null);
   const containerRef = useRef<HTMLDivElement>(null);
   const fileRef = useRef<HTMLInputElement>(null);
@@ -156,6 +157,7 @@ export default function DataMenu({
       if (containerRef.current && !containerRef.current.contains(e.target as Node)) {
         setOpen(false);
         setConfirmReset(false);
+        setConfirmRollback(false);
       }
     };
     document.addEventListener('mousedown', onPointerDown);
@@ -1238,6 +1240,7 @@ export default function DataMenu({
           setOpen((v) => !v);
           setMessage(null);
           setConfirmReset(false);
+          setConfirmRollback(false);
         }}
         title={t('data.menuTitle')}
         className="card-glass-surface h-12 sm:h-13 px-2.5 sm:px-3 rounded-2xl border border-white/[0.07] text-white/45 hover:text-white/85 hover:border-white/15 flex items-center gap-1.5 text-xs transition-colors"
@@ -1335,6 +1338,44 @@ export default function DataMenu({
             ) : (
               <button onClick={() => setConfirmReset(true)} className={itemCls}>
                 <RotateCcw size={14} className="text-white/45" /> {t('data.resetData')}
+              </button>
+            )}
+            {store.prevSnapshotInfo ? (
+              confirmRollback ? (
+                <div className="px-3 py-2">
+                  <p className="text-[11px] text-amber-300 mb-2">
+                    {t('data.rollbackConfirm', { time: formatSavedTime(store.prevSnapshotInfo.updatedAt) })}
+                  </p>
+                  <div className="flex gap-2">
+                    <button
+                      onClick={() => {
+                        const ts = store.rollbackToPrevSnapshot();
+                        setConfirmRollback(false);
+                        setMessage(
+                          ts === null
+                            ? { ok: false, text: t('data.rollbackEmpty') }
+                            : { ok: true, text: t('data.rollbackDone', { time: formatSavedTime(ts) }) },
+                        );
+                      }}
+                      className="text-[11px] px-2.5 py-1.5 rounded-lg bg-amber-500/80 text-white font-medium"
+                      data-rollback-confirm
+                    >
+                      {t('data.confirmRollback')}
+                    </button>
+                    <button onClick={() => setConfirmRollback(false)} className="text-[11px] px-2.5 py-1.5 rounded-lg bg-white/8 text-white/70">
+                      {t('data.neverMind')}
+                    </button>
+                  </div>
+                </div>
+              ) : (
+                <button onClick={() => setConfirmRollback(true)} className={itemCls} data-rollback>
+                  <Undo2 size={14} className="text-white/45" /> {t('data.rollback')}
+                  <span className="ml-auto text-[10px] text-white/35">{formatSavedTime(store.prevSnapshotInfo.updatedAt)}</span>
+                </button>
+              )
+            ) : (
+              <button disabled className={itemDisabledCls} title={t('data.rollbackEmpty')}>
+                <Undo2 size={14} className="text-white/30" /> {t('data.rollback')}
               </button>
             )}
             {message && (

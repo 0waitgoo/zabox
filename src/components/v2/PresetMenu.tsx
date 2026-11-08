@@ -1,6 +1,6 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
-import { Check, LayoutTemplate } from 'lucide-react';
+import { Check, Clapperboard, Code, LayoutGrid, LayoutTemplate, Palette, User, Wrench, type LucideIcon } from 'lucide-react';
 import { AnimatePresence, motion } from 'motion/react';
 import type { LocalStore, PresetId } from '../../store/localStore';
 import { BUILTIN_PRESET_META, buildBuiltinPreset } from '../../data/presets';
@@ -10,7 +10,7 @@ import AppearanceSection from './AppearanceSection';
 /**
  * 「预设」入口（第一百零六轮建、第一百零九轮改语义，接替原顶栏扳手；
  * 第一百一十一轮起顶栏背景按钮并入本面板）：布局/模板图标点开浮层，
- * 六套主页构成一键切换——一排两个，顺序 默认 / 我的 / 设计师 / 程序员 / 工具 / 娱乐导航
+ * 六套主页构成一键切换——一排三个（图标 + 小字标签），顺序 默认 / 我的 / 设计师 / 程序员 / 工具 / 娱乐导航
  * （娱乐导航最后一个），下方是「外观」节。娱乐导航卡单独高亮（2026-10-29 用户定）。
  * 切换换主页构成（编组、组件、布局）与外观（背景、明暗、透明度、模糊），计划数据不动。
  * 内置预设期改动先弹确认（2026-11-04 用户定）：提示「本次保存会覆盖掉“我的”预设」，
@@ -76,27 +76,37 @@ export default function PresetMenu({ store }: { store: LocalStore }) {
     setOpen(false);
   };
 
-  // 预设卡（2026-10-27 用户定）：一排两个，顺序 默认 / 我的 / 设计师 / 程序员 / 工具 / 娱乐导航
-  // （娱乐导航最后一个）；卡片窄，名在上、短述在下单行截断，勾放名右
-  // 2026-10-29 用户定：娱乐导航卡单独高亮（紫色边框 + 紫底 + 辉光），选中与否都一眼可见
-  const cardClass = (current: boolean, disabled = false, highlight = false) =>
-    `w-full flex flex-col gap-0.5 px-3 py-2 rounded-2xl border text-left transition-all ${
+  // 预设瓷砖（2026-11-08 大改版，参考数据弹窗：图标 + 小字标签，一排三个）：
+  // 顺序 默认 / 我的 / 设计师 / 程序员 / 工具 / 娱乐导航（娱乐导航最后一个）；
+  // 短述只放 title 悬停；选中右上角小勾；娱乐导航卡单独高亮（2026-10-29 用户定）
+  const sectionHeadCls = 'flex items-center gap-1.5 text-[10px] text-white/35';
+  const PRESET_ICONS: Record<string, LucideIcon> = {
+    default: LayoutGrid,
+    my: User,
+    designer: Palette,
+    developer: Code,
+    tools: Wrench,
+    entertainment: Clapperboard,
+  };
+  const tileClass = (current: boolean, disabled = false, highlight = false) =>
+    `relative flex flex-col items-center justify-center gap-0.5 h-12 rounded-xl border transition-all ${
       highlight
- ? 'border-violet-400/70 bg-violet-500/15 hover:border-violet-300/90'
+        ? 'border-violet-400/70 bg-violet-500/15 hover:border-violet-300/90'
         : current
           ? 'border-indigo-400/80 bg-white/8'
           : disabled
             ? 'border-white/5 opacity-45 cursor-default'
             : 'border-white/10 hover:border-white/30 hover:bg-white/[0.04]'
     }`;
-  const checkmark = (
-    <span className="ml-auto shrink-0 w-[18px] h-[18px] rounded-full bg-indigo-500 flex items-center justify-center">
-      <Check size={11} className="text-white" />
+  const tileCheck = (
+    <span className="absolute top-1 right-1 w-3.5 h-3.5 rounded-full bg-indigo-500 flex items-center justify-center">
+      <Check size={9} className="text-white" />
     </span>
   );
   const builtinCard = (meta: (typeof BUILTIN_PRESET_META)[number]) => {
     const current = activePreset === meta.id;
     const highlight = meta.id === 'entertainment';
+    const Icon = PRESET_ICONS[meta.id] ?? LayoutGrid;
     return (
       <button
         key={meta.id}
@@ -105,15 +115,11 @@ export default function PresetMenu({ store }: { store: LocalStore }) {
         data-preset-highlight={highlight || undefined}
         title={t(`preset.desc.${meta.id}`)}
         onClick={() => pick(meta.id)}
-        className={cardClass(current, false, highlight)}
+        className={tileClass(current, false, highlight)}
       >
-        <span className="flex items-center gap-1 w-full">
-          <span className="text-[13px] font-medium text-white/90">{t(`preset.name.${meta.id}`)}</span>
-          {current && checkmark}
-        </span>
-        <span className="text-[11px] text-white/45 truncate">
-          {t(`preset.short.${meta.id}`)}
-        </span>
+        <Icon size={18} className="text-white/70" />
+        <span className="text-[10px] leading-none text-white/45">{t(`preset.name.${meta.id}`)}</span>
+        {current && tileCheck}
       </button>
     );
   };
@@ -146,11 +152,11 @@ export default function PresetMenu({ store }: { store: LocalStore }) {
             transition={{ duration: 0.15 }}
             /* 面板实色不透明（同 BackgroundMenu 口径）：不用毛玻璃，避免透出后面卡片文字；
                marginLeft 为打开时算出的视口平移（手机防溢出，桌面恒 0），不与 motion 的 transform 冲突 */
- className="absolute left-0 top-full mt-2 w-72 max-w-[calc(100vw-24px)] max-h-[85vh] overflow-y-auto rounded-3xl bg-[#17171d] border border-white/15 p-2.5 z-50"
+ className="absolute left-0 top-full mt-2 w-72 max-w-[calc(100vw-24px)] max-h-[85vh] overflow-y-auto rounded-3xl bg-[#17171d] border border-white/15 p-2 z-50"
             style={{ marginLeft: panelShift }}
           >
-            <p className="px-1 pb-1.5 text-[10px] tracking-wider text-white/40 uppercase">{t('preset.heading')}</p>
-            <div className="grid grid-cols-2 gap-1">
+            <p className={`px-3 pt-1.5 pb-0.5 ${sectionHeadCls}`}><LayoutTemplate size={11} className="text-white/40" /> {t('preset.heading')}</p>
+            <div className="grid grid-cols-3 gap-1.5 px-3 py-1">
               {builtinCard(BUILTIN_PRESET_META[0])}
               {/* 「我的」：恢复自己的存档（含外观）。无存档时呈禁用态注明「暂无存档」；
                   有存档或正在自定义态时说明：改动即自动保存 */}
@@ -159,24 +165,20 @@ export default function PresetMenu({ store }: { store: LocalStore }) {
                 data-preset-current={activePreset === 'my' || undefined}
                 title={t('preset.myTitle')}
                 onClick={() => pick('my')}
-                className={cardClass(activePreset === 'my', !hasMyArchive && activePreset !== 'my')}
+                className={tileClass(activePreset === 'my', !hasMyArchive && activePreset !== 'my')}
               >
-                <span className="flex items-center gap-1 w-full">
-                  <span className="text-[13px] font-medium text-white/90">{t('preset.my')}</span>
-                  {activePreset === 'my' && checkmark}
-                </span>
-                <span className="text-[11px] text-white/45 truncate">
-                  {hasMyArchive || activePreset === 'my' ? t('preset.myAutosave') : t('preset.myEmpty')}
-                </span>
+                <User size={18} className="text-white/70" />
+                <span className="text-[10px] leading-none text-white/45">{t('preset.my')}</span>
+                {activePreset === 'my' && tileCheck}
               </button>
               {BUILTIN_PRESET_META.slice(1).map((meta) => builtinCard(meta))}
             </div>
-            <p className="px-1 pt-2 text-[11px] text-white/35 truncate">
+            <p className="px-3 pt-1.5 text-[10px] text-white/35">
               {t('preset.planNote')}
             </p>
             {/* 外观节（第一百一十一轮）：原顶栏背景按钮的面板正文整体并入此处 */}
-            <div className="my-2 border-t border-white/[0.07]" />
-            <p className="px-1 pb-1.5 text-[10px] tracking-wider text-white/40 uppercase">{t('preset.appearance')}</p>
+            <div className="my-2 border-t border-white/8" />
+            <p className={`px-3 pt-1.5 pb-0.5 ${sectionHeadCls}`}><Palette size={11} className="text-white/40" /> {t('preset.appearance')}</p>
             <AppearanceSection store={store} />
           </motion.div>
         )}

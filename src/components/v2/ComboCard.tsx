@@ -18,7 +18,9 @@ const TAB_SWITCH_DWELL_MS = 500;
  * - 下方瓷砖区 = 当前 tab 组的站点，排版规则与普通 C 卡完全一致（StackSiteTiles，第五十三轮统一尺寸+间距常量；第五十六轮：1x 单行截断、2x 左上起排）
  * - 点另一个 tab 标题 = 切换（activeGroupId 落盘持久化）；点瓷砖 = 打开站点；
  *   点卡身空白处（tab 头与瓷砖以外的区域）= 打开组合弹窗（ComboPanel）
- * - 按住任一 tab 头拖动 = 把该组拖出组合（拖影为该组的普通 C 卡面，落点即独立卡位置，组合随之解散）；
+ * - 拆组手柄只有卡身上沿的两个彩色小角（2026-11-08 用户定）：按住任一小角拖动 =
+ *   把该组拖出组合（拖影为该组的普通 C 卡面，落点即独立卡位置，组合随之解散），
+ *   点按小角 = 切到该组 tab；拖卡身其它位置（含 tab 头）只移动整张组合卡，不拆分；
  *   尺寸与拆分走主页右键菜单（尺寸存 groupLayouts 的 combo key）
  * - 拖网站图标时悬停在卡身左右边缘 32px 内满 500ms = 自动切到对应 tab（2026-11-06 用户定）；
  *   松手落到当前 tab 组（主页落点按组合当前 tab 组判定）；普通悬停不切 tab
@@ -53,8 +55,13 @@ export default function ComboCard({
     if (groupId !== active.id) store.setComboActive(combo.id, groupId);
   };
 
+  /** 点按卡身上沿小角 = 切到该组 tab（小角自身已 stopPropagation，不打开组合弹窗） */
+  const activateTab = (groupId: string) => {
+    if (groupId !== active.id) store.setComboActive(combo.id, groupId);
+  };
+
   /** 边缘悬停切 tab：只在站点拖动进行中响应（站点拖拽快照 [data-drag-clone] 存在时）；
-   * 整卡拖动（拖 tab 头解组、拖整卡排序）没有站点快照，不触发。指针落在卡身左右边缘带
+   * 整卡拖动（拖小角解组、拖整卡排序）没有站点快照，不触发。指针落在卡身左右边缘带
    * 内并停满 TAB_SWITCH_DWELL_MS 即切到对应 tab；离开边缘带或拖动结束即取消计时。
    * 切 tab 后卡面换组显示；若被拖的正是本卡瓷砖，拖动侧（useSiteDragSort）会把排序
    * 转为跨组移动，松手落到新 tab 组（见其 sites 变化 effect）。 */
@@ -119,6 +126,11 @@ export default function ComboCard({
     <StackCardFrame
       tabColor={active.tabColor ?? ''}
       tabEars={[groups[0].tabColor ?? '', groups[1].tabColor ?? '']}
+      tabEarDrag={[
+        { comboId: combo.id, groupId: groups[0].id },
+        { comboId: combo.id, groupId: groups[1].id },
+      ]}
+      onTabEarClick={activateTab}
       onClick={() => onOpen(combo)}
       delay={delay}
       ariaLabel={t('menu.comboLabel', { a: displayGroupName(groups[0], lang), b: displayGroupName(groups[1], lang) })}
@@ -126,8 +138,10 @@ export default function ComboCard({
     >
       {/* 双 tab 头（第四十五轮：整段头部可点）：头部区（分隔线以上，含卡身上沿内边距）
           按左右半区铺一层透明命中按钮——点半区任意位置即切到该组；上面的胶囊转为纯视觉
-          （pointer-events-none，样式/高亮与改版前完全一致）。拖出解组的 data 标记移到命中按钮上，
-          主页 pointer 逻辑按标记识别的手势归属不变；真拖动仍由阈值区分，不会误切 tab */}
+          （pointer-events-none，样式/高亮与改版前完全一致）。2026-11-08 用户定：
+          tab 头不再是拆组手柄——拖 tab 头只移动整张组合卡；拆组手柄只在卡身上沿
+          两个彩色小角上（data-combo-tab-drag 已移到 StackCardFrame 的 ComboTabBump），
+          真拖动仍由阈值区分，不会误切 tab */}
       <div className="relative -mx-4 -mt-3.5 px-4 pt-3.5 shrink-0">
         {groups.map((g, i) => (
           <button
@@ -135,9 +149,6 @@ export default function ComboCard({
             type="button"
             aria-label={t('menu.switchToGroup', { name: displayGroupName(g, lang) })}
             data-combo-tab-hit={g.id}
-            data-combo-tab-drag=""
-            data-combo-id={combo.id}
-            data-group-id={g.id}
             onClick={(e) => switchTab(e, g.id)}
             className={`absolute inset-y-0 z-0 w-1/2 cursor-pointer ${i === 0 ? 'left-0' : 'right-0'}`}
           />

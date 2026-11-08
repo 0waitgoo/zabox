@@ -18,7 +18,7 @@ import { DRAG_THRESHOLD } from './useSiteDragSort';
  *   吞掉），防止各 pending 拖拽在菜单已开后迟到激活；松手的 click 按「松手点」
  *   吞掉，避免穿透触发底层点击（与右键语义一致：右键松手本就不产生 click，
  *   操作菜单要松手后再点）。
- * - 跨组拖拽源例外（收起网格行 / C 卡面瓷砖，与跨组拖拽互斥）：500ms 不直接开菜单（否则冻结
+ * - 跨组拖拽源例外（收起网格行 / C 卡面瓷砖，与跨组拖拽互斥；2026-11-08 起含任务拖拽源：顶层待办行 / 组内子任务行）：500ms 不直接开菜单（否则冻结
  *   位移、拖拽起不来），位移容差 7px（小于跨组激活 12px，菜单先取消、拖拽随后接管）；
  *   按住不动满 500ms 后松手才开菜单（松手 click 照常抑制），按住拖动则走跨组拖拽、菜单不开。
  *   卡片空白/标题等其他区域仍是 500ms 直接开菜单，尺寸菜单等入口不受影响。
@@ -107,7 +107,11 @@ export default function useLongPressMenu() {
       if (t.closest(EDITABLE_SELECTOR)) return; // 输入区不触发（还要选中/粘贴）
       // 跨组拖拽源（收起网格行 / C 卡面瓷砖）：500ms 不直接开菜单（否则冻结后续位移、拖动的跨组拖拽起不来）；
       // 改松手时开（见 onPointerEnd）：按住不动满 500ms 后松手 = 菜单，按住拖动 = 跨组移动
-      const isCrossSource = !!t.closest('[data-cross-source] [data-site-drag-id]');
+      // 任务拖拽源（顶层待办行 / 组内子任务行，2026-11-08）：拖拽同样是其主要手势（合并/换顺序/拖出），
+      // 同口径处理，否则按住稍久再拖会起不来；位移容差 7px 与任务拖拽激活阈值一致
+      const isCrossSource =
+        !!t.closest('[data-cross-source] [data-site-drag-id]') ||
+        !!t.closest('[data-task-entry], [data-subtask-row]');
       press = { pointerId: e.pointerId, target: t, x: e.clientX, y: e.clientY, nativeMenuSeen: false, isCrossSource, t: Date.now() };
       clearTimer();
       if (!isCrossSource) timer = window.setTimeout(fire, LONG_PRESS_MS);

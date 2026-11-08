@@ -18,7 +18,8 @@ import { DRAG_THRESHOLD } from './useSiteDragSort';
  *   吞掉），防止各 pending 拖拽在菜单已开后迟到激活；松手的 click 按「松手点」
  *   吞掉，避免穿透触发底层点击（与右键语义一致：右键松手本就不产生 click，
  *   操作菜单要松手后再点）。
- * - 跨组拖拽源例外（收起网格行 / C 卡面瓷砖，与跨组拖拽互斥；2026-11-08 起含任务拖拽源：顶层待办行 / 组内子任务行）：500ms 不直接开菜单（否则冻结
+ * - 跨组拖拽源例外（收起网格行 / C 卡面瓷砖，与跨组拖拽互斥；2026-11-08 起含任务拖拽源：顶层待办行 / 组内子任务行，
+ *   同日又含组合卡小角拆组手柄）：500ms 不直接开菜单（否则冻结
  *   位移、拖拽起不来），位移容差 7px（小于跨组激活 12px，菜单先取消、拖拽随后接管）；
  *   按住不动满 500ms 后松手才开菜单（松手 click 照常抑制），按住拖动则走跨组拖拽、菜单不开。
  *   卡片空白/标题等其他区域仍是 500ms 直接开菜单，尺寸菜单等入口不受影响。
@@ -111,7 +112,9 @@ export default function useLongPressMenu() {
       // 同口径处理，否则按住稍久再拖会起不来；位移容差 7px 与任务拖拽激活阈值一致
       const isCrossSource =
         !!t.closest('[data-cross-source] [data-site-drag-id]') ||
-        !!t.closest('[data-task-entry], [data-subtask-row]');
+        !!t.closest('[data-task-entry], [data-subtask-row]') ||
+        // 组合卡小角拆组手柄（2026-11-08）：按住稍久再拖同样会起不来，同口径处理
+        !!t.closest('[data-combo-tab-drag]');
       press = { pointerId: e.pointerId, target: t, x: e.clientX, y: e.clientY, nativeMenuSeen: false, isCrossSource, t: Date.now() };
       clearTimer();
       if (!isCrossSource) timer = window.setTimeout(fire, LONG_PRESS_MS);

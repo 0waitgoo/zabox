@@ -1,5 +1,5 @@
-import React, { useEffect, useLayoutEffect, useRef, useState } from 'react';
-import { Check, ChevronDown, Layers, Minus, Pencil, Plus, Sparkles, Trash2 } from 'lucide-react';
+import React, { Fragment, useEffect, useLayoutEffect, useRef, useState } from 'react';
+import { Check, ChevronDown, Layers, Minus, Pencil, Plus, Sparkles, Trash2, Ungroup } from 'lucide-react';
 import {
   dateStrDiffDays,
   formatMonthDay,
@@ -12,6 +12,7 @@ import {
   todayDateStr,
   type LocalStore,
   type PlanItem,
+  type TaskChild,
   type TaskItem,
 } from '../../store/localStore';
 import { splitTasksText } from '../../utils/taskSplit';
@@ -133,15 +134,30 @@ function rowMenuPosition(e: React.MouseEvent): { x: number; y: number } {
 const TASK_DRAG_THRESHOLD = 7;
 
 /**
- * 待办拖拽合并手势（第五十四轮，沿用 useSiteDragSort 的 pending → active 两段式指针拖拽）：
- * - 行身 pointerdown 只登记 pending；越过阈值才激活：源行半透明、标题浮层跟随指针、
- *   指针压住的另一条顶层待办（[data-task-entry]，且必须在本 hook 的 listRef 容器内）以 indigo 高亮
- * - 松手：有高亮目标且不是自己 → onMerge(sourceId, targetId)；落在空白/自己身上、Esc、pointercancel 一律取消复原
+ * 待办拖拽手势（第五十四轮合并，2026-11-08 加换顺序，沿用 useSiteDragSort 的 pending → active 两段式指针拖拽）：
+ * - 行身 pointerdown 只登记 pending；越过阈值才激活：源行半透明、标题浮层跟随指针
+ * - 落点分两种，看指针压在目标行的哪个位置（[data-task-entry]，且必须在本 hook 的 listRef 容器内）：
+ *   行中部 → 合并（indigo 高亮），落盘走 onMerge；行上下 8px 边缘 → 换顺序（该处现一条插入线），
+ *   落盘走 onReorder；拖到列表头顶/尾底空白处同样是换顺序（插到最前/最后）
+ * - 子任务拖出（2026-11-08 用户令）：组内子任务行同样可起手（beginChildDrag），拖到顶层行边
+ *   缘 = 抽出为顶层单项目（落盘走 onChildDrop 的 insert）；拖到另一组/单项目中部 = 移入该组或
+ *   合并成新组（落盘走 onChildDrop 的 merge）；拖回自己组的边缘 = 抽出到组前/后，中部不算目标
+ * - 松手：无目标、落在自己身上、Esc、pointercancel 一律取消复原
  * - 勾选框、展开箭头、输入框、按钮等控件（button/input/form 等）不作起手点，原有点击/右键交互不受影响
  */
-function useTaskMergeDrag(onMerge: (sourceId: string, targetId: string) => void) {
+function useTaskMergeDrag(
+  onMerge: (sourceId: string, targetId: string) => void,
+  onReorder: (sourceId: string, targetId: string, position: 'before' | 'after') => void,
+  onChildDrop: (
+    groupId: string,
+    childId: string,
+    target: { kind: 'insert'; id: string; position: 'before' | 'after' } | { kind: 'merge'; id: string },
+  ) => void,
+) {
   const [dragId, setDragId] = useState<string | null>(null);
   const [overId, setOverId] = useState<string | null>(null);
+  /** 换顺序落点：{ 目标行 id, 插到它之前/之后 }（与 overId 互斥） */
+  const [insertAt, setInsertAt] = useState<{ id: string; position: 'before' | 'after' } | null>(null);
   const [clone, setClone] = useState<{ title: string; isGroup: boolean; w: number } | null>(null);
   const cloneRef = useRef<HTMLDivElement>(null);
   const listRef = useRef<HTMLDivElement | null>(null);
@@ -149,21 +165,30 @@ function useTaskMergeDrag(onMerge: (sourceId: string, targetId: string) => void)
     id: string;
     title: string;
     isGroup: boolean;
+    /** 子任务拖出时为源组 id；顶层条目拖动时缺省 */
+    groupId?: string;
     pointerId: number;
     startX: number;
     startY: number;
   } | null>(null);
   const activeRef = useRef<{
     id: string;
+    /** 子任务拖出时为源组 id；顶层条目拖动时缺省 */
+    groupId?: string;
     pointerId: number;
     offsetX: number;
     offsetY: number;
     lastX: number;
     lastY: number;
     overId: string | null;
+    insertAt: { id: string; position: 'before' | 'after' } | null;
   } | null>(null);
   const onMergeRef = useRef(onMerge);
   onMergeRef.current = onMerge;
+  const onReorderRef = useRef(onReorder);
+  onReorderRef.current = onReorder;
+  const onChildDropRef = useRef(onChildDrop);
+  onChildDropRef.current = onChildDrop;
   /** 最近一次拖拽结束时刻（第六十九轮）：标题点击展开用它吞掉「拖完松手」紧随的那次 click */
   const lastDragEndAtRef = useRef(0);
 
@@ -184,21 +209,63 @@ function useTaskMergeDrag(onMerge: (sourceId: string, targetId: string) => void)
       document.body.style.cursor = '';
       document.body.style.userSelect = '';
       const targetId = d.overId;
+      const ins = d.insertAt;
       setDragId(null);
       setOverId(null);
+      setInsertAt(null);
       setClone(null);
-      if (commit && targetId && targetId !== d.id) onMergeRef.current(d.id, targetId);
+      if (!commit) return;
+      if (d.groupId) {
+        // 子任务拖出：中部 = 移入/合并，边缘 = 抽出为顶层单项目
+        if (targetId && targetId !== d.groupId) onChildDropRef.current(d.groupId, d.id, { kind: 'merge', id: targetId });
+        else if (ins) onChildDropRef.current(d.groupId, d.id, { kind: 'insert', id: ins.id, position: ins.position });
+        return;
+      }
+      if (targetId && targetId !== d.id) onMergeRef.current(d.id, targetId);
+      else if (ins && ins.id !== d.id) onReorderRef.current(d.id, ins.id, ins.position);
     };
 
     const updateOver = (x: number, y: number) => {
       const d = activeRef.current;
       if (!d) return;
+      const list = listRef.current;
+      let nextOver: string | null = null;
+      let nextInsert: { id: string; position: 'before' | 'after' } | null = null;
       const el = document.elementFromPoint(x, y)?.closest<HTMLElement>('[data-task-entry]');
-      const id = el && listRef.current?.contains(el) ? el.dataset.taskEntry : undefined;
-      const next = id && id !== d.id ? id : null;
-      if (next !== d.overId) {
-        d.overId = next;
-        setOverId(next);
+      if (el && list?.contains(el)) {
+        const id = el.dataset.taskEntry;
+        if (id && id !== d.id) {
+          // 行上下 8px 边缘 = 换顺序/抽出（插到该行前/后），中部 = 合并；
+          // 子任务拖回自己组时中部不算目标（已经在组里），边缘仍可抽出到组前/后
+          const rect = el.getBoundingClientRect();
+          if (y - rect.top < TASK_DRAG_EDGE_PX) nextInsert = { id, position: 'before' };
+          else if (rect.bottom - y < TASK_DRAG_EDGE_PX) nextInsert = { id, position: 'after' };
+          else if (!(d.groupId && id === d.groupId)) nextOver = id;
+        }
+      } else if (list) {
+        // 列表头顶/尾底空白处：横向在列表内、纵向贴着第一条上方/最后一条下方 → 插到最前/最后
+        const lr = list.getBoundingClientRect();
+        if (x >= lr.left - 8 && x <= lr.right + 8) {
+          const entries = [...list.querySelectorAll<HTMLElement>('[data-task-entry]')];
+          const first = entries[0];
+          const last = entries[entries.length - 1];
+          if (first && y < first.getBoundingClientRect().top) {
+            const fid = first.dataset.taskEntry;
+            if (fid && fid !== d.id) nextInsert = { id: fid, position: 'before' };
+          } else if (last && y > last.getBoundingClientRect().bottom) {
+            const lid = last.dataset.taskEntry;
+            if (lid && lid !== d.id) nextInsert = { id: lid, position: 'after' };
+          }
+        }
+      }
+      if (nextOver !== d.overId) {
+        d.overId = nextOver;
+        setOverId(nextOver);
+      }
+      const cur = d.insertAt;
+      if (nextInsert?.id !== cur?.id || nextInsert?.position !== cur?.position) {
+        d.insertAt = nextInsert;
+        setInsertAt(nextInsert);
       }
     };
 
@@ -206,7 +273,10 @@ function useTaskMergeDrag(onMerge: (sourceId: string, targetId: string) => void)
       const pending = pendingRef.current;
       if (!activeRef.current && pending && e.pointerId === pending.pointerId) {
         if (Math.hypot(e.clientX - pending.startX, e.clientY - pending.startY) < TASK_DRAG_THRESHOLD) return;
-        const entryEl = listRef.current?.querySelector<HTMLElement>(`[data-task-entry="${pending.id}"]`);
+        // 子任务拖出：源行是组内子任务行（data-subtask-id），不是顶层落点行
+        const entryEl = pending.groupId
+          ? listRef.current?.querySelector<HTMLElement>(`[data-subtask-id="${pending.id}"]`)
+          : listRef.current?.querySelector<HTMLElement>(`[data-task-entry="${pending.id}"]`);
         if (!entryEl) {
           pendingRef.current = null;
           return;
@@ -217,12 +287,14 @@ function useTaskMergeDrag(onMerge: (sourceId: string, targetId: string) => void)
         pendingRef.current = null;
         activeRef.current = {
           id: pending.id,
+          groupId: pending.groupId,
           pointerId: pending.pointerId,
           offsetX: pending.startX - rect.left,
           offsetY: pending.startY - rect.top,
           lastX: e.clientX,
           lastY: e.clientY,
           overId: null,
+          insertAt: null,
         };
         setDragId(pending.id);
         setClone({ title: pending.title, isGroup: pending.isGroup, w: Math.max(rect.width, 120) });
@@ -297,11 +369,30 @@ function useTaskMergeDrag(onMerge: (sourceId: string, targetId: string) => void)
     };
   };
 
+  /** 挂在组内子任务行身上（2026-11-08）：起手点同上，另记源组 id 供落盘抽出/移入 */
+  const beginChildDrag = (e: React.PointerEvent, group: TaskItem, child: TaskChild) => {
+    if (e.button !== 0 || pendingRef.current || activeRef.current) return;
+    const t = e.target as HTMLElement;
+    if (t.closest('button, input, textarea, select, a, form, [contenteditable="true"]')) return;
+    pendingRef.current = {
+      id: child.id,
+      title: child.title,
+      isGroup: false,
+      groupId: group.id,
+      pointerId: e.pointerId,
+      startX: e.clientX,
+      startY: e.clientY,
+    };
+  };
+
   /** 刚结束过一次真实拖拽（400ms 内）：标题的 onClick 先问它，是则吞掉本次点击 */
   const wasJustDragged = () => Date.now() - lastDragEndAtRef.current < 400;
 
-  return { dragId, overId, clone, cloneRef, listRef, beginTaskDrag, wasJustDragged };
+  return { dragId, overId, insertAt, clone, cloneRef, listRef, beginTaskDrag, beginChildDrag, wasJustDragged };
 }
+
+/** 拖拽换顺序的边缘带宽（px）：目标行上下各 8px 内松手 = 插到该行前/后，之外 = 合并 */
+const TASK_DRAG_EDGE_PX = 8;
 
 /**
  * 「点表单外 = 确认」的失焦判定（第七十五轮，多字段表单用）：表单根元素挂 ref 与 onBlur，
@@ -359,8 +450,8 @@ export function TasksSection({ store, pinned = false }: { store: LocalStore; pin
   const groupNameRef = useRef('');
   /** 建组表单的「点外面 = 确认」判定（第七十五轮） */
   const groupConfirm = useOutsidePressConfirm();
-  /** 待办拖拽合并（第五十四轮）：手势状态在本节内管理 */
-  const drag = useTaskMergeDrag(store.mergeTaskIntoGroup);
+  /** 待办拖拽合并 + 换顺序 + 子任务拖出（第五十四轮合并，2026-11-08 加换顺序/拖出）：手势状态在本节内管理 */
+  const drag = useTaskMergeDrag(store.mergeTaskIntoGroup, store.reorderTasks, store.moveSubTask);
   /** 标题展开全文的条目 id 集合（第六十九轮，点击文字切换；与编辑态互不干扰） */
   const [expandedTitles, setExpandedTitles] = useState<ReadonlySet<string>>(new Set());
   const toggleTitle = (id: string) => {
@@ -456,14 +547,20 @@ export function TasksSection({ store, pinned = false }: { store: LocalStore; pin
     />
   );
 
-  /** 顶层行渲染：inOpen=true 的行（仅「未完成」区）参与拖拽合并（第五十四轮）——
-   * 带 data-task-entry 落点标记与行身起手；已完成区行不带标记、不可拖 */
+  /** 顶层行渲染：inOpen=true 的行（仅「未完成」区）参与拖拽（第五十四轮合并，2026-11-08 加换顺序）——
+   * 带 data-task-entry 落点标记与行身起手；已完成区行不带标记、不可拖；
+   * 换顺序落点（drag.insertAt）在目标行前/后现一条插入线 */
   const taskRow = (task: TaskItem, inOpen: boolean) => {
     const dragVisual: 'source' | 'over' | null =
       drag.dragId === task.id ? 'source' : drag.overId === task.id ? 'over' : null;
+    const insertLine = (position: 'before' | 'after') =>
+      drag.insertAt?.id === task.id && drag.insertAt.position === position ? (
+        <div key={`insert-${position}`} className="h-[3px] mx-1.5 rounded-full bg-indigo-400" />
+      ) : null;
     return isTaskGroup(task) ? (
+      <Fragment key={task.id}>
+        {insertLine('before')}
       <GroupBlock
-        key={task.id}
         group={task}
         store={store}
         startExpanded={!taskGroupDone(task)}
@@ -479,13 +576,18 @@ export function TasksSection({ store, pinned = false }: { store: LocalStore; pin
         entryId={inOpen ? task.id : undefined}
         dragVisual={inOpen ? dragVisual : null}
         onGripPointerDown={inOpen ? (e) => drag.beginTaskDrag(e, task) : undefined}
+        dragChildId={inOpen ? drag.dragId : null}
+        onChildPointerDown={inOpen ? (e, child) => drag.beginChildDrag(e, task, child) : undefined}
         wasJustDragged={drag.wasJustDragged}
         onDeleteSelf={inOpen ? undefined : () => store.deleteTask(task.id)}
         onDeleteChild={inOpen ? undefined : (childId) => store.deleteSubTask(task.id, childId)}
       />
+        {insertLine('after')}
+      </Fragment>
     ) : (
+      <Fragment key={task.id}>
+        {insertLine('before')}
       <div
-        key={task.id}
         data-task-row
         data-task-entry={inOpen ? task.id : undefined}
         onPointerDown={inOpen ? (e) => drag.beginTaskDrag(e, task) : undefined}
@@ -518,6 +620,8 @@ export function TasksSection({ store, pinned = false }: { store: LocalStore; pin
           <DoneTrashButton label={t('task.deleteDoneTodo', { title: task.title })} onDelete={() => store.deleteTask(task.id)} />
         )}
       </div>
+        {insertLine('after')}
+      </Fragment>
     );
   };
 
@@ -651,6 +755,8 @@ export function TasksSection({ store, pinned = false }: { store: LocalStore; pin
             } else if (action === 'delete') {
               if (menu.kind === 'taskChild' && menu.parentId) store.deleteSubTask(menu.parentId, menu.id);
               else store.deleteTask(menu.id);
+            } else if (action === 'ungroup') {
+              store.ungroupTask(menu.id);
             }
             setMenu(null);
           }}
@@ -707,6 +813,10 @@ const GroupBlock: React.FC<{
   entryId?: string;
   dragVisual?: 'source' | 'over' | null;
   onGripPointerDown?: (e: React.PointerEvent) => void;
+  /** 正在被拖出的子任务 id（2026-11-08）：对应子任务行半透明 */
+  dragChildId?: string | null;
+  /** 组内子任务行身起手（2026-11-08）：拖动单个项目把它拖出去 */
+  onChildPointerDown?: (e: React.PointerEvent, child: TaskChild) => void;
   /** 合并拖拽刚结束守卫（第六十九轮，理由同 TasksSection 的 toggleTitle） */
   wasJustDragged?: () => boolean;
   /** 已完成区专用（第七十五轮）：组本身与子任务行尾的垃圾桶删除；仅 TasksSection 在已完成区传入 */
@@ -714,7 +824,7 @@ const GroupBlock: React.FC<{
   onDeleteChild?: (childId: string) => void;
   /** 组标题双击改名（与右键菜单改名同走 editing/editor） */
   onTitleDoubleClick?: () => void;
-}> = ({ group, store, startExpanded, editing, editor, onMenu, onChildMenu, checkBtn, entryId, dragVisual, onGripPointerDown, wasJustDragged, onDeleteSelf, onDeleteChild, onTitleDoubleClick }) => {
+}> = ({ group, store, startExpanded, editing, editor, onMenu, onChildMenu, checkBtn, entryId, dragVisual, onGripPointerDown, dragChildId, onChildPointerDown, wasJustDragged, onDeleteSelf, onDeleteChild, onTitleDoubleClick }) => {
   const [expanded, setExpanded] = useState(startExpanded);
   const { t } = useLang();
   /** 组标题/子任务标题的点击展开全文（第六十九轮，点文字切换，与展开箭头的折叠子任务互不影响） */
@@ -796,11 +906,13 @@ const GroupBlock: React.FC<{
             <div
               key={child.id}
               data-subtask-row
+              data-subtask-id={child.id}
+              onPointerDown={onChildPointerDown ? (e) => onChildPointerDown(e, child) : undefined}
               onContextMenu={(e) => {
                 e.stopPropagation();
                 onChildMenu(e, child.id, child.title);
               }}
-              className="flex items-center gap-2.5 py-[3px] min-w-0"
+              className={`flex items-center gap-2.5 py-[3px] min-w-0 ${dragChildId === child.id ? 'opacity-40' : ''}`}
             >
               {checkBtn(child.done, () => store.toggleSubTask(group.id, child.id), child.done ? t('task.unmarkDone') : t('task.markDone'))}
               <ExpandableTitle
@@ -975,7 +1087,7 @@ function RowContextMenu({
 }: {
   state: RowMenuState;
   onClose: () => void;
-  onPick: (action: 'edit' | 'delete' | 'markDone' | 'unmarkDone') => void;
+  onPick: (action: 'edit' | 'delete' | 'ungroup' | 'markDone' | 'unmarkDone') => void;
 }) {
   const ref = useRef<HTMLDivElement>(null);
   const [confirming, setConfirming] = useState(false);
@@ -1023,6 +1135,11 @@ function RowContextMenu({
           {showEdit && (
             <button type="button" onClick={() => onPick('edit')} className={itemCls}>
               <Pencil size={13} className="text-white/45" /> {state.kind === 'taskGroup' ? t('task.rename') : t('task.edit')}
+            </button>
+          )}
+          {state.kind === 'taskGroup' && (
+            <button type="button" onClick={() => onPick('ungroup')} className={itemCls} data-menu-ungroup>
+              <Ungroup size={13} className="text-white/45" /> {t('task.ungroup')}
             </button>
           )}
           <button

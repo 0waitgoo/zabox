@@ -1556,6 +1556,8 @@ function applyDraftIcon(site: SiteEntry, draft: SiteDraft): void {
  *  订阅桥接靠它判断本次偏好变化是否真的改了外观；在 update()/applyPreset()/resetData()
  *  三处同步（背景改动、预设应用、恢复默认都会改外观），首渲染用初始数据定下。 */
 let lastAppearance: PresetAppearance | null = null;
+/** Ctrl+Z 撤销步数上限（2026-11-08）：整份快照占内存，30 步够用 */
+const UNDO_LIMIT = 30;
 /** 应用预设写显示偏好时的抑制旗（第一百一十一轮）：应用本身不是「改动外观」，不能被桥接误翻为自定义 */
 let suppressAppearanceFlip = false;
 
@@ -1570,6 +1572,26 @@ export function useLocalStore() {
   const [overwriteConfirmOpen, setOverwriteConfirmOpen] = useState(false);
   /* 上一个存档的时间戳（2026-11-08 回退功能）：落盘 effect 里随旧档一起更新，面板按钮据此显示/禁用 */
   const [prevInfo, setPrevInfo] = useState<PrevSnapshotInfo | null>(() => readPrevSnapshotInfo());
+  /* Ctrl+Z 撤销栈（2026-11-08 用户令：网页加 ctrl+z 返回上一步）：
+   * 只记经 update() 的用户改动（快照 = 改动前整份数据，上限 30 步）；
+   * 同步拉取/跨上下文采纳会清空栈（云端新数据作新基线）；手动导入/预设应用/
+   * 恢复默认/回退在 setData 前把当前态推进栈，于是撤销也能回到那一步。 */
+  const undoStackRef = useRef<StoreData[]>([]);
+  const redoStackRef = useRef<StoreData[]>([]);
+  const lastUndoJsonRef = useRef('');
+  const pushUndoSnapshot = useCallback((state: StoreData, json?: string) => {
+    const j = json ?? JSON.stringify(state);
+    if (j === lastUndoJsonRef.current) return;
+    undoStackRef.current.push(structuredClone(state));
+    if (undoStackRef.current.length > UNDO_LIMIT) undoStackRef.current.shift();
+    redoStackRef.current = [];
+    lastUndoJsonRef.current = j;
+  }, []);
+  const clearUndoStacks = useCallback(() => {
+    undoStackRef.current = [];
+    redoStackRef.current = [];
+    lastUndoJsonRef.current = '';
+  }, []);
   useEffect(() => {
     if (overwritePendingRef.current) setOverwriteConfirmOpen(true);
   }, [data]);
@@ -1618,6 +1640,7 @@ export function useLocalStore() {
       lastAppearance = appearanceOf(incoming, getDisplayPrefs());
       overwritePendingRef.current = false;
       setOverwriteConfirmOpen(false);
+      clearUndoStacks();
       setData(incoming);
     };
     window.addEventListener('storage', onStorage);
@@ -1656,9 +1679,14 @@ export function useLocalStore() {
     });
   }, []);
 
-  const update = useCallback((fn: (d: StoreData) => StoreData) => {
+  const update = useCallback((fn: (d: StoreData) => StoreData, opts?: { undoable?: boolean }) => {
     setData((prev) => {
       const next = fn(structuredClone(prev));
+      // Ctrl+Z：内容真变了才记一步（updatedAt 刷新本身不算变化；同一 prev 重复进回调时去重）
+      if (opts?.undoable !== false) {
+        const prevJson = JSON.stringify(prev);
+        if (JSON.stringify(next) !== prevJson) pushUndoSnapshot(prev, prevJson);
+      }
       // 每次用户变更都刷新时间戳：GitHub 同步靠它判断本地/云端谁更新
       next.updatedAt = Date.now();
       /* 预设状态机（第一百零六轮建、第一百零九轮改语义：预设一有变化自动变「我的」，
@@ -2660,6 +2688,107 @@ export function useLocalStore() {
     [update],
   );
 
+  /** 拆散小组（2026-11-08 用户令：右键拆散小组）：
+   * 组内子任务按原顺序还原为顶层单项目，落在组原来的位置，组本身消失，完成态与 id 原样带回；
+   * 空组拆散 = 直接去掉组壳；非组、不存在时忽略。子项只有 1 个时同样可拆。 */
+  const ungroupTask = useCallback((groupId: string) => {
+    update((d) => {
+      const idx = d.tasks.findIndex((t) => t.id === groupId);
+      if (idx === -1) return d;
+      const group = d.tasks[idx];
+      if (!Array.isArray(group.children)) return d;
+      const singles: TaskItem[] = group.children.map((c) => ({
+        id: c.id,
+        title: c.title,
+        done: c.done,
+        createdAt: group.createdAt,
+      }));
+      d.tasks.splice(idx, 1, ...singles);
+      return d;
+    });
+  }, [update]);
+
+  /** 子任务拖出 / 拖入（2026-11-08 用户令：拖动单个项目可以把项目拖出去）：
+   * - insert：抽出为顶层单项目，插到目标行之前/之后（目标就是源组时也成立——插到组前/后）；
+   * - merge：目标是组 → 移入该组末尾；目标是单项目 → 与它合并成新组「小组N」（顺序 [target, child]，
+   *   口径同 mergeTaskIntoGroup）；目标就是源组时忽略。
+   * 抽出后源组只剩 0 个子项时组自动解散（只有 1 个项目时拖走即拆散小组，用户原话）。 */
+  const moveSubTask = useCallback(
+    (
+      groupId: string,
+      childId: string,
+      target: { kind: 'insert'; id: string; position: 'before' | 'after' } | { kind: 'merge'; id: string },
+    ) => {
+      update((d) => {
+        const group = d.tasks.find((t) => t.id === groupId);
+        if (!group || !Array.isArray(group.children)) return d;
+        const child = group.children.find((c) => c.id === childId);
+        if (!child) return d;
+        if (target.kind === 'merge') {
+          const t = d.tasks.find((x) => x.id === target.id);
+          if (!t || t.id === groupId) return d;
+          if (isTaskGroup(t)) {
+            t.children!.push({ id: child.id, title: child.title, done: child.done });
+          } else {
+            let maxSeq = 0;
+            for (const g of d.tasks) {
+              if (!isTaskGroup(g)) continue;
+              const m = /^小组(\d+)$/.exec(g.title);
+              if (m) maxSeq = Math.max(maxSeq, parseInt(m[1], 10));
+            }
+            const newGroup: TaskItem = {
+              id: genId('t'),
+              title: `小组${maxSeq + 1}`,
+              done: false,
+              createdAt: t.createdAt,
+              children: [
+                { id: t.id, title: t.title, done: t.done },
+                { id: child.id, title: child.title, done: child.done },
+              ],
+            };
+            const idx = d.tasks.findIndex((x) => x.id === target.id);
+            d.tasks.splice(idx, 1, newGroup);
+          }
+        } else {
+          let idx = d.tasks.findIndex((x) => x.id === target.id);
+          if (idx === -1) return d;
+          if (target.position === 'after') idx += 1;
+          d.tasks.splice(idx, 0, {
+            id: child.id,
+            title: child.title,
+            done: child.done,
+            createdAt: group.createdAt,
+          });
+        }
+        group.children = group.children.filter((c) => c.id !== childId);
+        if (group.children.length === 0) d.tasks = d.tasks.filter((t) => t.id !== groupId);
+        return d;
+      });
+    },
+    [update],
+  );
+
+  /** 拖拽换顺序（2026-11-08 用户令：小组和单项目拖动变换顺序）：
+   * 把 source 移到 target 之前/之后；目标就是自己、任一不存在、或移动后顺序不变时忽略。
+   * 只动顶层 tasks 数组顺序，组内子任务不动；不碰构成指纹，不触发预设覆盖确认。 */
+  const reorderTasks = useCallback(
+    (sourceId: string, targetId: string, position: 'before' | 'after') => {
+      if (sourceId === targetId) return;
+      update((d) => {
+        const from = d.tasks.findIndex((t) => t.id === sourceId);
+        const to = d.tasks.findIndex((t) => t.id === targetId);
+        if (from === -1 || to === -1) return d;
+        let idx = to + (position === 'after' ? 1 : 0);
+        if (from < idx) idx -= 1;
+        if (idx === from) return d;
+        const [moved] = d.tasks.splice(from, 1);
+        d.tasks.splice(idx, 0, moved);
+        return d;
+      });
+    },
+    [update],
+  );
+
   /** 新建长期计划（第十九轮两型）：count 带目标数+单位；date 带目标日，startDate 记今天；
       date 型可带可选开始/结束时间（推进表时间轴用，不填即全天）与可选事件日（日程按事件日排，不填则用截止日） */
   const addPlan = useCallback(
@@ -2926,6 +3055,9 @@ export function useLocalStore() {
     if (opts?.refreshTimestamp) validated.updatedAt = Date.now();
     overwritePendingRef.current = false;
     setOverwriteConfirmOpen(false);
+    // 手动导入可撤销（当前态推进栈）；同步拉取则清空栈、云端作新基线
+    if (opts?.refreshTimestamp) pushUndoSnapshot(dataRef.current);
+    else clearUndoStacks();
     setData(validated);
     return true;
   }, []);
@@ -2933,6 +3065,7 @@ export function useLocalStore() {
   const resetData = useCallback(() => {
     overwritePendingRef.current = false;
     setOverwriteConfirmOpen(false);
+    pushUndoSnapshot(dataRef.current);
     setData(seedData());
     // 恢复默认回到星云紫 + 当前偏好：基线同步跟上，否则下一次偏好比对会拿旧外观作基准
     const prefs = getDisplayPrefs();
@@ -2958,11 +3091,72 @@ export function useLocalStore() {
     prev.updatedAt = Date.now();
     overwritePendingRef.current = false;
     setOverwriteConfirmOpen(false);
+    pushUndoSnapshot(dataRef.current);
     setData(prev);
     // 外观基线同步跟上（与 resetData 同口径），否则下一次偏好比对会拿旧外观作基准
     lastAppearance = appearanceOf(prev, getDisplayPrefs());
     return prevUpdatedAt;
   }, []);
+
+  /** Ctrl+Z 撤销 / Ctrl+Shift+Z、Ctrl+Y 重做（2026-11-08 用户令）：
+   * 弹出改动前快照恢复为当前数据；恢复即最新，刷新时间戳、随后自动推上云，
+   * 与回退同一口径；覆盖确认随之关闭，外观基线同步跟上。栈空时返回 false。 */
+  const undo = useCallback((): boolean => {
+    const snapshot = undoStackRef.current.pop();
+    if (!snapshot) return false;
+    redoStackRef.current.push(structuredClone(dataRef.current));
+    if (redoStackRef.current.length > UNDO_LIMIT) redoStackRef.current.shift();
+    overwritePendingRef.current = false;
+    setOverwriteConfirmOpen(false);
+    const restored = structuredClone(snapshot);
+    restored.updatedAt = Date.now();
+    setData(restored);
+    lastAppearance = appearanceOf(restored, getDisplayPrefs());
+    return true;
+  }, []);
+
+  const redo = useCallback((): boolean => {
+    const snapshot = redoStackRef.current.pop();
+    if (!snapshot) return false;
+    undoStackRef.current.push(structuredClone(dataRef.current));
+    if (undoStackRef.current.length > UNDO_LIMIT) undoStackRef.current.shift();
+    overwritePendingRef.current = false;
+    setOverwriteConfirmOpen(false);
+    const restored = structuredClone(snapshot);
+    restored.updatedAt = Date.now();
+    setData(restored);
+    lastAppearance = appearanceOf(restored, getDisplayPrefs());
+    return true;
+  }, []);
+
+  /* Ctrl+Z / Ctrl+Shift+Z / Ctrl+Y 快捷键（2026-11-08 用户令：网页撤销重做）：
+   * 输入框、选择框、可编辑区里有字时走浏览器原生撤销，不拦截；
+   * 空输入框（刚提交完待办、标题清空后）则落到整站撤销——此时原生撤销无事可做，
+   * 用户按 Ctrl+Z 多半是想撤回刚提交的那一步。 */
+  useEffect(() => {
+    const onKeyDown = (e: KeyboardEvent) => {
+      if (!(e.ctrlKey || e.metaKey) || e.defaultPrevented) return;
+      if (e.isComposing) return;
+      const target = e.target as HTMLElement | null;
+      const editable = target?.closest('input, textarea, select, [contenteditable="true"]') as
+        | HTMLInputElement
+        | HTMLTextAreaElement
+        | HTMLElement
+        | null;
+      if (editable) {
+        const val = (editable as HTMLInputElement).value ?? editable.textContent ?? '';
+        if (val.trim() !== '') return;
+      }
+      const key = e.key.toLowerCase();
+      if (key === 'z' && !e.shiftKey) {
+        if (undo()) e.preventDefault();
+      } else if ((key === 'z' && e.shiftKey) || key === 'y') {
+        if (redo()) e.preventDefault();
+      }
+    };
+    window.addEventListener('keydown', onKeyDown);
+    return () => window.removeEventListener('keydown', onKeyDown);
+  }, [undo, redo]);
 
   /**
    * 应用预设（第一百零六轮建、第一百零九轮改语义、第一百一十一轮起含外观）：
@@ -2989,6 +3183,7 @@ export function useLocalStore() {
     }
     const savedMy =
       presetId !== 'my' && prev.activePreset === 'my' ? structuredClone(compositionOf(prev)) : null;
+    pushUndoSnapshot(prev);
     setData((prevData) => {
       const next = structuredClone(prevData);
       if (savedMy) next.myPreset = savedMy;
@@ -3070,6 +3265,9 @@ export function useLocalStore() {
     deleteTask,
     clearCompletedTasks,
     mergeTaskIntoGroup,
+    reorderTasks,
+    ungroupTask,
+    moveSubTask,
     addPlan,
     updatePlan,
     bumpPlanCount,
@@ -3081,6 +3279,8 @@ export function useLocalStore() {
     resetData,
     prevSnapshotInfo: prevInfo,
     rollbackToPrevSnapshot,
+    undo,
+    redo,
     applyPreset,
     myPresetOverwritePending: overwriteConfirmOpen,
     confirmMyPresetOverwrite,

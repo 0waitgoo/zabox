@@ -28,14 +28,41 @@ import { displayGroupName } from '../../i18n/groupNames';
  * - 第六十三轮：高 1x 单行也改从左起排（用户推翻第五十六轮的单行水平居中），与 2x 第一行同左缘
  */
 
-/** 组合卡专用小角：造型与普通 C 卡小角一致（圆角上沿 + clipPath 裁下 7px），按左右半区定位、宽度略收，两块之间留间隙 */
-function ComboTabBump({ color, side }: { color: string; side: 'left' | 'right' }) {
+/** 组合卡专用小角：造型与普通 C 卡小角一致（圆角上沿 + clipPath 裁下 7px），按左右半区定位、宽度略收，两块之间留间隙。
+ * 2026-11-08 用户定：小角是拆出该组的唯一拖拽手柄——按住小角拖动 = 把该组拖出组合；
+ * 卡身其它位置（含 tab 头）拖动只移动整张组合卡，不拆分。点按小角 = 切到该组 tab。 */
+function ComboTabBump({
+  color,
+  side,
+  drag,
+  onBumpClick,
+}: {
+  color: string;
+  side: 'left' | 'right';
+  /** 拆组拖拽手柄信息（组合卡才传）：主页整卡拖拽按此标记识别「拖出解组」 */
+  drag?: { comboId: string; groupId: string };
+  /** 点按小角：切到该组 tab（不打开组合弹窗） */
+  onBumpClick?: () => void;
+}) {
   const c = color?.trim() ? color.trim() : '';
   return (
     <div
       data-tab-bump
       data-ear-side={side}
-      className="absolute top-0 z-20 h-[20px] w-[40%] max-w-[140px] rounded-t-[13px] border border-b-0 pointer-events-none"
+      {...(drag
+        ? { 'data-combo-tab-drag': '', 'data-combo-id': drag.comboId, 'data-group-id': drag.groupId }
+        : {})}
+      onClick={
+        drag
+          ? (e) => {
+              e.stopPropagation();
+              onBumpClick?.();
+            }
+          : undefined
+      }
+      className={`absolute top-0 z-20 h-[20px] w-[40%] max-w-[140px] rounded-t-[13px] border border-b-0 ${
+        drag ? 'pointer-events-auto cursor-grab active:cursor-grabbing' : 'pointer-events-none'
+      }`}
       style={{
         backgroundColor: c || '#26262e',
         borderColor: c || 'rgba(255,255,255,0.1)',
@@ -50,6 +77,8 @@ function ComboTabBump({ color, side }: { color: string; side: 'left' | 'right' }
 export function StackCardFrame({
   tabColor,
   tabEars,
+  tabEarDrag,
+  onTabEarClick,
   onClick,
   delay = 0,
   ariaLabel,
@@ -60,6 +89,10 @@ export function StackCardFrame({
   tabColor: string;
   /** 组合卡专用（第三十三轮）：左右两组各自的 tabColor，传入时渲染两个小角（各对齐一个 tab、颜色固定不随激活 tab 变），忽略 tabColor */
   tabEars?: [string, string];
+  /** 组合卡专用（2026-11-08）：两个小角的拆组拖拽手柄信息 [左组, 右组]，不传则小角纯视觉 */
+  tabEarDrag?: [{ comboId: string; groupId: string }, { comboId: string; groupId: string }];
+  /** 组合卡专用：点按小角切 tab 的回调 */
+  onTabEarClick?: (groupId: string) => void;
   onClick?: () => void;
   delay?: number;
   ariaLabel: string;
@@ -103,8 +136,18 @@ export function StackCardFrame({
           顺序保持不变，几何与观感不动）。 */}
       {tabEars ? (
         <>
-          <ComboTabBump color={tabEars[0]} side="left" />
-          <ComboTabBump color={tabEars[1]} side="right" />
+          <ComboTabBump
+            color={tabEars[0]}
+            side="left"
+            drag={tabEarDrag?.[0]}
+            onBumpClick={tabEarDrag ? () => onTabEarClick?.(tabEarDrag[0].groupId) : undefined}
+          />
+          <ComboTabBump
+            color={tabEars[1]}
+            side="right"
+            drag={tabEarDrag?.[1]}
+            onBumpClick={tabEarDrag ? () => onTabEarClick?.(tabEarDrag[1].groupId) : undefined}
+          />
         </>
       ) : (
         <div

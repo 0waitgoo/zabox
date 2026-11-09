@@ -29,12 +29,15 @@ function extensionAssets(): Plugin {
       const pkg = JSON.parse(fs.readFileSync(path.resolve(root, 'package.json'), 'utf8')) as { version: string };
       const manifest = {
         manifest_version: 3,
-        name: '杂盒 ZaBox',
+        // 名称与描述必须用 __MSG__ 占位（2026-11-09，微软官方文档）：
+        // 写死字符串时 Partner Center 的商店列表只认出一种语言，哪怕包里有 _locales；
+        // 占位符指向 public/_locales/<语言>/messages.json 里的 app_name / app_description，
+        // 浏览器显示的名字仍是“杂盒 ZaBox”，不变
+        name: '__MSG_app_name__',
         version: pkg.version,
-        // 默认语言（2026-11-09）：包里有了 _locales 目录后 Chromium 要求必须声明；
-        // 声明中文语言文件后 Partner Center 才能在商店列表里提供“中文（简体）”选项
+        // 默认语言：包里有了 _locales 目录后 Chromium 要求必须声明
         default_locale: 'en',
-        description: '杂盒 ZaBox 新标签页：个人资料整理收录 + 任务计划 + 日程处理，数据只存本地。',
+        description: '__MSG_app_description__',
         chrome_url_overrides: { newtab: 'index.html' },
         // action：点工具栏图标弹出添加面板（popup.html）；sidePanel：面板里「打开侧边栏」
         // 用同一份新标签页；tabs：添加面板只读当前标签的标题与网址（不读历史）。

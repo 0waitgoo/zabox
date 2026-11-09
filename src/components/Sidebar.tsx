@@ -33,8 +33,8 @@ export function LangToggle() {
 }
 
 /**
- * 顶栏 LOGO（第六十四轮）：用户提供的 public/logo.svg（白色图形），置于顶栏最左端，
- * 高度与图标行视觉齐平（28–30px、宽按 808.79:639.01 比例自动），点击回主页视图。
+ * 顶栏 LOGO（2026-11-09 用户换新）：用户提供的 public/logo.png（白猫＋ZaBox 字），置于顶栏最左端，
+ * 高度与图标行视觉齐平（28–30px、宽按正方形自动），点击回主页视图。
  * 主页与子页面两处顶栏共用同一组件渲染，位置/尺寸不漂移。
  */
 export function TopLogo({ onClick }: { onClick: () => void }) {
@@ -46,7 +46,7 @@ export function TopLogo({ onClick }: { onClick: () => void }) {
       aria-label={t('topbar.homeTitle')}
       className="shrink-0 flex items-center justify-center transition-opacity duration-300 opacity-90 hover:opacity-100"
     >
-      <img src="/logo.svg" alt="" draggable={false} className="h-7 sm:h-[30px] w-auto block select-none" />
+      <img src="/logo.png" alt="" draggable={false} className="h-7 sm:h-[30px] w-auto block select-none" />
     </button>
   );
 }

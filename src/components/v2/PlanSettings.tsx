@@ -279,7 +279,7 @@ export default function PlanSettings({
       <section className="flex flex-col gap-3">
         <h3 className={sectionTitle}>{t('plan.about')}</h3>
         <div className="flex items-center gap-2">
-          <img data-plan-logo src="logo.svg" alt="" className="w-6 h-6 shrink-0" />
+          <img data-plan-logo src="logo.png" alt="" className="w-6 h-6 shrink-0" />
           <span className={sectionTitle}>{t('plan.appName')}</span>
         </div>
         <p className={`text-xs ${faint}`}>

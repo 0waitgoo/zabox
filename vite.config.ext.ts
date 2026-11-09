@@ -31,6 +31,9 @@ function extensionAssets(): Plugin {
         manifest_version: 3,
         name: '杂盒 ZaBox',
         version: pkg.version,
+        // 默认语言（2026-11-09）：包里有了 _locales 目录后 Chromium 要求必须声明；
+        // 声明中文语言文件后 Partner Center 才能在商店列表里提供“中文（简体）”选项
+        default_locale: 'en',
         description: '杂盒 ZaBox 新标签页：个人资料整理收录 + 任务计划 + 日程处理，数据只存本地。',
         chrome_url_overrides: { newtab: 'index.html' },
         // action：点工具栏图标弹出添加面板（popup.html）；sidePanel：面板里「打开侧边栏」

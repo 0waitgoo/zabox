@@ -1,6 +1,6 @@
 import React, { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { AnimatePresence, motion } from 'motion/react';
-import { LayoutGrid, FolderPlus, X, Check, List, Folder, Unlink, Palette, LogOut, ChevronDown } from 'lucide-react';
+import { LayoutGrid, FolderPlus, X, Check, List, Folder, Unlink, Palette, LogOut, ChevronDown, Trash2 } from 'lucide-react';
 import { GROUP_NAME_MAX, TAB_GROUP_NAME, clampGroupName, textCharCount, type GroupDisplay, type NavGroup } from '../../data/groups';
 import {
   cardFaceStyleOf,
@@ -181,6 +181,8 @@ export default function HomePage({ onNavigate, store }: { onNavigate: (page: str
   const sizeMenuRef = useRef<HTMLDivElement>(null);
   /** 「换个底色」选色面板的展开状态（第九十一轮）：记卡片 key，菜单关掉/换个目标自然对不上即收起 */
   const [tintPanelFor, setTintPanelFor] = useState<string | null>(null);
+  /** 组右键菜单里的删组两步确认态：点「删组」后变确认行，菜单关掉/换个目标即复位 */
+  const [confirmDeleteGroup, setConfirmDeleteGroup] = useState(false);
   /** 空白处右键菜单（第二十七轮）：新建编组 / 添加组件；只在非卡片、非弹窗、非顶栏区域触发 */
   const [blankMenu, setBlankMenu] = useState<{ x: number; y: number } | null>(null);
   const blankMenuRef = useRef<HTMLDivElement>(null);
@@ -268,6 +270,7 @@ export default function HomePage({ onNavigate, store }: { onNavigate: (page: str
   /* 选色面板展开态随菜单关闭复位（第九十一轮）：任何路径关掉菜单后重开都是收起态 */
   useEffect(() => {
     if (!sizeMenu) setTintPanelFor(null);
+    if (!sizeMenu) setConfirmDeleteGroup(false);
   }, [sizeMenu]);
   useEffect(() => {
     if (!sizeMenu) return;
@@ -367,7 +370,7 @@ export default function HomePage({ onNavigate, store }: { onNavigate: (page: str
           ? 244
           : target.kind === 'wstack'
             ? 302
-            : 196;
+            : 252;
     setSizeMenu({
       ...target,
       x: Math.max(8, Math.min(e.clientX, window.innerWidth - MENU_W - 8)),
@@ -1954,6 +1957,44 @@ export default function HomePage({ onNavigate, store }: { onNavigate: (page: str
                   </>
                 );
               })()}
+            {/* 编组专属：删组（两步确认，与展开态头部删组同一口径；删组时组合随之解散、Dock 快照保留） */}
+            {sizeMenu.kind === 'group' && (
+              <>
+                <div className="my-2.5 h-px bg-white/10" />
+                {confirmDeleteGroup ? (
+                  <div data-group-delete-confirm>
+                    <p className="px-1 pb-1.5 text-[11px] text-red-300">{t('menu.deleteGroupConfirm')}</p>
+                    <div className="flex gap-1">
+                      <button
+                        data-group-delete-yes
+                        onClick={() => {
+                          store.deleteGroup(sizeMenu.id);
+                          setSizeMenu(null);
+                        }}
+                        className="flex-1 py-1.5 rounded-lg text-xs bg-red-500/80 text-white font-medium"
+                      >
+                        {t('menu.confirmDelete')}
+                      </button>
+                      <button
+                        data-group-delete-no
+                        onClick={() => setConfirmDeleteGroup(false)}
+                        className="flex-1 py-1.5 rounded-lg text-xs bg-white/5 text-white/70 hover:bg-white/10"
+                      >
+                        {t('menu.cancelDelete')}
+                      </button>
+                    </div>
+                  </div>
+                ) : (
+                  <button
+                    data-group-delete
+                    onClick={() => setConfirmDeleteGroup(true)}
+                    className="w-full flex items-center justify-center gap-1.5 py-1.5 rounded-lg text-xs text-red-300/90 hover:text-red-300 bg-white/5 hover:bg-red-500/15 transition-colors"
+                  >
+                    <Trash2 size={12} /> {t('menu.deleteGroup')}
+                  </button>
+                )}
+              </>
+            )}
             {/* 计划卡专属：卡面样式切换（列表式/焦点式，按卡片存 cardFaceStyles） */}
             {sizeMenu.kind === 'widget' && sizeMenu.id === 'task' && (
               <>

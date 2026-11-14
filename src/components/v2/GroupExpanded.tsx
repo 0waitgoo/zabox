@@ -153,6 +153,10 @@ export function SiteForm({
   const [iconImage, setIconImage] = useState(initial?.iconImage ?? '');
   // 文字图标底色（空 = 按文字自动取色，与 groups.ts 的哈希取色一致；存量 popup 选过的色直接回显）
   const [iconColor, setIconColor] = useState(initial?.iconColor ?? '');
+  /** 自定义取色面板开关（2026-11-15：彩虹钮此前只做“恢复自动配色”，点它不弹任何面板，
+   * 用户以为坏了；改成与扩展弹窗同款：点彩虹钮开/合面板，面板里是原生取色器＋当前色值＋自动配色复位） */
+  const [pickerOpen, setPickerOpen] = useState(false);
+  const isCustomColor = iconColor !== '' && !LETTER_ICON_COLORS.includes(iconColor);
   const [autoLogo, setAutoLogo] = useState('');
   const iconTextComposing = useRef(false);
   const iconFileRef = useRef<HTMLInputElement>(null);
@@ -324,34 +328,66 @@ export function SiteForm({
       </div>
       {/* 文字图标底色：仅 text 模式显示；色板与自动取色同源（LETTER_ICON_COLORS），空 = 自动 */}
       {iconMode === 'text' && (
-        <div className="flex items-center gap-1.5 flex-wrap" data-icon-colors>
-          <span className="text-[11px] text-white/50">{t('menu.formIconBg')}</span>
-          {LETTER_ICON_COLORS.map((c) => (
+        <>
+          <div className="flex items-center gap-1.5 flex-wrap" data-icon-colors>
+            <span className="text-[11px] text-white/50">{t('menu.formIconBg')}</span>
+            {LETTER_ICON_COLORS.map((c) => (
+              <button
+                key={c}
+                type="button"
+                data-icon-color={c}
+                title={c}
+                aria-label={c}
+                onClick={() => {
+                  setIconColor(c);
+                  setPickerOpen(false);
+                }}
+                className={`w-6 h-6 rounded-full border transition-transform hover:scale-110 ${
+                  iconColor === c ? 'border-indigo-400 ring-2 ring-indigo-400/50' : 'border-white/20'
+                }`}
+                style={{ backgroundColor: c }}
+              />
+            ))}
             <button
-              key={c}
               type="button"
-              data-icon-color={c}
-              title={c}
-              aria-label={c}
-              onClick={() => setIconColor(c)}
+              data-icon-color-auto
+              title={t('menu.formIconBgAuto')}
+              aria-label={t('menu.formIconBgAuto')}
+              onClick={() => setPickerOpen((v) => !v)}
               className={`w-6 h-6 rounded-full border transition-transform hover:scale-110 ${
-                iconColor === c ? 'border-indigo-400 ring-2 ring-indigo-400/50' : 'border-white/20'
+                iconColor === '' || isCustomColor ? 'border-indigo-400 ring-2 ring-indigo-400/50' : 'border-white/20'
               }`}
-              style={{ backgroundColor: c }}
+              style={
+                isCustomColor
+                  ? { backgroundColor: iconColor }
+                  : { background: 'conic-gradient(#f87171, #facc15, #4ade80, #38bdf8, #a78bfa, #f87171)' }
+              }
             />
-          ))}
-          <button
-            type="button"
-            data-icon-color-auto
-            title={t('menu.formIconBgAuto')}
-            aria-label={t('menu.formIconBgAuto')}
-            onClick={() => setIconColor('')}
-            className={`w-6 h-6 rounded-full border transition-transform hover:scale-110 ${
-              iconColor === '' ? 'border-indigo-400 ring-2 ring-indigo-400/50' : 'border-white/20'
-            }`}
-            style={{ background: 'conic-gradient(#f87171, #facc15, #4ade80, #38bdf8, #a78bfa, #f87171)' }}
-          />
-        </div>
+          </div>
+          {pickerOpen && (
+            <div data-icon-color-panel className="flex items-center gap-2">
+              <input
+                type="color"
+                data-icon-custom-color
+                aria-label={t('menu.formIconBgAuto')}
+                value={iconColor || '#8b5cf6'}
+                onChange={(e) => setIconColor(e.target.value)}
+                className="h-8 w-11 shrink-0 cursor-pointer rounded-lg border border-white/15 bg-transparent p-0.5"
+              />
+              <span className="min-w-0 flex-1 truncate text-xs text-white/60">
+                {iconColor ? iconColor : t('menu.formIconBgAuto')}
+              </span>
+              <button
+                type="button"
+                data-icon-color-auto-reset
+                onClick={() => setIconColor('')}
+                className="shrink-0 rounded-lg bg-white/8 border border-white/10 px-2.5 py-1.5 text-xs text-white/70 hover:bg-white/12 transition-colors"
+              >
+                {t('menu.formIconBgAuto')}
+              </button>
+            </div>
+          )}
+        </>
       )}
       <div className="flex items-center gap-2 flex-wrap">
         {/* 标签（第二十六轮；第三十九轮预设配色；第七十六轮改多选、最多 2 个）：自定义输入（灰色系，

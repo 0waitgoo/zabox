@@ -830,27 +830,9 @@ const GroupBlock: React.FC<{
   /** 组标题/子任务标题的点击展开全文（第六十九轮，点文字切换，与展开箭头的折叠子任务互不影响） */
   const [titleExpanded, setTitleExpanded] = useState(false);
   const [expandedKids, setExpandedKids] = useState<ReadonlySet<string>>(new Set());
-  const [subDraft, setSubDraft] = useState('');
-  /** 草稿的 ref 镜像：提交时同步读它并清零，让同一次回车即便同时触发 keydown 与表单 submit 也只加一条；
-   * 回车改由输入框 keydown 显式提交（见下方 input）——只靠表单隐式提交时，中文输入法组合态下
-   * 按回车只上屏不提交，用户会以为加了、实际文字还留在框里（第五十七轮修） */
-  const subDraftRef = useRef('');
   const kids = group.children ?? [];
   const { done, total } = taskChildProgress(group);
   const allDone = taskGroupDone(group);
-
-  const changeSubDraft = (v: string) => {
-    subDraftRef.current = v;
-    setSubDraft(v);
-  };
-
-  const submitSub = () => {
-    const draft = subDraftRef.current;
-    if (!draft.trim()) return;
-    store.addSubTask(group.id, draft);
-    changeSubDraft('');
-    setExpanded(true);
-  };
 
   return (
     <div
@@ -937,31 +919,6 @@ const GroupBlock: React.FC<{
               )}
             </div>
           ))}
-          <form
-            className="mt-1 flex items-center gap-1.5"
-            onSubmit={(e) => {
-              e.preventDefault();
-              submitSub();
-            }}
-          >
-            <Plus size={13} className="text-zinc-400 shrink-0" />
-            <input
-              value={subDraft}
-              onChange={(e) => changeSubDraft(e.target.value)}
-              onKeyDown={(e) => {
-                // 输入法组合中（isComposing）的回车只用来上屏，不添加；组合结束后的回车才提交，
-                // 并 preventDefault 挡掉表单隐式提交，避免同一次按键重复添加
-                if (e.key === 'Enter' && !e.nativeEvent.isComposing) {
-                  e.preventDefault();
-                  submitSub();
-                }
-              }}
-              onBlur={submitSub}
-              placeholder={t('task.addSubtaskPlaceholder')}
-              data-subtask-add
-              className="flex-1 min-w-0 bg-transparent text-[13px] py-1 outline-none placeholder:text-zinc-400 border-b border-transparent focus:border-indigo-400/40 transition-colors"
-            />
-          </form>
         </div>
       )}
     </div>

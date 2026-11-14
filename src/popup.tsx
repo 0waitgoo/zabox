@@ -5,7 +5,7 @@
  * 面板字段只留：名称（默认当前页标题，可改）、8 色板、图标文字、确定；
  * 下载桌面待办 App 的按钮置顶，顶部保留「打开主页」「打开侧边栏」两个入口。
  */
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { createRoot } from 'react-dom/client';
 import { Check, Download, Globe, Home, Link2, PanelRightOpen, Type } from 'lucide-react';
 import './index.css';
@@ -88,6 +88,9 @@ function PopupApp() {
   const [pickerOpen, setPickerOpen] = useState(false);
   const isCustomColor = color !== '' && !LETTER_ICON_COLORS.includes(color);
   const [iconText, setIconText] = useState('');
+  /** 输入法组词守卫（与 GroupExpanded.tsx 同款：拼音组词期间不截断，组词结束后再限 2 字；
+   * 弹窗之前每击必截，3 个字母以上的拼音一到 2 字就把输入法顶掉——2026-11-15 用户报的 BUG） */
+  const iconTextComposing = useRef(false);
   const [status, setStatus] = useState('');
   const [added, setAdded] = useState(false);
   const [saving, setSaving] = useState(false);
@@ -337,8 +340,17 @@ function PopupApp() {
             <input
               data-testid="popup-icon-text"
               value={iconText}
+              onCompositionStart={() => {
+                iconTextComposing.current = true;
+              }}
+              onCompositionEnd={(e) => {
+                iconTextComposing.current = false;
+                setIconText(clampIconText(e.currentTarget.value));
+                resetAdded();
+              }}
               onChange={(e) => {
-                setIconText(clampIconText(e.target.value));
+                const v = e.target.value;
+                setIconText(iconTextComposing.current ? v : clampIconText(v));
                 resetAdded();
               }}
               placeholder="图标文字，建议1–2个字符"

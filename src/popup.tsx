@@ -85,6 +85,8 @@ function PopupApp() {
   const [name, setName] = useState('');
   const [nameTouched, setNameTouched] = useState(false);
   const [color, setColor] = useState('');
+  const [pickerOpen, setPickerOpen] = useState(false);
+  const isCustomColor = color !== '' && !LETTER_ICON_COLORS.includes(color);
   const [iconText, setIconText] = useState('');
   const [status, setStatus] = useState('');
   const [added, setAdded] = useState(false);
@@ -278,6 +280,7 @@ function PopupApp() {
                 aria-label={`颜色 ${c}`}
                 onClick={() => {
                   setColor(c);
+                  setPickerOpen(false);
                   resetAdded();
                 }}
                 className={`h-6 w-6 rounded-full transition-transform hover:scale-110 ${color === c ? 'ring-2 ring-white ring-offset-2 ring-offset-[#17171d]' : ''}`}
@@ -287,16 +290,47 @@ function PopupApp() {
             <button
               type="button"
               data-testid="popup-color-auto"
-              aria-label="自动配色"
-              title="自动配色"
-              onClick={() => {
-                setColor('');
-                resetAdded();
-              }}
-              className={`h-6 w-6 rounded-full transition-transform hover:scale-110 ${color === '' ? 'ring-2 ring-white ring-offset-2 ring-offset-[#17171d]' : ''}`}
-              style={{ background: 'conic-gradient(#f43f5e, #f59e0b, #22c55e, #3b82f6, #8b5cf6, #f43f5e)' }}
+              aria-label="自定义颜色"
+              title="自定义颜色"
+              onClick={() => setPickerOpen((v) => !v)}
+              className={`h-6 w-6 rounded-full transition-transform hover:scale-110 ${color === '' || isCustomColor ? 'ring-2 ring-white ring-offset-2 ring-offset-[#17171d]' : ''}`}
+              style={
+                isCustomColor
+                  ? { backgroundColor: color }
+                  : { background: 'conic-gradient(#f43f5e, #f59e0b, #22c55e, #3b82f6, #8b5cf6, #f43f5e)' }
+              }
             />
           </div>
+
+          {pickerOpen && (
+            <div data-testid="popup-color-panel" className="flex items-center gap-2 px-1">
+              <input
+                type="color"
+                data-testid="popup-custom-color"
+                aria-label="选择颜色"
+                value={color || '#8b5cf6'}
+                onChange={(e) => {
+                  setColor(e.target.value);
+                  resetAdded();
+                }}
+                className="h-8 w-11 shrink-0 cursor-pointer rounded-lg border border-white/15 bg-transparent p-0.5"
+              />
+              <span className="min-w-0 flex-1 truncate text-xs text-white/60">
+                {color ? `当前 ${color}` : '自动配色（选个颜色用自定义）'}
+              </span>
+              <button
+                type="button"
+                data-testid="popup-color-auto-reset"
+                onClick={() => {
+                  setColor('');
+                  resetAdded();
+                }}
+                className="shrink-0 rounded-lg bg-white/[0.07] border border-white/10 px-2.5 py-1.5 text-xs hover:bg-white/10"
+              >
+                自动配色
+              </button>
+            </div>
+          )}
 
           <label className={fieldCls}>
             <Type size={16} className="shrink-0 text-white/50" />

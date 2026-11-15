@@ -1,0 +1,35 @@
+# 杂盒 ZaBox
+
+> 杂，而有序。
+
+杂盒 ZaBox 是个人资料整理收录、任务计划与日程处理的新标签页主页。
+一个新标签页，把网站分门别类收好；预设导航选一个就能用；任务计划和日程走到哪跟到哪；数据只存本地。
+
+- 官网：https://zahe.hiitun.top/
+- 隐私政策：https://zahe.hiitun.top/privacy.html
+- Edge 扩展：https://microsoftedge.microsoft.com/addons/detail/kkjkajpmbplfkbjicconehklkaocmijg
+- 开源仓库：https://github.com/0waitgoo/zabox
+
+## 功能
+
+- 网站导航：网站按分组分门别类收纳，支持搜索、标签、组合卡（两个分组拼成一张卡）、Dock 栏、悬浮组（临时添加的站可拖进分组）。
+- 预设导航：设计师导航、程序员导航、娱乐电影导航，选一个就能用；也可以在「我的」预设里按自己的需要整理。
+- 任务计划：待办清单、拖拽换顺序、拖进拖出分组、拆散小组、Ctrl+Z 撤销。
+- 日程：计划页与日历在同一页。
+- 数据面板：导出 / 导入 / 一键回退到上一个存档；同步可选 GitHub 或 Gitee 私有仓库。
+- 外观：深色、浅色、液态玻璃三种模式。
+- Edge 扩展：新标签页即杂盒主页；任意网页右键「添加到杂盒主页」。
+
+## 数据与隐私
+
+- 用户数据默认只存在用户自己的浏览器本地。
+- 同步只进用户自己的私有仓库（GitHub / Gitee），不经过开发者服务器。
+- 免费使用，没有付费墙。
+
+## English
+
+ZaBox is a personal start page for organizing websites, tasks and schedules.
+One new tab keeps your sites sorted into groups, with ready-made presets
+(Designer, Developer, Entertainment & Movies), to-dos, a calendar, a Dock,
+and one-click data rollback. Your data stays in your own browser by default;
+sync is optional via your own private GitHub or Gitee repo. Free to use.

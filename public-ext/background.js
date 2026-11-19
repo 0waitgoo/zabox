@@ -56,7 +56,7 @@ chrome.contextMenus.onClicked.addListener(async (info, tab) => {
   // 只投递给一个已打开的杂盒新标签页（避免新标签页与侧边栏同时在听造成重复添加）；
   // 没有页面在听、或投递失败时进待办队列，等新标签页打开时取走。
   try {
-    const ownUrl = chrome.runtime.getURL('index.html');
+    const ownUrl = chrome.runtime.getURL('web/index.html');
     const tabs = await chrome.tabs.query({ url: ownUrl });
     if (tabs.length > 0) {
       const delivered = await new Promise((resolve) => {

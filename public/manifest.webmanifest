@@ -1,1 +1,22 @@
-{"background_color":"#17171d","description":"个人资料整理收录，和任务计划，日程处理","display":"standalone","icons":[{"sizes":"192x192","src":"/icons/pwa-192.png","type":"image/png"},{"sizes":"512x512","src":"/icons/pwa-512.png","type":"image/png"}],"name":"杂盒 ZaBox","scope":"/","short_name":"杂盒","start_url":"/","theme_color":"#17171d"}
+{
+  "background_color": "#17171d",
+  "description": "个人资料整理收录，和任务计划，日程处理",
+  "display": "standalone",
+  "icons": [
+    {
+      "sizes": "192x192",
+      "src": "/icons/pwa-192.png",
+      "type": "image/png"
+    },
+    {
+      "sizes": "512x512",
+      "src": "/icons/pwa-512.png",
+      "type": "image/png"
+    }
+  ],
+  "name": "杂盒 ZaBox",
+  "scope": "/web/",
+  "short_name": "杂盒",
+  "start_url": "/web/",
+  "theme_color": "#17171d"
+}

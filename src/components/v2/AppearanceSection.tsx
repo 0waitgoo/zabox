@@ -1,5 +1,5 @@
 import React, { useRef, useState } from 'react';
-import { ImagePlus, Trash2, Check, Moon, Sun, Pipette, Droplets, PanelBottom, SlidersHorizontal, SunMoon, Image } from 'lucide-react';
+import { ImagePlus, Trash2, Check, Moon, Sun, Pipette, Droplets, Frame, PanelBottom, SlidersHorizontal, SunMoon, Image } from 'lucide-react';
 import { BACKGROUND_PRESETS, type LocalStore } from '../../store/localStore';
 import { deleteBgImage, saveBgImage } from '../../store/bgImageDb';
 import { OCEAN_DEFAULT_COLOR, setDisplayPrefs, useDisplayPrefs } from '../../store/displayPrefs';
@@ -155,6 +155,7 @@ export default function AppearanceSection({ store }: { store: LocalStore }) {
             { id: 'dark', label: t('preset.themeDark'), Icon: Moon },
             { id: 'light', label: t('preset.themeLight'), Icon: Sun },
             { id: 'liquid', label: t('preset.themeLiquid'), Icon: Droplets },
+            { id: 'wireframe', label: t('preset.themeWireframe'), Icon: Frame },
           ] as const
         ).map(({ id, label, Icon }) => {
           const active = displayPrefs.theme === id;

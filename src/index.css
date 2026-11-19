@@ -361,3 +361,139 @@ html {
   user-select: text;
   -webkit-touch-callout: default;
 }
+
+/* ---------- 2026-11-19 线框外观（第四档 'wireframe'，取主页着陆页的线条语言） ---------- */
+/* 口径：整页翻纸面底 #FAF8F2 + 深字；卡面/面板/菜单一律 1px 黑线、直角、无磨砂无投影；
+   选中态用黑底白字（与着陆页黑胶囊同款）。做法沿用白天档的翻色表写法，但作用域是整页
+   （白天档只翻编组卡内，线框要连顶栏/Dock/菜单/弹窗一起翻）；
+   字母图标是 SVG data URI（白字 baked in），不受翻字影响；
+   透明度滑杆继续生效（纸面底上的纸面卡，alpha 只影响卡面与底的微差）。 */
+[data-theme="wireframe"] {
+  --group-card-rgb: 250 248 242;
+  --fade-rgb: 250 248 242;
+  color-scheme: light;
+}
+[data-theme="wireframe"] body { background-color: #FAF8F2; color: #161616; }
+[data-theme="wireframe"] ::-webkit-scrollbar-thumb { background: rgb(22 22 22 / 0.25); }
+/* 表面：纸面底 + 1px 黑线 + 直角 + 去磨砂去投影 */
+[data-theme="wireframe"] :is(.group-card-panel, .widget-panel, [data-stack-body], .card-glass-surface, .store-panel, .glass-panel) {
+  background: rgb(250 248 242 / var(--group-card-alpha, 0.4));
+  border: 1px solid #161616;
+  border-radius: 0;
+  -webkit-backdrop-filter: none;
+  backdrop-filter: none;
+  box-shadow: none;
+}
+[data-theme="wireframe"] :is(.group-card-panel-hover:hover, .widget-panel-hover:hover, .glass-panel-hover:hover) {
+  background: rgb(250 248 242 / calc(var(--group-card-alpha, 0.4) + 0.1));
+  border-color: #161616;
+}
+/* 弹窗/菜单/面板的深色实底（bg-[#17171d] / bg-[#14141a] 家族）翻纸面 */
+[data-theme="wireframe"] :is(.bg-\[\#17171d\], .bg-\[\#17171d\]\/95, .bg-\[\#14141a\]\/70, .bg-\[\#14141a\]\/90) {
+  background-color: rgb(250 248 242 / 0.96);
+  border-color: #161616;
+}
+/* 外观选项选中态：黑底白字（取代靛蓝描边 + 白底）——规则置于块末（见下方收尾） */
+/* 白字阶梯 → 深字（整页；与白天档同表，墨色改 #161616） */
+[data-theme="wireframe"] .text-white { color: rgb(22 22 22 / 1); }
+[data-theme="wireframe"] .text-white\/90 { color: rgb(22 22 22 / 0.9); }
+[data-theme="wireframe"] .text-white\/85 { color: rgb(22 22 22 / 0.85); }
+[data-theme="wireframe"] .text-white\/80 { color: rgb(22 22 22 / 0.8); }
+[data-theme="wireframe"] .text-white\/75 { color: rgb(22 22 22 / 0.75); }
+[data-theme="wireframe"] .text-white\/70 { color: rgb(22 22 22 / 0.7); }
+[data-theme="wireframe"] .text-white\/60 { color: rgb(22 22 22 / 0.6); }
+[data-theme="wireframe"] .text-white\/55 { color: rgb(22 22 22 / 0.55); }
+[data-theme="wireframe"] .text-white\/50 { color: rgb(22 22 22 / 0.5); }
+[data-theme="wireframe"] .text-white\/45 { color: rgb(22 22 22 / 0.45); }
+[data-theme="wireframe"] .text-white\/40 { color: rgb(22 22 22 / 0.4); }
+[data-theme="wireframe"] .text-white\/35 { color: rgb(22 22 22 / 0.35); }
+[data-theme="wireframe"] .text-white\/30 { color: rgb(22 22 22 / 0.3); }
+[data-theme="wireframe"] .text-white\/25 { color: rgb(22 22 22 / 0.25); }
+[data-theme="wireframe"] .text-white\/20 { color: rgb(22 22 22 / 0.2); }
+[data-theme="wireframe"] .hover\:text-white:hover { color: rgb(22 22 22 / 1); }
+[data-theme="wireframe"] .hover\:text-white\/85:hover { color: rgb(22 22 22 / 0.85); }
+[data-theme="wireframe"] .hover\:text-white\/80:hover { color: rgb(22 22 22 / 0.8); }
+[data-theme="wireframe"] .hover\:text-white\/75:hover { color: rgb(22 22 22 / 0.75); }
+[data-theme="wireframe"] .hover\:text-white\/70:hover { color: rgb(22 22 22 / 0.7); }
+/* 白底工具类 → 黑底（整页；与白天档同表） */
+[data-theme="wireframe"] .bg-white\/5 { background-color: rgb(0 0 0 / 0.05); }
+[data-theme="wireframe"] .bg-white\/6 { background-color: rgb(0 0 0 / 0.06); }
+[data-theme="wireframe"] .bg-white\/8 { background-color: rgb(0 0 0 / 0.08); }
+[data-theme="wireframe"] .bg-white\/10 { background-color: rgb(0 0 0 / 0.1); }
+[data-theme="wireframe"] .bg-white\/12 { background-color: rgb(0 0 0 / 0.12); }
+[data-theme="wireframe"] .bg-white\/15 { background-color: rgb(0 0 0 / 0.15); }
+[data-theme="wireframe"] .bg-white\/20 { background-color: rgb(0 0 0 / 0.2); }
+[data-theme="wireframe"] .bg-white\/30 { background-color: rgb(0 0 0 / 0.3); }
+[data-theme="wireframe"] .bg-white\/50 { background-color: rgb(0 0 0 / 0.5); }
+[data-theme="wireframe"] .bg-white\/\[0\.03\] { background-color: rgb(0 0 0 / 0.03); }
+[data-theme="wireframe"] .bg-white\/\[0\.04\] { background-color: rgb(0 0 0 / 0.04); }
+[data-theme="wireframe"] .bg-white\/\[0\.05\] { background-color: rgb(0 0 0 / 0.05); }
+[data-theme="wireframe"] .bg-white\/\[0\.06\] { background-color: rgb(0 0 0 / 0.06); }
+[data-theme="wireframe"] .bg-white\/\[0\.07\] { background-color: rgb(0 0 0 / 0.07); }
+[data-theme="wireframe"] .bg-white\/\[0\.08\] { background-color: rgb(0 0 0 / 0.08); }
+[data-theme="wireframe"] .hover\:bg-white\/5:hover { background-color: rgb(0 0 0 / 0.05); }
+[data-theme="wireframe"] .hover\:bg-white\/6:hover { background-color: rgb(0 0 0 / 0.06); }
+[data-theme="wireframe"] .hover\:bg-white\/8:hover { background-color: rgb(0 0 0 / 0.08); }
+[data-theme="wireframe"] .hover\:bg-white\/10:hover { background-color: rgb(0 0 0 / 0.1); }
+[data-theme="wireframe"] .hover\:bg-white\/12:hover { background-color: rgb(0 0 0 / 0.12); }
+/* 白描边工具类 → 黑描边（整页） */
+[data-theme="wireframe"] .border-white\/5 { border-color: rgb(0 0 0 / 0.05); }
+[data-theme="wireframe"] .border-white\/8 { border-color: rgb(0 0 0 / 0.08); }
+[data-theme="wireframe"] .border-white\/10 { border-color: rgb(0 0 0 / 0.1); }
+[data-theme="wireframe"] .border-white\/12 { border-color: rgb(0 0 0 / 0.12); }
+[data-theme="wireframe"] .border-white\/15 { border-color: rgb(0 0 0 / 0.15); }
+[data-theme="wireframe"] .border-white\/20 { border-color: rgb(0 0 0 / 0.2); }
+[data-theme="wireframe"] .border-white\/25 { border-color: rgb(0 0 0 / 0.25); }
+[data-theme="wireframe"] .border-white\/30 { border-color: rgb(0 0 0 / 0.3); }
+[data-theme="wireframe"] .border-white\/35 { border-color: rgb(0 0 0 / 0.35); }
+[data-theme="wireframe"] .border-white\/40 { border-color: rgb(0 0 0 / 0.4); }
+[data-theme="wireframe"] .border-white\/\[0\.06\] { border-color: rgb(0 0 0 / 0.06); }
+[data-theme="wireframe"] .border-white\/\[0\.07\] { border-color: rgb(0 0 0 / 0.07); }
+[data-theme="wireframe"] .border-white\/\[0\.12\] { border-color: rgb(0 0 0 / 0.12); }
+[data-theme="wireframe"] .border-white\/\[0\.18\] { border-color: rgb(0 0 0 / 0.18); }
+[data-theme="wireframe"] .hover\:border-white\/15:hover { border-color: rgb(0 0 0 / 0.15); }
+[data-theme="wireframe"] .hover\:border-white\/30:hover { border-color: rgb(0 0 0 / 0.3); }
+[data-theme="wireframe"] .hover\:border-white\/35:hover { border-color: rgb(0 0 0 / 0.35); }
+/* 占位符加深（整页） */
+[data-theme="wireframe"] ::placeholder { color: rgb(22 22 22 / 0.38); opacity: 1; }
+/* 彩色强调字 → 深阶（同色相；白天档小组件那节的口径，线框下整页通用） */
+[data-theme="wireframe"] .text-pink-300 { color: #9d174d; }
+[data-theme="wireframe"] .text-indigo-100 { color: #3730a3; }
+[data-theme="wireframe"] .text-indigo-200 { color: #4338ca; }
+[data-theme="wireframe"] .text-indigo-300 { color: #4338ca; }
+[data-theme="wireframe"] .text-yellow-300 { color: #854d0e; }
+[data-theme="wireframe"] .text-amber-300 { color: #b45309; }
+[data-theme="wireframe"] .text-red-300 { color: #b91c1c; }
+[data-theme="wireframe"] .text-emerald-300 { color: #047857; }
+[data-theme="wireframe"] .text-zinc-100 { color: rgb(22 22 22 / 0.88); }
+[data-theme="wireframe"] .text-zinc-200 { color: rgb(22 22 22 / 0.8); }
+[data-theme="wireframe"] .text-zinc-300 { color: rgb(22 22 22 / 0.66); }
+[data-theme="wireframe"] .text-zinc-400 { color: rgb(22 22 22 / 0.56); }
+/* 例外：彩色实底按钮上的白字保持白色（保存/删除确认/预设选中徽标等，与白天档同口径；
+   本节写在翻字表之后、同级特异度靠后出胜出，组合卡黑 tab 与外观选中态另有专属规则在上） */
+[data-theme="wireframe"] .text-white[class*="bg-indigo-"],
+[data-theme="wireframe"] .text-white[class*="bg-red-"],
+[data-theme="wireframe"] .text-white[class*="bg-emerald-"],
+[data-theme="wireframe"] .text-white[class*="bg-pink-"],
+[data-theme="wireframe"] .text-white[class*="bg-amber-"] { color: #ffffff; }
+[data-theme="wireframe"] [class~="bg-indigo-500"] .text-white,
+[data-theme="wireframe"] [class~="bg-red-500"] .text-white,
+[data-theme="wireframe"] [class~="bg-red-500/80"] .text-white,
+[data-theme="wireframe"] [class~="bg-emerald-500"] .text-white { color: #ffffff; }
+/* 实线收尾：弹窗/菜单/Dock 的描边用实黑 1px——翻色表在前会把它冲成 0.1–0.15，
+   本条置末、同级特异度靠后出胜出 */
+[data-theme="wireframe"] :is(.bg-\[\#17171d\], .bg-\[\#17171d\]\/95, .bg-\[\#14141a\]\/70, .bg-\[\#14141a\]\/90, [data-dock-bar]) {
+  border-color: #161616;
+}
+/* 黑胶囊收尾：组合卡激活 tab 与外观选中态用黑底白字——白底翻色表在前会把它们的
+   bg-white/* 冲成黑 5–8%，本条置末、同级特异度靠后出胜出 */
+[data-theme="wireframe"] [data-combo-tab-active="true"] {
+  background-color: #161616;
+  color: #FAF8F2;
+}
+[data-theme="wireframe"] [data-theme-option][aria-pressed="true"] {
+  background: #161616;
+  color: #FAF8F2;
+  border-color: #161616;
+}
+[data-theme="wireframe"] [data-theme-option][aria-pressed="true"] * { color: #FAF8F2; }

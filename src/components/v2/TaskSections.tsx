@@ -1,5 +1,5 @@
-import React, { Fragment, useEffect, useLayoutEffect, useRef, useState } from 'react';
-import { Check, ChevronDown, Image as ImageIcon, ImagePlus, Layers, Minus, Pencil, Plus, SendHorizontal, Sparkles, Trash2, Ungroup, X } from 'lucide-react';
+import React, { Fragment, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
+import { ArrowLeft, Check, ChevronDown, Download, File as FileIcon, Film, FolderOpen, Image as ImageIcon, ImagePlus, Layers, Minus, Music, Paperclip, Pencil, Plus, SendHorizontal, Sparkles, Table, Trash2, Ungroup, X } from 'lucide-react';
 import {
   dateStrDiffDays,
   formatMonthDay,
@@ -11,12 +11,13 @@ import {
   taskGroupDone,
   todayDateStr,
   type LocalStore,
+  type NoteAttachmentItem,
   type PlanItem,
   type TaskChild,
   type TaskItem,
   type TaskNoteMsg,
 } from '../../store/localStore';
-import { deleteNoteImage, loadNoteImage, saveNoteImage } from '../../store/noteImageDb';
+import { NOTE_FILE_MAX_MB, NOTE_FILES_TOTAL_MAX_MB, deleteNoteImage, loadNoteImage, saveNoteImage } from '../../store/noteImageDb';
 import { splitTasksText } from '../../utils/taskSplit';
 import { useLang } from '../../i18n/useLang';
 
@@ -438,19 +439,36 @@ function useOutsidePressConfirm() {
  * 勾选/添加/建组/组展开勾子任务/已完成折叠/行右键编辑删除/拖拽合并都在卡面直接完成；
  * 标题截断时点击文字展开全文、再点收起（第六十九轮）
  */
-/** 笔记里是否有图片（2026-11-20）：有图时标题后加图片小图标 */
-const hasImageNote = (notes?: TaskNoteMsg[]) => (notes ?? []).some((n) => n.kind === 'image');
+/** 笔记附件小图标（2026-11-20）：有图显图片图标，有视频/音乐/文件显回形针；标题后 */
+function NoteAttachIcon({ notes }: { notes?: TaskNoteMsg[] }) {
+  const flat = (notes ?? []).flatMap((n): (NoteAttachmentItem | TaskNoteMsg)[] =>
+    n.kind === 'batch' ? (n.items ?? []) : n.kind === 'text' ? [] : [n],
+  );
+  const hasImage = flat.some((n) => n.kind === 'image');
+  const hasOther = flat.some((n) => n.kind !== 'image');
+  if (!hasImage && !hasOther) return null;
+  return (
+    <span data-note-image-icon className="inline-flex items-center gap-0.5 shrink-0 text-white/45">
+      {hasImage && <ImageIcon size={13} />}
+      {hasOther && <Paperclip size={12} />}
+    </span>
+  );
+}
 
 /** 笔记图片本地 id（noteImageDb 的键） */
 const newNoteImageId = () => `ni-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`;
 
-/** 笔记图片气泡（2026-11-20）：按 imageId 从 IndexedDB 取 Blob 转本地 URL 显示 */
-function NoteImage({ imageId, alt }: { imageId: string; alt: string }) {
+/** 笔记附件的本地 URL（2026-11-20）：按 id 从 IndexedDB 取 Blob 转本地 URL；卸载时回收 */
+function useNoteBlobUrl(blobId: string | undefined) {
   const [url, setUrl] = useState<string | null>(null);
   useEffect(() => {
+    if (!blobId) {
+      setUrl(null);
+      return;
+    }
     let alive = true;
     let objectUrl: string | null = null;
-    loadNoteImage(imageId).then((blob) => {
+    loadNoteImage(blobId).then((blob) => {
       if (!alive || !blob) return;
       objectUrl = URL.createObjectURL(blob);
       setUrl(objectUrl);
@@ -459,7 +477,29 @@ function NoteImage({ imageId, alt }: { imageId: string; alt: string }) {
       alive = false;
       if (objectUrl) URL.revokeObjectURL(objectUrl);
     };
-  }, [imageId]);
+  }, [blobId]);
+  return url;
+}
+
+/** 文件大小显示（2026-11-20）：B/KB/MB */
+function formatFileSize(bytes?: number) {
+  if (bytes === undefined) return '';
+  if (bytes < 1024) return `${bytes} B`;
+  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
+  return `${(bytes / 1024 / 1024).toFixed(1)} MB`;
+}
+
+/** 按 MIME 判断附件是哪种泡泡（2026-11-20：图片/视频/音乐直接播，其他是文件） */
+function detectNoteKind(file: File): NoteAttachmentItem['kind'] {
+  if (file.type.startsWith('image/')) return 'image';
+  if (file.type.startsWith('video/')) return 'video';
+  if (file.type.startsWith('audio/')) return 'audio';
+  return 'file';
+}
+
+/** 笔记附件气泡内容（2026-11-20）：图片原图、视频/音乐带播放器、其他文件显示名字+大小+下载 */
+function NoteAttachment({ item, alt }: { item: NoteAttachmentItem; alt: string }) {
+  const url = useNoteBlobUrl(item.imageId);
   if (!url) {
     return (
       <span className="w-40 h-24 rounded-xl bg-white/10 flex items-center justify-center text-white/40">
@@ -467,7 +507,177 @@ function NoteImage({ imageId, alt }: { imageId: string; alt: string }) {
       </span>
     );
   }
-  return <img src={url} alt={alt} className="max-h-48 max-w-full rounded-xl object-contain bg-black/20" />;
+  if (item.kind === 'image') {
+    return <img src={url} alt={alt} className="max-h-48 max-w-full rounded-xl object-contain bg-black/20" />;
+  }
+  if (item.kind === 'video') {
+    return (
+      <span className="block">
+        <video src={url} controls preload="metadata" playsInline className="max-h-64 max-w-full rounded-xl bg-black/40" />
+        {item.fileName && <span className="mt-1 block max-w-full truncate text-[11px] text-white/55">{item.fileName}</span>}
+      </span>
+    );
+  }
+  if (item.kind === 'audio') {
+    return (
+      <span className="block w-60 max-w-full">
+        <audio src={url} controls preload="metadata" className="w-full" />
+        {item.fileName && <span className="mt-1 block max-w-full truncate text-[11px] text-white/55">{item.fileName}</span>}
+      </span>
+    );
+  }
+  return (
+    <a
+      href={url}
+      download={item.fileName || 'file'}
+      data-note-file-download
+      className="flex items-center gap-2 rounded-xl bg-white/5 px-3 py-2 text-white/85 hover:bg-white/10"
+    >
+      <FileIcon size={16} className="shrink-0 text-white/55" />
+      <span className="min-w-0 flex-1">
+        <span className="block truncate text-[13px]">{item.fileName || alt}</span>
+        <span className="block text-[11px] text-white/45">{formatFileSize(item.fileSize)}</span>
+      </span>
+      <Download size={14} className="shrink-0 text-white/55" />
+    </a>
+  );
+}
+
+/** 文件管理器里的一行（2026-11-20）：全部笔记里的一个附件，带来源、下载、删除 */
+export interface NoteFileEntry {
+  taskId: string;
+  childId?: string;
+  noteId: string;
+  itemIndex: number;
+  kind: NoteAttachmentItem['kind'];
+  imageId: string;
+  fileName?: string;
+  fileSize?: number;
+  sourceTitle: string;
+}
+
+function NoteFileRow({
+  entry,
+  onDelete,
+  onJump,
+}: {
+  entry: NoteFileEntry;
+  onDelete: (entry: NoteFileEntry) => void;
+  onJump: (taskId: string, childId?: string) => void;
+}) {
+  const { t } = useLang();
+  const url = useNoteBlobUrl(entry.imageId);
+  return (
+    <div data-note-file-row className="flex items-center gap-2.5 rounded-xl bg-white/[0.04] px-2.5 py-2">
+      {entry.kind === 'image' && url ? (
+        <img src={url} alt="" className="h-10 w-10 shrink-0 rounded-lg object-cover bg-black/30" />
+      ) : entry.kind === 'video' && url ? (
+        <video src={url} preload="metadata" muted className="h-10 w-10 shrink-0 rounded-lg object-cover bg-black/30" />
+      ) : entry.kind === 'audio' ? (
+        <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-white/10 text-white/60">
+          <Music size={16} />
+        </span>
+      ) : (
+        <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-white/10 text-white/60">
+          <FileIcon size={16} />
+        </span>
+      )}
+      <button
+        type="button"
+        onClick={() => onJump(entry.taskId, entry.childId)}
+        className="min-w-0 flex-1 text-left"
+        title={entry.sourceTitle}
+      >
+        <span className="block truncate text-[13px] text-white/90">{entry.fileName || t('task.noteAddFile')}</span>
+        <span className="block truncate text-[11px] text-white/45">
+          {formatFileSize(entry.fileSize)}
+          {entry.sourceTitle ? ` · ${entry.sourceTitle}` : ''}
+        </span>
+      </button>
+      {url && (
+        <a
+          href={url}
+          download={entry.fileName || 'file'}
+          aria-label={t('task.noteDownload')}
+          title={t('task.noteDownload')}
+          data-note-file-download
+          className="flex h-7 w-7 shrink-0 items-center justify-center rounded-md text-white/50 hover:bg-white/10 hover:text-white"
+        >
+          <Download size={14} />
+        </a>
+      )}
+      <button
+        type="button"
+        aria-label={t('task.noteDelete')}
+        title={t('task.noteDelete')}
+        data-note-file-delete={entry.imageId}
+        onClick={() => onDelete(entry)}
+        className="flex h-7 w-7 shrink-0 items-center justify-center rounded-md text-white/50 hover:bg-red-500/10 hover:text-red-300"
+      >
+        <Trash2 size={14} />
+      </button>
+    </div>
+  );
+}
+
+/** 笔记文字里的 Markdown 表格（2026-11-20：发表格）：连续以 | 开头的行成表，第二行是分隔行才认；其余行照常显示 */
+function renderNoteContent(text: string) {
+  const lines = text.split('\n');
+  const out: React.ReactNode[] = [];
+  const isSep = (s: string) => /^\|[\s:|-]+\|$/.test(s.trim()) && s.includes('-');
+  const cells = (s: string) =>
+    s
+      .trim()
+      .replace(/^\||\|$/g, '')
+      .split('|')
+      .map((c) => c.trim());
+  let i = 0;
+  while (i < lines.length) {
+    if (lines[i].trim().startsWith('|') && i + 1 < lines.length && isSep(lines[i + 1])) {
+      const head = cells(lines[i]);
+      const rows: string[][] = [];
+      i += 2;
+      while (i < lines.length && lines[i].trim().startsWith('|') && !isSep(lines[i])) {
+        rows.push(cells(lines[i]));
+        i++;
+      }
+      out.push(
+        <span key={out.length} className="block overflow-x-auto my-1">
+          <table className="border-collapse text-[12px] leading-snug">
+            <thead>
+              <tr>
+                {head.map((c, j) => (
+                  <th key={j} className="border border-white/25 bg-white/10 px-2 py-1 text-left font-medium">
+                    {c}
+                  </th>
+                ))}
+              </tr>
+            </thead>
+            <tbody>
+              {rows.map((r, ri) => (
+                <tr key={ri}>
+                  {r.map((c, j) => (
+                    <td key={j} className="border border-white/20 px-2 py-1">
+                      {c}
+                    </td>
+                  ))}
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </span>,
+      );
+    } else {
+      const buf: string[] = [];
+      while (i < lines.length && !(lines[i].trim().startsWith('|') && i + 1 < lines.length && isSep(lines[i + 1]))) {
+        buf.push(lines[i]);
+        i++;
+      }
+      const para = buf.join('\n').trim();
+      if (para) out.push(<span key={out.length} className="block">{para}</span>);
+    }
+  }
+  return out;
 }
 
 /** 待办笔记面板（2026-11-20）：气泡对话式笔记，一条消息一个气泡，可发文字/图片。
@@ -476,27 +686,67 @@ function TaskNotePane({
   title,
   notes,
   onSendText,
-  onSendImage,
+  onSendFiles,
   onDeleteNote,
+  onEditText,
+  onReplaceFiles,
+  allFiles,
+  onDeleteNoteFile,
+  onJumpToNote,
   onClose,
   className,
 }: {
   title: string | null;
   notes: TaskNoteMsg[];
   onSendText: (text: string) => void;
-  onSendImage: (file: File) => void;
+  onSendFiles: (files: File[]) => 'tooLarge' | 'totalTooLarge' | null;
   onDeleteNote: (noteId: string) => void;
+  onEditText: (noteId: string, text: string) => void;
+  onReplaceFiles: (noteId: string, files: File[]) => 'tooLarge' | 'totalTooLarge' | null;
+  allFiles: NoteFileEntry[];
+  onDeleteNoteFile: (entry: NoteFileEntry) => void;
+  onJumpToNote: (taskId: string, childId?: string) => void;
   onClose: () => void;
   className?: string;
 }) {
   const { t } = useLang();
   const [draft, setDraft] = useState('');
   const fileRef = useRef<HTMLInputElement | null>(null);
+  const attachRef = useRef<HTMLInputElement | null>(null);
+  const replaceRef = useRef<HTMLInputElement | null>(null);
+  const replacingIdRef = useRef<string | null>(null);
+  const inputRef = useRef<HTMLTextAreaElement | null>(null);
   const scrollRef = useRef<HTMLDivElement | null>(null);
+  /** 正在编辑的泡泡（2026-11-20）：双击泡泡直接进编辑，右键菜单也能进；附件泡泡的编辑是换文件 */
+  const [editingId, setEditingId] = useState<string | null>(null);
+  const [editDraft, setEditDraft] = useState('');
+  /** 泡泡右键菜单（2026-11-20）：编辑 / 删除 */
+  const [menu, setMenu] = useState<{ noteId: string; x: number; y: number } | null>(null);
+  /** 文件管理器（2026-11-20）：列出全部笔记里的所有附件 */
+  const [showFiles, setShowFiles] = useState(false);
+  /** 超限提示（2026-11-20）：单文件 50 MB、总量 400 MB，选文件时立即提示 */
+  const [limitHint, setLimitHint] = useState<string | null>(null);
+  /** 本机存储配额（2026-11-20）：文件管理器里显示已用/配额 */
+  const [storageEstimate, setStorageEstimate] = useState<{ usage?: number; quota?: number } | null>(null);
+  useEffect(() => {
+    if (!showFiles) return;
+    navigator.storage
+      ?.estimate?.()
+      .then((e) => setStorageEstimate({ usage: e.usage, quota: e.quota }))
+      .catch(() => undefined);
+  }, [showFiles]);
+  const notesFilesBytes = allFiles.reduce((sum, f) => sum + (f.fileSize ?? 0), 0);
   // 新消息来了滚到底
   useEffect(() => {
     scrollRef.current?.scrollTo({ top: scrollRef.current.scrollHeight });
   }, [notes.length]);
+  // 输入框随内容长高，最多 120px（表格是多行的）
+  useEffect(() => {
+    const el = inputRef.current;
+    if (!el) return;
+    el.style.height = 'auto';
+    el.style.height = `${Math.min(el.scrollHeight, 120)}px`;
+  }, [draft]);
 
   const send = () => {
     const v = draft.trim();
@@ -505,12 +755,81 @@ function TaskNotePane({
     setDraft('');
   };
 
+  const startEdit = (msg: TaskNoteMsg) => {
+    setMenu(null);
+    if (msg.kind !== 'text') {
+      // 附件泡泡的编辑是换文件：按原类型过滤选图器，批量泡泡可多选
+      const input = replaceRef.current;
+      if (input) {
+        input.accept =
+          msg.kind === 'image' ? 'image/*' : msg.kind === 'video' ? 'video/*' : msg.kind === 'audio' ? 'audio/*' : '*/*';
+        input.multiple = msg.kind === 'batch';
+      }
+      replacingIdRef.current = msg.id;
+      input?.click();
+      return;
+    }
+    setEditingId(msg.id);
+    setEditDraft(msg.text ?? '');
+  };
+
+  const commitEdit = () => {
+    const v = editDraft.trim();
+    if (editingId && v) onEditText(editingId, v);
+    setEditingId(null);
+  };
+
+  /** 插入一张空表格模板（2026-11-20）：3 列 2 行，插在光标处，发送后渲染成表格 */
+  const insertTableTemplate = () => {
+    const template = '|  |  |  |\n| --- | --- | --- |\n|  |  |  |';
+    const el = inputRef.current;
+    const pos = el?.selectionStart ?? draft.length;
+    setDraft(`${draft.slice(0, pos)}${draft ? '\n' : ''}${template}\n${draft.slice(pos)}`);
+    requestAnimationFrame(() => {
+      el?.focus();
+      const at = pos + (draft ? 1 : 0) + template.length + 1;
+      el?.setSelectionRange(at, at);
+    });
+  };
+
   return (
     <div data-note-pane className={`flex flex-col min-h-0 ${className ?? ''}`}>
       <div className="flex items-center gap-2 px-3 py-2.5 border-b border-white/10 shrink-0 min-w-0">
-        <span data-note-title className="flex-1 min-w-0 truncate text-sm font-medium text-white/90">
-          {title ?? t('task.noteTitle')}
-        </span>
+        {showFiles ? (
+          <>
+            <button
+              type="button"
+              aria-label={t('task.noteBackToNotes')}
+              title={t('task.noteBackToNotes')}
+              data-note-files-back
+              onClick={() => setShowFiles(false)}
+              className="w-6 h-6 rounded-md flex items-center justify-center shrink-0 text-white/55 hover:text-white hover:bg-white/10 transition-colors"
+            >
+              <ArrowLeft size={14} />
+            </button>
+            <span data-note-title className="flex-1 min-w-0 truncate text-sm font-medium text-white/90">
+              {t('task.noteFiles')} · {allFiles.length}
+            </span>
+          </>
+        ) : (
+          <>
+            <span data-note-title className="flex-1 min-w-0 truncate text-sm font-medium text-white/90">
+              {title ?? t('task.noteTitle')}
+            </span>
+            {title && (
+              <button
+                type="button"
+                aria-label={t('task.noteFiles')}
+                title={t('task.noteFiles')}
+                data-note-files
+                onClick={() => setShowFiles(true)}
+                className="w-6 h-6 rounded-md flex items-center justify-center shrink-0 text-white/45 hover:text-white hover:bg-white/10 transition-colors"
+              >
+                <FolderOpen size={14} />
+              </button>
+            )}
+          </>
+        )}
         {title && (
           <button
             type="button"
@@ -525,75 +844,201 @@ function TaskNotePane({
         )}
       </div>
       <div ref={scrollRef} className="flex-1 min-h-0 overflow-y-auto px-3 py-3 flex flex-col gap-2.5">
-        {!title ? (
+        {showFiles ? (
+          <>
+            <p className="text-[11px] text-zinc-500 px-1">
+              {t('task.noteFiles')} · {formatFileSize(notesFilesBytes)} / 400 MB
+              {storageEstimate?.quota
+                ? ` · ${t('task.noteLocalStorage')} ${formatFileSize(storageEstimate.usage ?? 0)} / ${formatFileSize(storageEstimate.quota)}`
+                : ''}
+            </p>
+            {allFiles.length === 0 ? (
+              <p className="m-auto text-[13px] text-zinc-400 text-center px-4">{t('task.noteNoFiles')}</p>
+            ) : (
+              allFiles.map((entry) => (
+                <Fragment key={`${entry.noteId}-${entry.itemIndex}`}>
+                  <NoteFileRow
+                    entry={entry}
+                    onDelete={onDeleteNoteFile}
+                    onJump={(taskId: string, childId?: string) => {
+                      setShowFiles(false);
+                      onJumpToNote(taskId, childId);
+                    }}
+                  />
+                </Fragment>
+              ))
+            )}
+          </>
+        ) : !title ? (
           <p className="m-auto text-[13px] text-zinc-400 text-center px-4">{t('task.noteEmpty')}</p>
         ) : notes.length === 0 ? (
           <p className="m-auto text-[13px] text-zinc-400 text-center px-4">{t('task.noteEmptyItem')}</p>
         ) : (
-          notes.map((msg) => (
-            <div key={msg.id} data-note-bubble className="group flex flex-col items-end gap-0.5 min-w-0">
-              <div className="flex items-start gap-1.5 max-w-[88%] min-w-0">
-                <button
-                  type="button"
-                  aria-label={t('task.noteDelete')}
-                  title={t('task.noteDelete')}
-                  data-note-delete={msg.id}
-                  onClick={() => onDeleteNote(msg.id)}
-                  className="mt-1.5 w-5 h-5 rounded-md hidden group-hover:flex items-center justify-center shrink-0 text-white/40 hover:text-red-300 hover:bg-red-500/10 transition-colors"
-                >
-                  <X size={12} />
-                </button>
-                {msg.kind === 'image' && msg.imageId ? (
-                  <div className="rounded-2xl rounded-br-md overflow-hidden bg-white/5 p-1">
-                    <NoteImage imageId={msg.imageId} alt={t('task.noteAddImage')} />
+          notes.map((msg) => {
+            const editing = editingId === msg.id;
+            return (
+              <div
+                key={msg.id}
+                data-note-bubble
+                onDoubleClick={() => startEdit(msg)}
+                onContextMenu={(e) => {
+                  e.preventDefault();
+                  setMenu({ noteId: msg.id, x: e.clientX, y: e.clientY });
+                }}
+                className="flex flex-col items-end min-w-0 cursor-default select-none"
+              >
+                {editing && msg.kind === 'text' ? (
+                  <div className="w-[88%] rounded-2xl rounded-br-md bg-indigo-500/80 p-2">
+                    <textarea
+                      value={editDraft}
+                      onChange={(e) => setEditDraft(e.target.value)}
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter' && !e.shiftKey && !e.nativeEvent.isComposing) {
+                          e.preventDefault();
+                          commitEdit();
+                        } else if (e.key === 'Escape') {
+                          setEditingId(null);
+                        }
+                      }}
+                      autoFocus
+                      rows={3}
+                      data-note-edit-input
+                      className="w-full resize-none rounded-lg bg-white/10 px-2 py-1.5 text-[13px] leading-relaxed text-white outline-none placeholder:text-white/50"
+                    />
+                    <div className="mt-1.5 flex justify-end gap-1">
+                      <button
+                        type="button"
+                        data-note-edit-cancel
+                        onClick={() => setEditingId(null)}
+                        className="rounded-md px-2 py-0.5 text-[12px] text-white/70 hover:bg-white/10"
+                      >
+                        {t('task.noteCancel')}
+                      </button>
+                      <button
+                        type="button"
+                        data-note-edit-save
+                        onClick={commitEdit}
+                        className="rounded-md bg-white/20 px-2 py-0.5 text-[12px] text-white hover:bg-white/30"
+                      >
+                        {t('task.noteSave')}
+                      </button>
+                    </div>
+                  </div>
+                ) : msg.kind === 'batch' && msg.items ? (
+                  <div className="flex max-w-[88%] flex-col items-end gap-1.5">
+                    {msg.items.map((item, j) => (
+                      <div
+                        key={`${item.imageId}-${j}`}
+                        className="max-w-full overflow-hidden rounded-2xl rounded-br-md bg-white/5 p-1"
+                      >
+                        <NoteAttachment item={item} alt={t('task.noteAddImage')} />
+                      </div>
+                    ))}
+                  </div>
+                ) : msg.kind !== 'text' && msg.imageId ? (
+                  <div className="max-w-[88%] overflow-hidden rounded-2xl rounded-br-md bg-white/5 p-1">
+                    <NoteAttachment
+                      item={{
+                        kind: msg.kind as NoteAttachmentItem['kind'],
+                        imageId: msg.imageId,
+                        fileName: msg.fileName,
+                        fileSize: msg.fileSize,
+                      }}
+                      alt={t('task.noteAddImage')}
+                    />
                   </div>
                 ) : (
-                  <div className="rounded-2xl rounded-br-md bg-indigo-500/80 px-3 py-2 text-[13px] leading-relaxed break-words whitespace-pre-wrap text-white min-w-0">
-                    {msg.text}
+                  <div className="min-w-0 max-w-[88%] rounded-2xl rounded-br-md bg-indigo-500/80 px-3 py-2 text-[13px] leading-relaxed break-words whitespace-pre-wrap text-white">
+                    {renderNoteContent(msg.text ?? '')}
                   </div>
                 )}
               </div>
-              <span className="text-[10px] text-zinc-500 tabular-nums pr-0.5">
-                {new Date(msg.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
-              </span>
-            </div>
-          ))
+            );
+          })
         )}
       </div>
-      {title && (
-        <div className="shrink-0 px-2.5 py-2 border-t border-white/10 flex items-center gap-1.5">
+      {title && !showFiles && (
+        <div className="shrink-0 border-t border-white/10">
+          {limitHint && <p className="px-3 pt-2 text-[11px] text-red-300">{limitHint}</p>}
+          <div className="px-2.5 py-2 flex items-center gap-1.5">
+            <button
+              type="button"
+              aria-label={t('task.noteAddImage')}
+              title={t('task.noteAddImage')}
+              data-note-image
+              onClick={() => fileRef.current?.click()}
+              className="w-8 h-8 rounded-lg flex items-center justify-center shrink-0 text-white/55 hover:text-white hover:bg-white/10 transition-colors"
+            >
+              <ImagePlus size={16} />
+            </button>
+            <input
+              ref={fileRef}
+              type="file"
+              accept="image/*"
+              multiple
+              data-note-image-input
+              className="hidden"
+              onChange={(e) => {
+                const files = [...(e.target.files ?? [])];
+                if (files.length) {
+                  setLimitHint(null);
+                  const code = onSendFiles(files);
+                  if (code) setLimitHint(code === 'tooLarge' ? t('task.noteFileTooLarge') : t('task.noteTotalTooLarge'));
+                }
+                e.target.value = '';
+              }}
+            />
+            <button
+              type="button"
+              aria-label={t('task.noteAddFile')}
+              title={t('task.noteAddFile')}
+              data-note-attach
+              onClick={() => attachRef.current?.click()}
+              className="w-8 h-8 rounded-lg flex items-center justify-center shrink-0 text-white/55 hover:text-white hover:bg-white/10 transition-colors"
+            >
+              <Paperclip size={16} />
+            </button>
+            <input
+              ref={attachRef}
+              type="file"
+              multiple
+              data-note-attach-input
+              className="hidden"
+              onChange={(e) => {
+                const files = [...(e.target.files ?? [])];
+                if (files.length) {
+                  setLimitHint(null);
+                  const code = onSendFiles(files);
+                  if (code) setLimitHint(code === 'tooLarge' ? t('task.noteFileTooLarge') : t('task.noteTotalTooLarge'));
+                }
+                e.target.value = '';
+              }}
+            />
           <button
             type="button"
-            aria-label={t('task.noteAddImage')}
-            title={t('task.noteAddImage')}
-            data-note-image
-            onClick={() => fileRef.current?.click()}
+            aria-label={t('task.noteAddTable')}
+            title={t('task.noteAddTable')}
+            data-note-table
+            onClick={insertTableTemplate}
             className="w-8 h-8 rounded-lg flex items-center justify-center shrink-0 text-white/55 hover:text-white hover:bg-white/10 transition-colors"
           >
-            <ImagePlus size={16} />
+            <Table size={16} />
           </button>
-          <input
-            ref={fileRef}
-            type="file"
-            accept="image/*"
-            data-note-image-input
-            className="hidden"
-            onChange={(e) => {
-              const file = e.target.files?.[0];
-              if (file) onSendImage(file);
-              e.target.value = '';
-            }}
-          />
-          <input
+          <textarea
+            ref={inputRef}
             value={draft}
             onChange={(e) => setDraft(e.target.value)}
             onKeyDown={(e) => {
-              // 输入法组合中的回车只上屏，别把半成品笔记提前发送
-              if (e.key === 'Enter' && !e.nativeEvent.isComposing) send();
+              // 输入法组合中的回车只上屏，别把半成品笔记提前发送；Shift+回车换行（表格要多行）
+              if (e.key === 'Enter' && !e.shiftKey && !e.nativeEvent.isComposing) {
+                e.preventDefault();
+                send();
+              }
             }}
             placeholder={t('task.notePlaceholder')}
             data-note-input
-            className="flex-1 min-w-0 bg-white/5 border border-white/12 rounded-xl px-2.5 py-1.5 text-[13px] outline-none focus:border-indigo-400/50 placeholder:text-zinc-400"
+            rows={1}
+            className="flex-1 min-w-0 bg-white/5 border border-white/12 rounded-xl px-2.5 py-1.5 text-[13px] leading-relaxed outline-none focus:border-indigo-400/50 placeholder:text-zinc-400 resize-none overflow-y-auto"
           />
           <button
             type="button"
@@ -606,8 +1051,68 @@ function TaskNotePane({
           >
             <SendHorizontal size={15} />
           </button>
+          </div>
         </div>
       )}
+      {/* 泡泡右键菜单（2026-11-20）：编辑 / 删除 */}
+      {menu && (
+        <>
+          <div
+            className="fixed inset-0 z-40"
+            onClick={() => setMenu(null)}
+            onContextMenu={(e) => {
+              e.preventDefault();
+              setMenu(null);
+            }}
+          />
+          <div
+            className="fixed z-50 min-w-[120px] rounded-xl bg-[#23232c] py-1 shadow-xl ring-1 ring-white/15"
+            style={{ left: Math.min(menu.x, window.innerWidth - 140), top: Math.min(menu.y, window.innerHeight - 90) }}
+          >
+            <button
+              type="button"
+              data-note-menu-edit
+              onClick={() => {
+                const msg = notes.find((n) => n.id === menu.noteId);
+                if (msg) startEdit(msg);
+              }}
+              className="w-full px-3 py-1.5 text-left text-[13px] text-white/85 hover:bg-white/10"
+            >
+              {t('task.noteEdit')}
+            </button>
+            <button
+              type="button"
+              data-note-menu-delete
+              onClick={() => {
+                onDeleteNote(menu.noteId);
+                setMenu(null);
+              }}
+              className="w-full px-3 py-1.5 text-left text-[13px] text-red-300 hover:bg-red-500/10"
+            >
+              {t('task.noteDelete')}
+            </button>
+          </div>
+        </>
+      )}
+      {/* 附件泡泡换文件（2026-11-20）：双击/右键编辑附件泡泡时弹选文件，换掉原文件；批量泡泡可多选 */}
+      <input
+        ref={replaceRef}
+        type="file"
+        accept="image/*"
+        data-note-image-replace-input
+        className="hidden"
+        onChange={(e) => {
+          const files = [...(e.target.files ?? [])];
+          const id = replacingIdRef.current;
+          if (files.length && id) {
+            setLimitHint(null);
+            const code = onReplaceFiles(id, files);
+            if (code) setLimitHint(code === 'tooLarge' ? t('task.noteFileTooLarge') : t('task.noteTotalTooLarge'));
+          }
+          replacingIdRef.current = null;
+          e.target.value = '';
+        }}
+      />
     </div>
   );
 }
@@ -708,17 +1213,113 @@ export function TasksSection({ store, pinned = false, wide = false }: { store: L
   const openNoteNotes: TaskNoteMsg[] = openNoteTask
     ? (openNoteChild?.notes ?? openNoteTask.notes ?? [])
     : [];
+  /** 全部笔记里的附件总字节数（2026-11-20：总量 400 MB 上限用；含小组子任务和批量泡泡） */
+  const notesFilesBytesTotal = useMemo(
+    () =>
+      tasks
+        .flatMap((t) => [...(t.notes ?? []), ...(t.children ?? []).flatMap((c) => c.notes ?? [])])
+        .reduce(
+          (sum, n) => sum + (n.fileSize ?? 0) + (n.items ?? []).reduce((s, it) => s + (it.fileSize ?? 0), 0),
+          0,
+        ),
+    [tasks],
+  );
+  /** 附件限额检查（2026-11-20：单文件 50 MB、总量 400 MB；换文件时旧文件大小不计） */
+  const checkNoteFilesLimit = (files: File[], replacingBytes = 0): 'tooLarge' | 'totalTooLarge' | null => {
+    if (files.some((f) => f.size > NOTE_FILE_MAX_MB * 1024 * 1024)) return 'tooLarge';
+    const addBytes = files.reduce((s, f) => s + f.size, 0);
+    if (notesFilesBytesTotal - replacingBytes + addBytes > NOTE_FILES_TOTAL_MAX_MB * 1024 * 1024) return 'totalTooLarge';
+    return null;
+  };
+  /** 全部笔记里的所有附件（2026-11-20：文件管理器用；含小组子任务） */
+  const allNoteFiles: NoteFileEntry[] = useMemo(() => {
+    const out: NoteFileEntry[] = [];
+    const walk = (taskId: string, childId: string | undefined, sourceTitle: string, notes?: TaskNoteMsg[]) => {
+      (notes ?? []).forEach((n) => {
+        if (n.kind === 'batch') {
+          (n.items ?? []).forEach((it, j) =>
+            out.push({
+              taskId,
+              childId,
+              noteId: n.id,
+              itemIndex: j,
+              kind: it.kind,
+              imageId: it.imageId,
+              fileName: it.fileName,
+              fileSize: it.fileSize,
+              sourceTitle,
+            }),
+          );
+        } else if (n.kind !== 'text' && n.imageId) {
+          out.push({
+            taskId,
+            childId,
+            noteId: n.id,
+            itemIndex: 0,
+            kind: n.kind as NoteAttachmentItem['kind'],
+            imageId: n.imageId,
+            fileName: n.fileName,
+            fileSize: n.fileSize,
+            sourceTitle,
+          });
+        }
+      });
+    };
+    tasks.forEach((t) => {
+      walk(t.id, undefined, t.title, t.notes);
+      (t.children ?? []).forEach((c) => walk(t.id, c.id, `${t.title} / ${c.title}`, c.notes));
+    });
+    return out;
+  }, [tasks]);
+  /** 文件管理器里删一个附件（2026-11-20）：批量泡泡只摘掉这一项，摘空了整条消息也没了；单个附件整条消息一起删 */
+  const deleteNoteFile = (entry: NoteFileEntry) => {
+    const task = tasks.find((t) => t.id === entry.taskId);
+    const notes = entry.childId ? task?.children?.find((c) => c.id === entry.childId)?.notes : task?.notes;
+    const msg = notes?.find((n) => n.id === entry.noteId);
+    if (!msg) return;
+    if (msg.kind === 'batch') {
+      const items = (msg.items ?? []).filter((_, j) => j !== entry.itemIndex);
+      if (items.length) {
+        if (entry.childId) store.updateSubTaskNote(entry.taskId, entry.childId, entry.noteId, { items });
+        else store.updateTaskNote(entry.taskId, entry.noteId, { items });
+      } else if (entry.childId) store.deleteSubTaskNote(entry.taskId, entry.childId, entry.noteId);
+      else store.deleteTaskNote(entry.taskId, entry.noteId);
+    } else if (entry.childId) store.deleteSubTaskNote(entry.taskId, entry.childId, entry.noteId);
+    else store.deleteTaskNote(entry.taskId, entry.noteId);
+    void deleteNoteImage(entry.imageId);
+  };
+  /** 文件管理器里点来源标题：跳到那条笔记 */
+  const jumpToNote = (taskId: string, childId?: string) => setOpenNote({ taskId, childId });
   const sendNoteText = (text: string) => {
     if (!openNote) return;
     if (openNote.childId) store.addSubTaskNote(openNote.taskId, openNote.childId, { kind: 'text', text });
     else store.addTaskNote(openNote.taskId, { kind: 'text', text });
   };
-  const sendNoteImage = async (file: File) => {
-    if (!openNote) return;
-    const imageId = newNoteImageId();
-    if (!(await saveNoteImage(imageId, file))) return;
-    if (openNote.childId) store.addSubTaskNote(openNote.taskId, openNote.childId, { kind: 'image', imageId });
-    else store.addTaskNote(openNote.taskId, { kind: 'image', imageId });
+  const sendNoteFiles = (files: File[]): 'tooLarge' | 'totalTooLarge' | null => {
+    if (!openNote || !files.length) return null;
+    const code = checkNoteFilesLimit(files);
+    if (code) return code;
+    void (async () => {
+      if (files.length === 1) {
+        const file = files[0];
+        const imageId = newNoteImageId();
+        if (!(await saveNoteImage(imageId, file))) return;
+        const msg = { kind: detectNoteKind(file), imageId, fileName: file.name, fileSize: file.size };
+        if (openNote.childId) store.addSubTaskNote(openNote.taskId, openNote.childId, msg);
+        else store.addTaskNote(openNote.taskId, msg);
+        return;
+      }
+      const items: NoteAttachmentItem[] = [];
+      for (const file of files) {
+        const imageId = newNoteImageId();
+        if (!(await saveNoteImage(imageId, file))) continue;
+        items.push({ kind: detectNoteKind(file), imageId, fileName: file.name, fileSize: file.size });
+      }
+      if (!items.length) return;
+      if (openNote.childId) store.addSubTaskNote(openNote.taskId, openNote.childId, { kind: 'batch', items });
+      else store.addTaskNote(openNote.taskId, { kind: 'batch', items });
+    })();
+    return null;
   };
   const deleteNoteMsg = (noteId: string) => {
     if (!openNote) return;
@@ -726,6 +1327,46 @@ export function TasksSection({ store, pinned = false, wide = false }: { store: L
     if (openNote.childId) store.deleteSubTaskNote(openNote.taskId, openNote.childId, noteId);
     else store.deleteTaskNote(openNote.taskId, noteId);
     if (msg?.imageId) void deleteNoteImage(msg.imageId);
+    (msg?.items ?? []).forEach((it) => void deleteNoteImage(it.imageId));
+  };
+  /** 改一条笔记的文字（2026-11-20：双击泡泡/右键菜单编辑） */
+  const editNoteText = (noteId: string, text: string) => {
+    if (!openNote) return;
+    if (openNote.childId) store.updateSubTaskNote(openNote.taskId, openNote.childId, noteId, { text });
+    else store.updateTaskNote(openNote.taskId, noteId, { text });
+  };
+  /** 换附件（2026-11-20：双击/右键编辑附件泡泡；单个换单个，批量泡泡换整批；新文件存好才换，旧文件随后删） */
+  const replaceNoteFiles = (noteId: string, files: File[]): 'tooLarge' | 'totalTooLarge' | null => {
+    if (!openNote || !files.length) return null;
+    const msg = openNoteNotes.find((n) => n.id === noteId);
+    if (!msg) return null;
+    const oldBytes = (msg.fileSize ?? 0) + (msg.items ?? []).reduce((s, it) => s + (it.fileSize ?? 0), 0);
+    const code = checkNoteFilesLimit(files, oldBytes);
+    if (code) return code;
+    void (async () => {
+      const oldIds = [msg.imageId, ...(msg.items ?? []).map((it) => it.imageId)].filter((x): x is string => !!x);
+      if (msg.kind === 'batch' || files.length > 1) {
+        const items: NoteAttachmentItem[] = [];
+        for (const file of files) {
+          const imageId = newNoteImageId();
+          if (!(await saveNoteImage(imageId, file))) continue;
+          items.push({ kind: detectNoteKind(file), imageId, fileName: file.name, fileSize: file.size });
+        }
+        if (!items.length) return;
+        const patch = { kind: 'batch' as const, items, imageId: undefined, fileName: undefined, fileSize: undefined };
+        if (openNote.childId) store.updateSubTaskNote(openNote.taskId, openNote.childId, noteId, patch);
+        else store.updateTaskNote(openNote.taskId, noteId, patch);
+      } else {
+        const file = files[0];
+        const imageId = newNoteImageId();
+        if (!(await saveNoteImage(imageId, file))) return;
+        const patch = { kind: detectNoteKind(file), imageId, fileName: file.name, fileSize: file.size };
+        if (openNote.childId) store.updateSubTaskNote(openNote.taskId, openNote.childId, noteId, patch);
+        else store.updateTaskNote(openNote.taskId, noteId, patch);
+      }
+      oldIds.forEach((id) => void deleteNoteImage(id));
+    })();
+    return null;
   };
 
   const changeNewTask = (v: string) => {
@@ -873,11 +1514,7 @@ export function TasksSection({ store, pinned = false, wide = false }: { store: L
             toneClass={task.done ? 'line-through text-white/35' : 'text-white/85'}
             spanData={{ 'data-task-title': '' }}
           />
-          {hasImageNote(task.notes) && (
-            <span data-note-image-icon title={t('task.noteTitle')} className="shrink-0 text-white/45 flex items-center">
-              <ImageIcon size={13} />
-            </span>
-          )}
+          <NoteAttachIcon notes={task.notes} />
           </>
         )}
         {!inOpen && editingTaskId !== task.id && (
@@ -1067,8 +1704,13 @@ export function TasksSection({ store, pinned = false, wide = false }: { store: L
             title={openNoteTitle}
             notes={openNoteNotes}
             onSendText={sendNoteText}
-            onSendImage={sendNoteImage}
+            onSendFiles={sendNoteFiles}
             onDeleteNote={deleteNoteMsg}
+            onEditText={editNoteText}
+            onReplaceFiles={replaceNoteFiles}
+            allFiles={allNoteFiles}
+            onDeleteNoteFile={deleteNoteFile}
+            onJumpToNote={jumpToNote}
             onClose={() => setOpenNote(null)}
             className="flex-1"
           />
@@ -1086,8 +1728,13 @@ export function TasksSection({ store, pinned = false, wide = false }: { store: L
           title={openNoteTitle}
           notes={openNoteNotes}
           onSendText={sendNoteText}
-          onSendImage={sendNoteImage}
+          onSendFiles={sendNoteFiles}
           onDeleteNote={deleteNoteMsg}
+          onEditText={editNoteText}
+          onReplaceFiles={replaceNoteFiles}
+          allFiles={allNoteFiles}
+          onDeleteNoteFile={deleteNoteFile}
+          onJumpToNote={jumpToNote}
           onClose={() => setOpenNote(null)}
           className={
             pinned
@@ -1183,11 +1830,7 @@ const GroupBlock: React.FC<{
               toneClass={allDone ? 'line-through text-white/35' : 'text-white/90'}
               spanData={{ 'data-group-title': '' }}
             />
-            {hasImageNote(group.notes) && (
-              <span data-note-image-icon title={t('task.noteTitle')} className="shrink-0 text-white/45 flex items-center">
-                <ImageIcon size={13} />
-              </span>
-            )}
+            <NoteAttachIcon notes={group.notes} />
             <span data-group-progress className="text-[11px] text-zinc-300 tabular-nums shrink-0">
               {done}/{total}
             </span>
@@ -1238,11 +1881,7 @@ const GroupBlock: React.FC<{
                 toneClass={child.done ? 'line-through text-white/35' : 'text-white/80'}
                 spanData={{ 'data-subtask-title': '' }}
               />
-              {hasImageNote(child.notes) && (
-                <span data-note-image-icon title={t('task.noteTitle')} className="shrink-0 text-white/45 flex items-center">
-                  <ImageIcon size={13} />
-                </span>
-              )}
+              <NoteAttachIcon notes={child.notes} />
               </>
               )}
               {onDeleteChild && (

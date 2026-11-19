@@ -21,7 +21,7 @@ import {
   type ReadStoreResult,
 } from './popup/addSite';
 
-const HOME_URL = 'https://zahe.hiitun.top/';
+const HOME_URL = 'https://zahe.hiitun.top/web/';
 
 /** 计划桌面版下载直链：与计划卡头部按钮同一地址（GitHub 滚动 Release「plan-desktop」0.1.8 版；
  * 中文界面走 Gitee 的口径待 Gitee 上有了发行版再接——Gitee 公开核查暂无 zabox 仓库） */
@@ -143,7 +143,7 @@ function PopupApp() {
       }
       throw new Error('sidePanel unavailable');
     } catch {
-      const extUrl = c?.runtime?.getURL('index.html');
+      const extUrl = c?.runtime?.getURL('web/index.html');
       if (c?.tabs?.create && extUrl) void c.tabs.create({ url: extUrl });
       else window.open(extUrl ?? HOME_URL, '_blank');
     }

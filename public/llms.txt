@@ -6,6 +6,7 @@
 一个新标签页，把网站分门别类收好；预设导航选一个就能用；任务计划和日程走到哪跟到哪；数据只存本地。
 
 - 官网：https://zahe.hiitun.top/
+- 网页版：https://zahe.hiitun.top/web/
 - 隐私政策：https://zahe.hiitun.top/privacy.html
 - Edge 扩展：https://microsoftedge.microsoft.com/addons/detail/kkjkajpmbplfkbjicconehklkaocmijg
 - 开源仓库：https://github.com/0waitgoo/zabox

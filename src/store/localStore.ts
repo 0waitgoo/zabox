@@ -2576,6 +2576,20 @@ export function useLocalStore() {
     [update],
   );
 
+  /** 改子任务标题（2026-11-20：小组内项目双击编辑；与 renameTask 同口径，空标题不改） */
+  const renameSubTask = useCallback(
+    (taskId: string, childId: string, title: string) => {
+      const t = title.trim();
+      if (!t) return;
+      update((d) => {
+        const child = d.tasks.find((x) => x.id === taskId)?.children?.find((c) => c.id === childId);
+        if (child) child.title = t;
+        return d;
+      });
+    },
+    [update],
+  );
+
   /** 勾选普通待办；组没有独立勾选态，调用到组上时忽略（完成态由子任务推导） */
   const toggleTask = useCallback(
     (taskId: string) => {
@@ -3260,6 +3274,7 @@ export function useLocalStore() {
     addSubTask,
     toggleSubTask,
     deleteSubTask,
+    renameSubTask,
     toggleTask,
     renameTask,
     deleteTask,

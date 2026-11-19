@@ -1,5 +1,5 @@
 import React, { Fragment, useEffect, useLayoutEffect, useRef, useState } from 'react';
-import { Check, ChevronDown, Layers, Minus, Pencil, Plus, Sparkles, Trash2, Ungroup } from 'lucide-react';
+import { Check, ChevronDown, Image as ImageIcon, ImagePlus, Layers, Minus, Pencil, Plus, SendHorizontal, Sparkles, Trash2, Ungroup, X } from 'lucide-react';
 import {
   dateStrDiffDays,
   formatMonthDay,
@@ -14,7 +14,9 @@ import {
   type PlanItem,
   type TaskChild,
   type TaskItem,
+  type TaskNoteMsg,
 } from '../../store/localStore';
+import { deleteNoteImage, loadNoteImage, saveNoteImage } from '../../store/noteImageDb';
 import { splitTasksText } from '../../utils/taskSplit';
 import { useLang } from '../../i18n/useLang';
 
@@ -24,6 +26,7 @@ function ExpandableTitle({
   expanded,
   onToggle,
   onDoubleClick,
+  onOpenNote,
   titleAttr,
   sizeClass,
   toneClass,
@@ -33,6 +36,8 @@ function ExpandableTitle({
   expanded: boolean;
   onToggle: () => void;
   onDoubleClick?: () => void;
+  /** 点标题开笔记（2026-11-20）：传了就代替点击展开；展开仍走下面的展开/收起按钮 */
+  onOpenNote?: () => void;
   titleAttr: string;
   sizeClass: string;
   toneClass: string;
@@ -51,7 +56,7 @@ function ExpandableTitle({
       <span
         ref={ref}
         {...spanData}
-        onClick={onToggle}
+        onClick={onOpenNote ?? onToggle}
         onDoubleClick={onDoubleClick}
         title={titleAttr}
         style={expanded ? { WebkitLineClamp: 'unset' } : undefined}
@@ -433,7 +438,181 @@ function useOutsidePressConfirm() {
  * 勾选/添加/建组/组展开勾子任务/已完成折叠/行右键编辑删除/拖拽合并都在卡面直接完成；
  * 标题截断时点击文字展开全文、再点收起（第六十九轮）
  */
-export function TasksSection({ store, pinned = false }: { store: LocalStore; pinned?: boolean }) {
+/** 笔记里是否有图片（2026-11-20）：有图时标题后加图片小图标 */
+const hasImageNote = (notes?: TaskNoteMsg[]) => (notes ?? []).some((n) => n.kind === 'image');
+
+/** 笔记图片本地 id（noteImageDb 的键） */
+const newNoteImageId = () => `ni-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`;
+
+/** 笔记图片气泡（2026-11-20）：按 imageId 从 IndexedDB 取 Blob 转本地 URL 显示 */
+function NoteImage({ imageId, alt }: { imageId: string; alt: string }) {
+  const [url, setUrl] = useState<string | null>(null);
+  useEffect(() => {
+    let alive = true;
+    let objectUrl: string | null = null;
+    loadNoteImage(imageId).then((blob) => {
+      if (!alive || !blob) return;
+      objectUrl = URL.createObjectURL(blob);
+      setUrl(objectUrl);
+    });
+    return () => {
+      alive = false;
+      if (objectUrl) URL.revokeObjectURL(objectUrl);
+    };
+  }, [imageId]);
+  if (!url) {
+    return (
+      <span className="w-40 h-24 rounded-xl bg-white/10 flex items-center justify-center text-white/40">
+        <ImageIcon size={18} />
+      </span>
+    );
+  }
+  return <img src={url} alt={alt} className="max-h-48 max-w-full rounded-xl object-contain bg-black/20" />;
+}
+
+/** 待办笔记面板（2026-11-20）：气泡对话式笔记，一条消息一个气泡，可发文字/图片。
+ * - 宽栏时常驻右栏（无选中时显示空提示）；窄栏时以浮层盖在待办列上，由调用方包一层定位壳 */
+function TaskNotePane({
+  title,
+  notes,
+  onSendText,
+  onSendImage,
+  onDeleteNote,
+  onClose,
+  className,
+}: {
+  title: string | null;
+  notes: TaskNoteMsg[];
+  onSendText: (text: string) => void;
+  onSendImage: (file: File) => void;
+  onDeleteNote: (noteId: string) => void;
+  onClose: () => void;
+  className?: string;
+}) {
+  const { t } = useLang();
+  const [draft, setDraft] = useState('');
+  const fileRef = useRef<HTMLInputElement | null>(null);
+  const scrollRef = useRef<HTMLDivElement | null>(null);
+  // 新消息来了滚到底
+  useEffect(() => {
+    scrollRef.current?.scrollTo({ top: scrollRef.current.scrollHeight });
+  }, [notes.length]);
+
+  const send = () => {
+    const v = draft.trim();
+    if (!v) return;
+    onSendText(v);
+    setDraft('');
+  };
+
+  return (
+    <div data-note-pane className={`flex flex-col min-h-0 ${className ?? ''}`}>
+      <div className="flex items-center gap-2 px-3 py-2.5 border-b border-white/10 shrink-0 min-w-0">
+        <span data-note-title className="flex-1 min-w-0 truncate text-sm font-medium text-white/90">
+          {title ?? t('task.noteTitle')}
+        </span>
+        {title && (
+          <button
+            type="button"
+            aria-label={t('task.noteClose')}
+            title={t('task.noteClose')}
+            data-note-close
+            onClick={onClose}
+            className="w-6 h-6 rounded-md flex items-center justify-center shrink-0 text-white/45 hover:text-white hover:bg-white/10 transition-colors"
+          >
+            <X size={14} />
+          </button>
+        )}
+      </div>
+      <div ref={scrollRef} className="flex-1 min-h-0 overflow-y-auto px-3 py-3 flex flex-col gap-2.5">
+        {!title ? (
+          <p className="m-auto text-[13px] text-zinc-400 text-center px-4">{t('task.noteEmpty')}</p>
+        ) : notes.length === 0 ? (
+          <p className="m-auto text-[13px] text-zinc-400 text-center px-4">{t('task.noteEmptyItem')}</p>
+        ) : (
+          notes.map((msg) => (
+            <div key={msg.id} data-note-bubble className="group flex flex-col items-end gap-0.5 min-w-0">
+              <div className="flex items-start gap-1.5 max-w-[88%] min-w-0">
+                <button
+                  type="button"
+                  aria-label={t('task.noteDelete')}
+                  title={t('task.noteDelete')}
+                  data-note-delete={msg.id}
+                  onClick={() => onDeleteNote(msg.id)}
+                  className="mt-1.5 w-5 h-5 rounded-md hidden group-hover:flex items-center justify-center shrink-0 text-white/40 hover:text-red-300 hover:bg-red-500/10 transition-colors"
+                >
+                  <X size={12} />
+                </button>
+                {msg.kind === 'image' && msg.imageId ? (
+                  <div className="rounded-2xl rounded-br-md overflow-hidden bg-white/5 p-1">
+                    <NoteImage imageId={msg.imageId} alt={t('task.noteAddImage')} />
+                  </div>
+                ) : (
+                  <div className="rounded-2xl rounded-br-md bg-indigo-500/80 px-3 py-2 text-[13px] leading-relaxed break-words whitespace-pre-wrap text-white min-w-0">
+                    {msg.text}
+                  </div>
+                )}
+              </div>
+              <span className="text-[10px] text-zinc-500 tabular-nums pr-0.5">
+                {new Date(msg.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+              </span>
+            </div>
+          ))
+        )}
+      </div>
+      {title && (
+        <div className="shrink-0 px-2.5 py-2 border-t border-white/10 flex items-center gap-1.5">
+          <button
+            type="button"
+            aria-label={t('task.noteAddImage')}
+            title={t('task.noteAddImage')}
+            data-note-image
+            onClick={() => fileRef.current?.click()}
+            className="w-8 h-8 rounded-lg flex items-center justify-center shrink-0 text-white/55 hover:text-white hover:bg-white/10 transition-colors"
+          >
+            <ImagePlus size={16} />
+          </button>
+          <input
+            ref={fileRef}
+            type="file"
+            accept="image/*"
+            data-note-image-input
+            className="hidden"
+            onChange={(e) => {
+              const file = e.target.files?.[0];
+              if (file) onSendImage(file);
+              e.target.value = '';
+            }}
+          />
+          <input
+            value={draft}
+            onChange={(e) => setDraft(e.target.value)}
+            onKeyDown={(e) => {
+              // 输入法组合中的回车只上屏，别把半成品笔记提前发送
+              if (e.key === 'Enter' && !e.nativeEvent.isComposing) send();
+            }}
+            placeholder={t('task.notePlaceholder')}
+            data-note-input
+            className="flex-1 min-w-0 bg-white/5 border border-white/12 rounded-xl px-2.5 py-1.5 text-[13px] outline-none focus:border-indigo-400/50 placeholder:text-zinc-400"
+          />
+          <button
+            type="button"
+            aria-label={t('task.noteSend')}
+            title={t('task.noteSend')}
+            data-note-send
+            onClick={send}
+            disabled={!draft.trim()}
+            className="w-8 h-8 rounded-lg flex items-center justify-center shrink-0 bg-indigo-500/80 hover:bg-indigo-500 disabled:opacity-40 text-white transition-colors"
+          >
+            <SendHorizontal size={15} />
+          </button>
+        </div>
+      )}
+    </div>
+  );
+}
+
+export function TasksSection({ store, pinned = false, wide = false }: { store: LocalStore; pinned?: boolean; wide?: boolean }) {
   const { tasks } = store.data;
   const { t } = useLang();
   const [menu, setMenu] = useState<RowMenuState | null>(null);
@@ -497,6 +676,56 @@ export function TasksSection({ store, pinned = false }: { store: LocalStore; pin
   const commitEditChild = () => {
     if (editingChild) store.renameSubTask(editingChild.groupId, editingChild.childId, editText);
     setEditingChild(null);
+  };
+
+  /** 当前打开笔记的条目（2026-11-20）：点标题开笔记；childId 有值时是组内子任务 */
+  const [openNote, setOpenNote] = useState<{ taskId: string; childId?: string } | null>(null);
+  /** 窄栏点标题开笔记的防双击延时（2026-11-20）：单击 240ms 后才开，240ms 内第二击是双击改名、取消开笔记；
+   * 宽栏右栏常驻、列表不动，点标题直接开，无需延时 */
+  const noteClickTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const openNoteFor = (target: { taskId: string; childId?: string }) => {
+    if (wide) {
+      setOpenNote(target);
+      return;
+    }
+    if (noteClickTimer.current) {
+      clearTimeout(noteClickTimer.current);
+      noteClickTimer.current = null;
+      return;
+    }
+    noteClickTimer.current = setTimeout(() => {
+      noteClickTimer.current = null;
+      setOpenNote(target);
+    }, 240);
+  };
+  const openNoteTask = openNote ? tasks.find((t) => t.id === openNote.taskId) : undefined;
+  const openNoteChild = openNote?.childId
+    ? openNoteTask?.children?.find((c) => c.id === openNote.childId)
+    : undefined;
+  const openNoteTitle = openNoteTask
+    ? (openNoteChild?.title ?? openNoteTask.title)
+    : null;
+  const openNoteNotes: TaskNoteMsg[] = openNoteTask
+    ? (openNoteChild?.notes ?? openNoteTask.notes ?? [])
+    : [];
+  const sendNoteText = (text: string) => {
+    if (!openNote) return;
+    if (openNote.childId) store.addSubTaskNote(openNote.taskId, openNote.childId, { kind: 'text', text });
+    else store.addTaskNote(openNote.taskId, { kind: 'text', text });
+  };
+  const sendNoteImage = async (file: File) => {
+    if (!openNote) return;
+    const imageId = newNoteImageId();
+    if (!(await saveNoteImage(imageId, file))) return;
+    if (openNote.childId) store.addSubTaskNote(openNote.taskId, openNote.childId, { kind: 'image', imageId });
+    else store.addTaskNote(openNote.taskId, { kind: 'image', imageId });
+  };
+  const deleteNoteMsg = (noteId: string) => {
+    if (!openNote) return;
+    const msg = openNoteNotes.find((n) => n.id === noteId);
+    if (openNote.childId) store.deleteSubTaskNote(openNote.taskId, openNote.childId, noteId);
+    else store.deleteTaskNote(openNote.taskId, noteId);
+    if (msg?.imageId) void deleteNoteImage(msg.imageId);
   };
 
   const changeNewTask = (v: string) => {
@@ -597,6 +826,8 @@ export function TasksSection({ store, pinned = false }: { store: LocalStore; pin
           if (drag.wasJustDragged()) return;
           startEditChild(task.id, child);
         }}
+        onTitleOpenNote={() => openNoteFor({ taskId: task.id })}
+        onChildOpenNote={(child) => openNoteFor({ taskId: task.id, childId: child.id })}
         checkBtn={checkBtn}
         entryId={inOpen ? task.id : undefined}
         dragVisual={inOpen ? dragVisual : null}
@@ -627,6 +858,7 @@ export function TasksSection({ store, pinned = false }: { store: LocalStore; pin
         {editingTaskId === task.id ? (
           titleEditor()
         ) : (
+          <>
           <ExpandableTitle
             text={task.title}
             expanded={expandedTitles.has(task.id)}
@@ -635,11 +867,18 @@ export function TasksSection({ store, pinned = false }: { store: LocalStore; pin
               if (drag.wasJustDragged()) return;
               startEditTask(task);
             }}
+            onOpenNote={() => openNoteFor({ taskId: task.id })}
             titleAttr={expandedTitles.has(task.id) ? t('task.clickCollapse') : t('task.clickExpand')}
             sizeClass="text-sm"
             toneClass={task.done ? 'line-through text-white/35' : 'text-white/85'}
             spanData={{ 'data-task-title': '' }}
           />
+          {hasImageNote(task.notes) && (
+            <span data-note-image-icon title={t('task.noteTitle')} className="shrink-0 text-white/45 flex items-center">
+              <ImageIcon size={13} />
+            </span>
+          )}
+          </>
         )}
         {!inOpen && editingTaskId !== task.id && (
           <DoneTrashButton label={t('task.deleteDoneTodo', { title: task.title })} onDelete={() => store.deleteTask(task.id)} />
@@ -650,8 +889,8 @@ export function TasksSection({ store, pinned = false }: { store: LocalStore; pin
     );
   };
 
-  return (
-    <section className={pinned ? 'flex flex-col h-full min-h-0' : undefined}>
+  const listSection = (
+    <section className={`${pinned ? 'flex flex-col h-full min-h-0' : ''} ${wide ? 'flex-1 min-w-0' : ''} relative`}>
       {/* 标题行（第八十七轮）：计数去掉（卡头 x/y 已含）；「+ 建组」降为行右小文字按钮 */}
       <div className="flex items-center gap-2 mb-1 shrink-0">
         <h4 className="text-sm font-semibold">{t('task.todosTitle')}</h4>
@@ -820,8 +1059,46 @@ export function TasksSection({ store, pinned = false }: { store: LocalStore; pin
           </div>
         </div>
       )}
+
+      {/* 窄栏笔记浮层（2026-11-20）：盖在待办列上；宽栏用右栏常驻，不走这里 */}
+      {!wide && openNote && (
+        <div className="absolute inset-0 z-20 flex flex-col rounded-xl bg-[#1d1d24] border border-white/10 overflow-hidden">
+          <TaskNotePane
+            title={openNoteTitle}
+            notes={openNoteNotes}
+            onSendText={sendNoteText}
+            onSendImage={sendNoteImage}
+            onDeleteNote={deleteNoteMsg}
+            onClose={() => setOpenNote(null)}
+            className="flex-1"
+          />
+        </div>
+      )}
     </section>
   );
+
+  /** 宽栏（2026-11-20）：左栏标题列表、右栏笔记内容常驻两栏；窄栏只出待办列，笔记走浮层 */
+  if (wide) {
+    return (
+      <div className={`flex gap-3 min-h-0 ${pinned ? 'flex-1' : 'items-start'}`}>
+        {listSection}
+        <TaskNotePane
+          title={openNoteTitle}
+          notes={openNoteNotes}
+          onSendText={sendNoteText}
+          onSendImage={sendNoteImage}
+          onDeleteNote={deleteNoteMsg}
+          onClose={() => setOpenNote(null)}
+          className={
+            pinned
+              ? 'flex-1 min-w-0 rounded-2xl border border-white/10 bg-white/[0.03]'
+              : 'w-[420px] max-w-[45%] shrink-0 sticky top-4 h-[600px] rounded-2xl border border-white/10 bg-white/[0.03]'
+          }
+        />
+      </div>
+    );
+  }
+  return listSection;
 }
 /** 组块：标题行（展开箭头 + 标题 + n/m）+ 子任务列表 + 组内添加行；全勾时标题划线。
  * 拖拽合并（第五十四轮）：entryId 存在时整块是落点（[data-task-entry]），头部行是起手区
@@ -855,7 +1132,11 @@ const GroupBlock: React.FC<{
   childEditor?: React.ReactNode;
   /** 子任务标题双击改名（2026-11-20） */
   onChildDoubleClick?: (child: TaskChild) => void;
-}> = ({ group, store, startExpanded, editing, editor, onMenu, onChildMenu, checkBtn, entryId, dragVisual, onGripPointerDown, dragChildId, onChildPointerDown, wasJustDragged, onDeleteSelf, onDeleteChild, onTitleDoubleClick, editingChildId, childEditor, onChildDoubleClick }) => {
+  /** 组标题单击开笔记（2026-11-20） */
+  onTitleOpenNote?: () => void;
+  /** 子任务标题单击开笔记（2026-11-20） */
+  onChildOpenNote?: (child: TaskChild) => void;
+}> = ({ group, store, startExpanded, editing, editor, onMenu, onChildMenu, checkBtn, entryId, dragVisual, onGripPointerDown, dragChildId, onChildPointerDown, wasJustDragged, onDeleteSelf, onDeleteChild, onTitleDoubleClick, editingChildId, childEditor, onChildDoubleClick, onTitleOpenNote, onChildOpenNote }) => {
   const [expanded, setExpanded] = useState(startExpanded);
   const { t } = useLang();
   /** 组标题/子任务标题的点击展开全文（第六十九轮，点文字切换，与展开箭头的折叠子任务互不影响） */
@@ -896,11 +1177,17 @@ const GroupBlock: React.FC<{
                 setTitleExpanded((v) => !v);
               }}
               onDoubleClick={onTitleDoubleClick}
+              onOpenNote={onTitleOpenNote}
               titleAttr={titleExpanded ? t('task.clickCollapse') : t('task.clickExpand')}
               sizeClass="text-sm font-medium"
               toneClass={allDone ? 'line-through text-white/35' : 'text-white/90'}
               spanData={{ 'data-group-title': '' }}
             />
+            {hasImageNote(group.notes) && (
+              <span data-note-image-icon title={t('task.noteTitle')} className="shrink-0 text-white/45 flex items-center">
+                <ImageIcon size={13} />
+              </span>
+            )}
             <span data-group-progress className="text-[11px] text-zinc-300 tabular-nums shrink-0">
               {done}/{total}
             </span>
@@ -931,6 +1218,7 @@ const GroupBlock: React.FC<{
               {editingChildId === child.id ? (
                 childEditor
               ) : (
+              <>
               <ExpandableTitle
                 text={child.title}
                 expanded={expandedKids.has(child.id)}
@@ -944,11 +1232,18 @@ const GroupBlock: React.FC<{
                   });
                 }}
                 onDoubleClick={() => onChildDoubleClick?.(child)}
+                onOpenNote={() => onChildOpenNote?.(child)}
                 titleAttr={expandedKids.has(child.id) ? t('task.clickCollapse') : t('task.clickExpand')}
                 sizeClass="text-[13px]"
                 toneClass={child.done ? 'line-through text-white/35' : 'text-white/80'}
                 spanData={{ 'data-subtask-title': '' }}
               />
+              {hasImageNote(child.notes) && (
+                <span data-note-image-icon title={t('task.noteTitle')} className="shrink-0 text-white/45 flex items-center">
+                  <ImageIcon size={13} />
+                </span>
+              )}
+              </>
               )}
               {onDeleteChild && (
                 <DoneTrashButton label={t('task.deleteDoneSubtask', { title: child.title })} onDelete={() => onDeleteChild(child.id)} />

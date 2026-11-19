@@ -233,9 +233,14 @@ export interface TaskChild {
 /** 笔记里一个附件（批量发送时一条消息里有多个） */
 export interface NoteAttachmentItem {
   kind: 'image' | 'video' | 'audio' | 'file';
+  /** 本机附件的 id（noteImageDb 的键）；同步附件没有 imageId，改记 remotePath */
   imageId: string;
   fileName?: string;
   fileSize?: number;
+  /** 同步附件在仓库里的路径（noteRemote.ts）；有它就不读 IndexedDB、不缓存 */
+  remotePath?: string;
+  /** 仓库里该文件的 sha（删文件时要带上） */
+  remoteSha?: string;
 }
 
 export interface TaskNoteMsg {
@@ -244,7 +249,7 @@ export interface TaskNoteMsg {
   kind: 'text' | 'image' | 'video' | 'audio' | 'file' | 'batch';
   /** kind=text 时的文字 */
   text?: string;
-  /** kind!=text 时的附件 id（noteImageDb 的键，本机 IndexedDB 里的 Blob） */
+  /** kind!=text 时的附件 id（noteImageDb 的键，本机 IndexedDB 里的 Blob）；同步附件没有，改记 remotePath */
   imageId?: string;
   /** 附件原文件名（video/audio/file 泡泡上显示；下载用） */
   fileName?: string;
@@ -252,8 +257,35 @@ export interface TaskNoteMsg {
   fileSize?: number;
   /** kind=batch 时的多个附件 */
   items?: NoteAttachmentItem[];
+  /** 同步附件在仓库里的路径（同 NoteAttachmentItem.remotePath） */
+  remotePath?: string;
+  /** 仓库里该文件的 sha */
+  remoteSha?: string;
   createdAt: number;
 }
+
+/** 新建一条笔记消息的入参（2026-11-20：同步附件时带 remotePath/remoteSha，不带 imageId） */
+export type TaskNoteMsgInput = {
+  kind: TaskNoteMsg['kind'];
+  text?: string;
+  imageId?: string;
+  fileName?: string;
+  fileSize?: number;
+  items?: NoteAttachmentItem[];
+  remotePath?: string;
+  remoteSha?: string;
+};
+/** 改一条笔记的 patch（同上，kind 可选） */
+export type TaskNoteMsgPatch = {
+  kind?: TaskNoteMsg['kind'];
+  text?: string;
+  imageId?: string;
+  fileName?: string;
+  fileSize?: number;
+  items?: NoteAttachmentItem[];
+  remotePath?: string;
+  remoteSha?: string;
+};
 
 /**
  * 短期待办：数组顺序即展示顺序。
@@ -492,6 +524,55 @@ function normalizeWidgetTints(raw: unknown): Record<string, WidgetTintValue> {
 
 /** 归一化 tasks：老数据无此字段 / 元素残缺时逐项清洗，非法整体回落空数组（首次即空状态，不塞假数据）。
  *  children 是数组的元素按「组」保留（子任务逐项清洗），非数组一律不当组。 */
+/** 笔记消息归一化（2026-11-20：加载/导入/同步都走 validateStoreData，notes 必须随任务一起保留） */
+function normalizeTaskNotes(raw: unknown): TaskNoteMsg[] {
+  if (!Array.isArray(raw)) return [];
+  const kinds = ['text', 'image', 'video', 'audio', 'file', 'batch'];
+  const itemKinds = ['image', 'video', 'audio', 'file'];
+  const cleanStr = (v: unknown) => (typeof v === 'string' ? v : undefined);
+  const cleanNum = (v: unknown) => (typeof v === 'number' && Number.isFinite(v) ? v : undefined);
+  const out: TaskNoteMsg[] = [];
+  for (const n of raw as Partial<TaskNoteMsg>[]) {
+    if (!n || typeof n.id !== 'string' || !n.id || !kinds.includes(n.kind ?? '')) continue;
+    const msg: TaskNoteMsg = {
+      id: n.id,
+      kind: n.kind,
+      createdAt: typeof n.createdAt === 'number' ? n.createdAt : 0,
+    };
+    const text = cleanStr(n.text);
+    if (text !== undefined) msg.text = text;
+    const imageId = cleanStr(n.imageId);
+    if (imageId !== undefined) msg.imageId = imageId;
+    const fileName = cleanStr(n.fileName);
+    if (fileName !== undefined) msg.fileName = fileName;
+    const fileSize = cleanNum(n.fileSize);
+    if (fileSize !== undefined) msg.fileSize = fileSize;
+    const remotePath = cleanStr(n.remotePath);
+    if (remotePath !== undefined) msg.remotePath = remotePath;
+    const remoteSha = cleanStr(n.remoteSha);
+    if (remoteSha !== undefined) msg.remoteSha = remoteSha;
+    if (Array.isArray(n.items)) {
+      const items: NoteAttachmentItem[] = [];
+      for (const it of n.items as Partial<NoteAttachmentItem>[]) {
+        if (!it || !itemKinds.includes(it.kind ?? '') || typeof it.imageId !== 'string' || !it.imageId) continue;
+        const item: NoteAttachmentItem = { kind: it.kind, imageId: it.imageId };
+        const fn = cleanStr(it.fileName);
+        if (fn !== undefined) item.fileName = fn;
+        const fs = cleanNum(it.fileSize);
+        if (fs !== undefined) item.fileSize = fs;
+        const rp = cleanStr(it.remotePath);
+        if (rp !== undefined) item.remotePath = rp;
+        const rs = cleanStr(it.remoteSha);
+        if (rs !== undefined) item.remoteSha = rs;
+        items.push(item);
+      }
+      if (items.length) msg.items = items;
+    }
+    out.push(msg);
+  }
+  return out;
+}
+
 function normalizeTasks(raw: unknown): TaskItem[] {
   if (!Array.isArray(raw)) return [];
   const out: TaskItem[] = [];
@@ -507,14 +588,17 @@ function normalizeTasks(raw: unknown): TaskItem[] {
       const kids: TaskChild[] = [];
       for (const c of t.children as Partial<TaskChild>[]) {
         if (!c || typeof c.title !== 'string' || !c.title) continue;
-        kids.push({
+        const kid: TaskChild = {
           id: typeof c.id === 'string' && c.id ? c.id : genId('tc'),
           title: c.title,
           done: c.done === true,
-        });
+        };
+        if (Array.isArray(c.notes)) kid.notes = normalizeTaskNotes(c.notes);
+        kids.push(kid);
       }
       item.children = kids;
     }
+    if (Array.isArray(t.notes)) item.notes = normalizeTaskNotes(t.notes);
     out.push(item);
   }
   return out;
@@ -2622,9 +2706,9 @@ export function useLocalStore() {
 
   /** 待办笔记（2026-11-20：每项单击开气泡笔记；文字消息空文本不落库，图片消息只记 imageId） */
   const addTaskNote = useCallback(
-    (taskId: string, msg: { kind: TaskNoteMsg['kind']; text?: string; imageId?: string; fileName?: string; fileSize?: number; items?: NoteAttachmentItem[] }) => {
+    (taskId: string, msg: TaskNoteMsgInput) => {
       if (msg.kind === 'text' && !msg.text?.trim()) return;
-      if (msg.kind !== 'text' && msg.kind !== 'batch' && !msg.imageId) return;
+      if (msg.kind !== 'text' && msg.kind !== 'batch' && !msg.imageId && !msg.remotePath) return;
       if (msg.kind === 'batch' && !(msg.items ?? []).length) return;
       update((d) => {
         const task = d.tasks.find((x) => x.id === taskId);
@@ -2651,7 +2735,7 @@ export function useLocalStore() {
 
   /** 改一条笔记（2026-11-20：气泡编辑；文字改 text，图片换 imageId；空文本不写） */
   const updateTaskNote = useCallback(
-    (taskId: string, noteId: string, patch: { kind?: TaskNoteMsg['kind']; text?: string; imageId?: string; fileName?: string; fileSize?: number; items?: NoteAttachmentItem[] }) => {
+    (taskId: string, noteId: string, patch: TaskNoteMsgPatch) => {
       if (patch.text !== undefined && !patch.text.trim()) return;
       update((d) => {
         const note = d.tasks.find((x) => x.id === taskId)?.notes?.find((n) => n.id === noteId);
@@ -2663,9 +2747,9 @@ export function useLocalStore() {
   );
 
   const addSubTaskNote = useCallback(
-    (taskId: string, childId: string, msg: { kind: TaskNoteMsg['kind']; text?: string; imageId?: string; fileName?: string; fileSize?: number; items?: NoteAttachmentItem[] }) => {
+    (taskId: string, childId: string, msg: TaskNoteMsgInput) => {
       if (msg.kind === 'text' && !msg.text?.trim()) return;
-      if (msg.kind !== 'text' && msg.kind !== 'batch' && !msg.imageId) return;
+      if (msg.kind !== 'text' && msg.kind !== 'batch' && !msg.imageId && !msg.remotePath) return;
       if (msg.kind === 'batch' && !(msg.items ?? []).length) return;
       update((d) => {
         const child = d.tasks.find((x) => x.id === taskId)?.children?.find((c) => c.id === childId);
@@ -2692,7 +2776,7 @@ export function useLocalStore() {
 
   /** 改子任务的一条笔记（2026-11-20：气泡编辑；口径同 updateTaskNote） */
   const updateSubTaskNote = useCallback(
-    (taskId: string, childId: string, noteId: string, patch: { kind?: TaskNoteMsg['kind']; text?: string; imageId?: string; fileName?: string; fileSize?: number; items?: NoteAttachmentItem[] }) => {
+    (taskId: string, childId: string, noteId: string, patch: TaskNoteMsgPatch) => {
       if (patch.text !== undefined && !patch.text.trim()) return;
       update((d) => {
         const note = d.tasks

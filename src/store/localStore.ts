@@ -174,7 +174,7 @@ function normalizeAppearance(raw: unknown): PresetAppearance | null {
     typeof v === 'number' && Number.isFinite(v) ? clamp01(v) : fallback;
   return {
     background: { presetId, oceanColor },
-    theme: a.theme === 'light' || a.theme === 'liquid' ? a.theme : 'dark',
+    theme: a.theme === 'light' || a.theme === 'liquid' || a.theme === 'wireframe' ? a.theme : 'dark',
     groupCardAlpha: num(a.groupCardAlpha, DEFAULT_DISPLAY_PREFS.groupCardAlpha),
     widgetAlpha: num(a.widgetAlpha, DEFAULT_DISPLAY_PREFS.widgetAlpha),
     bgBlur: num(a.bgBlur, DEFAULT_DISPLAY_PREFS.bgBlur),

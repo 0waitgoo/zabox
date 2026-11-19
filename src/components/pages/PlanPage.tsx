@@ -160,7 +160,7 @@ export default function PlanPage({
           ) : planTab === 'month' ? (
             <MonthView store={store} />
           ) : (
-            <TasksSection store={store} />
+            <TasksSection store={store} wide />
           )}
         </div>
       )}

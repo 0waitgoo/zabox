@@ -6,6 +6,17 @@ import {defineConfig} from 'vite';
 export default defineConfig(() => {
   return {
     plugins: [react(), tailwindcss()],
+    build: {
+      // 着陆页 + 应用双入口（2026-11-19 上线改版）：
+      // 首页 index.html 是静态着陆页，应用搬到 /web/（web/index.html）。
+      // 资源仍走根目录 /assets/，应用代码不改 base；扩展构建走 vite.config.ext.ts，不受影响。
+      rollupOptions: {
+        input: {
+          index: path.resolve(__dirname, 'index.html'),
+          'web/index': path.resolve(__dirname, 'web/index.html'),
+        },
+      },
+    },
     resolve: {
       alias: {
         '@': path.resolve(__dirname, '.'),

@@ -225,6 +225,19 @@ export interface TaskChild {
   id: string;
   title: string;
   done: boolean;
+  /** 该子任务的笔记（2026-11-20：气泡对话式笔记，文字/图片消息） */
+  notes?: TaskNoteMsg[];
+}
+
+/** 待办笔记里的一条消息：一段文字或一张图片（图片本体存 IndexedDB，见 noteImageDb.ts） */
+export interface TaskNoteMsg {
+  id: string;
+  kind: 'text' | 'image';
+  /** kind=text 时的文字 */
+  text?: string;
+  /** kind=image 时的图片 id（noteImageDb 的键） */
+  imageId?: string;
+  createdAt: number;
 }
 
 /**
@@ -239,6 +252,8 @@ export interface TaskItem {
   done: boolean;
   createdAt: number;
   children?: TaskChild[];
+  /** 该待办/组的笔记（2026-11-20：气泡对话式笔记，文字/图片消息） */
+  notes?: TaskNoteMsg[];
 }
 
 /** 是否为组（children 为数组即是组，空组也算） */
@@ -2590,6 +2605,61 @@ export function useLocalStore() {
     [update],
   );
 
+  /** 待办笔记（2026-11-20：每项单击开气泡笔记；文字消息空文本不落库，图片消息只记 imageId） */
+  const addTaskNote = useCallback(
+    (taskId: string, msg: { kind: 'text' | 'image'; text?: string; imageId?: string }) => {
+      if (msg.kind === 'text' && !msg.text?.trim()) return;
+      if (msg.kind === 'image' && !msg.imageId) return;
+      update((d) => {
+        const task = d.tasks.find((x) => x.id === taskId);
+        if (task) {
+          task.notes ??= [];
+          task.notes.push({ id: genId('tn'), createdAt: Date.now(), ...msg });
+        }
+        return d;
+      });
+    },
+    [update],
+  );
+
+  const deleteTaskNote = useCallback(
+    (taskId: string, noteId: string) => {
+      update((d) => {
+        const task = d.tasks.find((x) => x.id === taskId);
+        if (task?.notes) task.notes = task.notes.filter((n) => n.id !== noteId);
+        return d;
+      });
+    },
+    [update],
+  );
+
+  const addSubTaskNote = useCallback(
+    (taskId: string, childId: string, msg: { kind: 'text' | 'image'; text?: string; imageId?: string }) => {
+      if (msg.kind === 'text' && !msg.text?.trim()) return;
+      if (msg.kind === 'image' && !msg.imageId) return;
+      update((d) => {
+        const child = d.tasks.find((x) => x.id === taskId)?.children?.find((c) => c.id === childId);
+        if (child) {
+          child.notes ??= [];
+          child.notes.push({ id: genId('tn'), createdAt: Date.now(), ...msg });
+        }
+        return d;
+      });
+    },
+    [update],
+  );
+
+  const deleteSubTaskNote = useCallback(
+    (taskId: string, childId: string, noteId: string) => {
+      update((d) => {
+        const child = d.tasks.find((x) => x.id === taskId)?.children?.find((c) => c.id === childId);
+        if (child?.notes) child.notes = child.notes.filter((n) => n.id !== noteId);
+        return d;
+      });
+    },
+    [update],
+  );
+
   /** 勾选普通待办；组没有独立勾选态，调用到组上时忽略（完成态由子任务推导） */
   const toggleTask = useCallback(
     (taskId: string) => {
@@ -3275,6 +3345,10 @@ export function useLocalStore() {
     toggleSubTask,
     deleteSubTask,
     renameSubTask,
+    addTaskNote,
+    deleteTaskNote,
+    addSubTaskNote,
+    deleteSubTaskNote,
     toggleTask,
     renameTask,
     deleteTask,

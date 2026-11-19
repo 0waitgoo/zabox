@@ -16,8 +16,18 @@ import {
   type TaskChild,
   type TaskItem,
   type TaskNoteMsg,
+  type TaskNoteMsgInput,
+  type TaskNoteMsgPatch,
 } from '../../store/localStore';
-import { NOTE_FILE_MAX_MB, NOTE_FILES_TOTAL_MAX_MB, deleteNoteImage, loadNoteImage, saveNoteImage } from '../../store/noteImageDb';
+import { deleteNoteImage, loadNoteImage, saveNoteImage } from '../../store/noteImageDb';
+import {
+  deleteNoteRemoteFile,
+  fetchNoteRemoteBlob,
+  getActiveNoteSync,
+  noteLimitsFor,
+  noteTotalLimitLabel,
+  uploadNoteFile,
+} from '../../store/noteRemote';
 import { splitTasksText } from '../../utils/taskSplit';
 import { useLang } from '../../i18n/useLang';
 
@@ -458,17 +468,21 @@ function NoteAttachIcon({ notes }: { notes?: TaskNoteMsg[] }) {
 /** 笔记图片本地 id（noteImageDb 的键） */
 const newNoteImageId = () => `ni-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`;
 
-/** 笔记附件的本地 URL（2026-11-20）：按 id 从 IndexedDB 取 Blob 转本地 URL；卸载时回收 */
-function useNoteBlobUrl(blobId: string | undefined) {
+/** 笔记附件的显示 URL（2026-11-20：同步附件从远端读 Blob 转内存 URL，不写 IndexedDB、不缓存；
+ * 本机附件仍按 id 从 IndexedDB 取；卸载时回收） */
+function useNoteAttachmentUrl(item: { imageId?: string; remotePath?: string } | undefined) {
   const [url, setUrl] = useState<string | null>(null);
+  const blobId = item?.imageId;
+  const remotePath = item?.remotePath;
   useEffect(() => {
-    if (!blobId) {
+    if (!blobId && !remotePath) {
       setUrl(null);
       return;
     }
     let alive = true;
     let objectUrl: string | null = null;
-    loadNoteImage(blobId).then((blob) => {
+    const load = remotePath ? fetchNoteRemoteBlob(remotePath) : loadNoteImage(blobId ?? '');
+    load.then((blob) => {
       if (!alive || !blob) return;
       objectUrl = URL.createObjectURL(blob);
       setUrl(objectUrl);
@@ -477,7 +491,7 @@ function useNoteBlobUrl(blobId: string | undefined) {
       alive = false;
       if (objectUrl) URL.revokeObjectURL(objectUrl);
     };
-  }, [blobId]);
+  }, [blobId, remotePath]);
   return url;
 }
 
@@ -499,7 +513,7 @@ function detectNoteKind(file: File): NoteAttachmentItem['kind'] {
 
 /** 笔记附件气泡内容（2026-11-20）：图片原图、视频/音乐带播放器、其他文件显示名字+大小+下载 */
 function NoteAttachment({ item, alt }: { item: NoteAttachmentItem; alt: string }) {
-  const url = useNoteBlobUrl(item.imageId);
+  const url = useNoteAttachmentUrl(item);
   if (!url) {
     return (
       <span className="w-40 h-24 rounded-xl bg-white/10 flex items-center justify-center text-white/40">
@@ -553,6 +567,9 @@ export interface NoteFileEntry {
   imageId: string;
   fileName?: string;
   fileSize?: number;
+  /** 同步附件在仓库里的路径与 sha（有它就不读 IndexedDB、不缓存） */
+  remotePath?: string;
+  remoteSha?: string;
   sourceTitle: string;
 }
 
@@ -566,7 +583,7 @@ function NoteFileRow({
   onJump: (taskId: string, childId?: string) => void;
 }) {
   const { t } = useLang();
-  const url = useNoteBlobUrl(entry.imageId);
+  const url = useNoteAttachmentUrl(entry);
   return (
     <div data-note-file-row className="flex items-center gap-2.5 rounded-xl bg-white/[0.04] px-2.5 py-2">
       {entry.kind === 'image' && url ? (
@@ -694,19 +711,28 @@ function TaskNotePane({
   onDeleteNoteFile,
   onJumpToNote,
   onClose,
+  localOnlyCount,
+  migrating,
+  onMigrate,
   className,
 }: {
   title: string | null;
   notes: TaskNoteMsg[];
   onSendText: (text: string) => void;
-  onSendFiles: (files: File[]) => 'tooLarge' | 'totalTooLarge' | null;
+  onSendFiles: (files: File[]) => Promise<'tooLarge' | 'totalTooLarge' | 'uploadFailed' | null>;
   onDeleteNote: (noteId: string) => void;
   onEditText: (noteId: string, text: string) => void;
-  onReplaceFiles: (noteId: string, files: File[]) => 'tooLarge' | 'totalTooLarge' | null;
+  onReplaceFiles: (noteId: string, files: File[]) => Promise<'tooLarge' | 'totalTooLarge' | 'uploadFailed' | null>;
   allFiles: NoteFileEntry[];
   onDeleteNoteFile: (entry: NoteFileEntry) => void;
   onJumpToNote: (taskId: string, childId?: string) => void;
   onClose: () => void;
+  /** 只有本机副本的附件数（2026-11-20：同步登录后可一键传到仓库） */
+  localOnlyCount: number;
+  /** 正在把本机文件往仓库传 */
+  migrating: boolean;
+  /** 一键迁移本机文件（未登录同步时 null，不显示按钮） */
+  onMigrate: (() => void) | null;
   className?: string;
 }) {
   const { t } = useLang();
@@ -753,6 +779,22 @@ function TaskNotePane({
     if (!v) return;
     onSendText(v);
     setDraft('');
+  };
+
+  /** 限额/上传提示文案（2026-11-20：单文件与总量按登录方式分档，GitHub 100 MB/4 GB、Gitee 50 MB/400 MB） */
+  const limitHintText = (code: 'tooLarge' | 'totalTooLarge' | 'uploadFailed'): string => {
+    const provider = getActiveNoteSync()?.provider ?? 'gitee';
+    if (code === 'tooLarge') return t('task.noteFileTooLarge', { n: String(noteLimitsFor(provider).singleMB) });
+    if (code === 'totalTooLarge') return t('task.noteTotalTooLarge', { n: noteTotalLimitLabel(provider) });
+    return t('task.noteUploadFailed');
+  };
+
+  /** 选文件入口（图片/附件两个 input 共用）：先过限额，传不上去再提示 */
+  const handlePickedFiles = async (files: File[]) => {
+    if (!files.length) return;
+    setLimitHint(null);
+    const code = await onSendFiles(files);
+    if (code) setLimitHint(limitHintText(code));
   };
 
   const startEdit = (msg: TaskNoteMsg) => {
@@ -847,11 +889,22 @@ function TaskNotePane({
         {showFiles ? (
           <>
             <p className="text-[11px] text-zinc-500 px-1">
-              {t('task.noteFiles')} · {formatFileSize(notesFilesBytes)} / 400 MB
+              {t('task.noteFiles')} · {formatFileSize(notesFilesBytes)} / {noteTotalLimitLabel(getActiveNoteSync()?.provider ?? 'gitee')}
               {storageEstimate?.quota
                 ? ` · ${t('task.noteLocalStorage')} ${formatFileSize(storageEstimate.usage ?? 0)} / ${formatFileSize(storageEstimate.quota)}`
                 : ''}
             </p>
+            {localOnlyCount > 0 && onMigrate && (
+              <button
+                type="button"
+                data-note-migrate
+                disabled={migrating}
+                onClick={onMigrate}
+                className="self-start rounded-lg bg-white/5 px-2.5 py-1.5 text-[12px] text-white/75 hover:bg-white/10 disabled:opacity-50"
+              >
+                {migrating ? t('task.noteMigrating') : t('task.noteMigrate')}
+              </button>
+            )}
             {allFiles.length === 0 ? (
               <p className="m-auto text-[13px] text-zinc-400 text-center px-4">{t('task.noteNoFiles')}</p>
             ) : (
@@ -935,14 +988,16 @@ function TaskNotePane({
                       </div>
                     ))}
                   </div>
-                ) : msg.kind !== 'text' && msg.imageId ? (
+                ) : msg.kind !== 'text' && (msg.imageId || msg.remotePath) ? (
                   <div className="max-w-[88%] overflow-hidden rounded-2xl rounded-br-md bg-white/5 p-1">
                     <NoteAttachment
                       item={{
                         kind: msg.kind as NoteAttachmentItem['kind'],
-                        imageId: msg.imageId,
+                        imageId: msg.imageId ?? '',
                         fileName: msg.fileName,
                         fileSize: msg.fileSize,
+                        remotePath: msg.remotePath,
+                        remoteSha: msg.remoteSha,
                       }}
                       alt={t('task.noteAddImage')}
                     />
@@ -979,12 +1034,7 @@ function TaskNotePane({
               data-note-image-input
               className="hidden"
               onChange={(e) => {
-                const files = [...(e.target.files ?? [])];
-                if (files.length) {
-                  setLimitHint(null);
-                  const code = onSendFiles(files);
-                  if (code) setLimitHint(code === 'tooLarge' ? t('task.noteFileTooLarge') : t('task.noteTotalTooLarge'));
-                }
+                void handlePickedFiles([...(e.target.files ?? [])]);
                 e.target.value = '';
               }}
             />
@@ -1005,12 +1055,7 @@ function TaskNotePane({
               data-note-attach-input
               className="hidden"
               onChange={(e) => {
-                const files = [...(e.target.files ?? [])];
-                if (files.length) {
-                  setLimitHint(null);
-                  const code = onSendFiles(files);
-                  if (code) setLimitHint(code === 'tooLarge' ? t('task.noteFileTooLarge') : t('task.noteTotalTooLarge'));
-                }
+                void handlePickedFiles([...(e.target.files ?? [])]);
                 e.target.value = '';
               }}
             />
@@ -1101,13 +1146,13 @@ function TaskNotePane({
         accept="image/*"
         data-note-image-replace-input
         className="hidden"
-        onChange={(e) => {
+        onChange={async (e) => {
           const files = [...(e.target.files ?? [])];
           const id = replacingIdRef.current;
           if (files.length && id) {
             setLimitHint(null);
-            const code = onReplaceFiles(id, files);
-            if (code) setLimitHint(code === 'tooLarge' ? t('task.noteFileTooLarge') : t('task.noteTotalTooLarge'));
+            const code = await onReplaceFiles(id, files);
+            if (code) setLimitHint(limitHintText(code));
           }
           replacingIdRef.current = null;
           e.target.value = '';
@@ -1224,11 +1269,13 @@ export function TasksSection({ store, pinned = false, wide = false }: { store: L
         ),
     [tasks],
   );
-  /** 附件限额检查（2026-11-20：单文件 50 MB、总量 400 MB；换文件时旧文件大小不计） */
+  /** 附件限额检查（2026-11-20：按登录方式分档，GitHub 单文件 100 MB/总量 4 GB、Gitee 50 MB/400 MB；
+   * 未登录默认按 Gitee 的严口径；换文件时旧文件大小不计） */
   const checkNoteFilesLimit = (files: File[], replacingBytes = 0): 'tooLarge' | 'totalTooLarge' | null => {
-    if (files.some((f) => f.size > NOTE_FILE_MAX_MB * 1024 * 1024)) return 'tooLarge';
+    const limits = noteLimitsFor(getActiveNoteSync()?.provider ?? 'gitee');
+    if (files.some((f) => f.size > limits.singleMB * 1024 * 1024)) return 'tooLarge';
     const addBytes = files.reduce((s, f) => s + f.size, 0);
-    if (notesFilesBytesTotal - replacingBytes + addBytes > NOTE_FILES_TOTAL_MAX_MB * 1024 * 1024) return 'totalTooLarge';
+    if (notesFilesBytesTotal - replacingBytes + addBytes > limits.totalMB * 1024 * 1024) return 'totalTooLarge';
     return null;
   };
   /** 全部笔记里的所有附件（2026-11-20：文件管理器用；含小组子任务） */
@@ -1247,19 +1294,23 @@ export function TasksSection({ store, pinned = false, wide = false }: { store: L
               imageId: it.imageId,
               fileName: it.fileName,
               fileSize: it.fileSize,
+              remotePath: it.remotePath,
+              remoteSha: it.remoteSha,
               sourceTitle,
             }),
           );
-        } else if (n.kind !== 'text' && n.imageId) {
+        } else if (n.kind !== 'text' && (n.imageId || n.remotePath)) {
           out.push({
             taskId,
             childId,
             noteId: n.id,
             itemIndex: 0,
             kind: n.kind as NoteAttachmentItem['kind'],
-            imageId: n.imageId,
+            imageId: n.imageId ?? '',
             fileName: n.fileName,
             fileSize: n.fileSize,
+            remotePath: n.remotePath,
+            remoteSha: n.remoteSha,
             sourceTitle,
           });
         }
@@ -1271,6 +1322,11 @@ export function TasksSection({ store, pinned = false, wide = false }: { store: L
     });
     return out;
   }, [tasks]);
+  /** 删一条附件的本体数据（2026-11-20：删笔记即删数据；同步附件删仓库里的文件，本机附件删 IndexedDB） */
+  const deleteAttachmentData = (it: { imageId?: string; remotePath?: string; remoteSha?: string }) => {
+    if (it.remotePath) void deleteNoteRemoteFile(it.remotePath, it.remoteSha);
+    else if (it.imageId) void deleteNoteImage(it.imageId);
+  };
   /** 文件管理器里删一个附件（2026-11-20）：批量泡泡只摘掉这一项，摘空了整条消息也没了；单个附件整条消息一起删 */
   const deleteNoteFile = (entry: NoteFileEntry) => {
     const task = tasks.find((t) => t.id === entry.taskId);
@@ -1286,7 +1342,79 @@ export function TasksSection({ store, pinned = false, wide = false }: { store: L
       else store.deleteTaskNote(entry.taskId, entry.noteId);
     } else if (entry.childId) store.deleteSubTaskNote(entry.taskId, entry.childId, entry.noteId);
     else store.deleteTaskNote(entry.taskId, entry.noteId);
-    void deleteNoteImage(entry.imageId);
+    deleteAttachmentData(entry);
+  };
+  /** 删一条待办/组时连它的笔记附件本体一起删（2026-11-20：删笔记即删数据，删任务同理） */
+  const collectTaskNoteFiles = (task: TaskItem): { imageId?: string; remotePath?: string; remoteSha?: string }[] => {
+    const notes = [...(task.notes ?? []), ...(task.children ?? []).flatMap((c) => c.notes ?? [])];
+    return notes.flatMap((n): { imageId?: string; remotePath?: string; remoteSha?: string }[] =>
+      n.kind === 'batch' ? (n.items ?? []) : [n],
+    );
+  };
+  const deleteTaskCascade = (taskId: string) => {
+    const task = tasks.find((t) => t.id === taskId);
+    const doomed = task ? collectTaskNoteFiles(task) : [];
+    store.deleteTask(taskId);
+    doomed.forEach(deleteAttachmentData);
+  };
+  const deleteSubTaskCascade = (taskId: string, childId: string) => {
+    const child = tasks.find((t) => t.id === taskId)?.children?.find((c) => c.id === childId);
+    const doomed = (child?.notes ?? []).flatMap((n): { imageId?: string; remotePath?: string; remoteSha?: string }[] =>
+      n.kind === 'batch' ? (n.items ?? []) : [n],
+    );
+    store.deleteSubTask(taskId, childId);
+    doomed.forEach(deleteAttachmentData);
+  };
+  /** 只有本机副本的附件（2026-11-20：同步登录后可一键传到仓库，之后换设备也能看到） */
+  const localOnlyFiles = useMemo(() => allNoteFiles.filter((f) => !f.remotePath), [allNoteFiles]);
+  const [migrating, setMigrating] = useState(false);
+  /** 一键迁移本机文件到仓库（2026-11-20）：按笔记逐条传，整条传完才改消息、删本机副本；传不上去的跳过留本机 */
+  const migrateLocalFiles = () => {
+    const sync = getActiveNoteSync();
+    if (!sync || !localOnlyFiles.length || migrating) return;
+    setMigrating(true);
+    void (async () => {
+      const groups = new Map<string, { taskId: string; childId?: string; noteId: string; entries: NoteFileEntry[] }>();
+      for (const entry of localOnlyFiles) {
+        const key = `${entry.taskId}/${entry.childId ?? ''}/${entry.noteId}`;
+        const g = groups.get(key) ?? { taskId: entry.taskId, childId: entry.childId, noteId: entry.noteId, entries: [] };
+        g.entries.push(entry);
+        groups.set(key, g);
+      }
+      for (const g of groups.values()) {
+        const task = tasks.find((t) => t.id === g.taskId);
+        const list = g.childId ? task?.children?.find((c) => c.id === g.childId)?.notes : task?.notes;
+        const msg = list?.find((n) => n.id === g.noteId);
+        if (!msg) continue;
+        const uploadOne = async (entry: NoteFileEntry) => {
+          const blob = await loadNoteImage(entry.imageId);
+          if (!blob) return null;
+          const up = await uploadNoteFile(new File([blob], entry.fileName || 'file', { type: blob.type }), entry.imageId);
+          if (!up) return null;
+          await deleteNoteImage(entry.imageId);
+          return up;
+        };
+        if (msg.kind === 'batch') {
+          const items = [...(msg.items ?? [])];
+          let changed = false;
+          for (const entry of g.entries) {
+            const up = await uploadOne(entry);
+            if (!up) continue;
+            items[entry.itemIndex] = { ...items[entry.itemIndex], remotePath: up.remotePath, remoteSha: up.sha };
+            changed = true;
+          }
+          if (!changed) continue;
+          if (g.childId) store.updateSubTaskNote(g.taskId, g.childId, g.noteId, { items });
+          else store.updateTaskNote(g.taskId, g.noteId, { items });
+        } else {
+          const up = await uploadOne(g.entries[0]);
+          if (!up) continue;
+          if (g.childId) store.updateSubTaskNote(g.taskId, g.childId, g.noteId, { remotePath: up.remotePath, remoteSha: up.sha });
+          else store.updateTaskNote(g.taskId, g.noteId, { remotePath: up.remotePath, remoteSha: up.sha });
+        }
+      }
+      setMigrating(false);
+    })();
   };
   /** 文件管理器里点来源标题：跳到那条笔记 */
   const jumpToNote = (taskId: string, childId?: string) => setOpenNote({ taskId, childId });
@@ -1295,30 +1423,52 @@ export function TasksSection({ store, pinned = false, wide = false }: { store: L
     if (openNote.childId) store.addSubTaskNote(openNote.taskId, openNote.childId, { kind: 'text', text });
     else store.addTaskNote(openNote.taskId, { kind: 'text', text });
   };
-  const sendNoteFiles = (files: File[]): 'tooLarge' | 'totalTooLarge' | null => {
+  const sendNoteFiles = async (files: File[]): Promise<'tooLarge' | 'totalTooLarge' | 'uploadFailed' | null> => {
     if (!openNote || !files.length) return null;
     const code = checkNoteFilesLimit(files);
     if (code) return code;
-    void (async () => {
+    const sync = getActiveNoteSync();
+    const addMsg = (msg: TaskNoteMsgInput) => {
+      if (openNote.childId) store.addSubTaskNote(openNote.taskId, openNote.childId, msg);
+      else store.addTaskNote(openNote.taskId, msg);
+    };
+    if (sync) {
+      // 同步已登录：附件直接存仓库，不写本机、不缓存；传不上去的不落库
       if (files.length === 1) {
         const file = files[0];
         const imageId = newNoteImageId();
-        if (!(await saveNoteImage(imageId, file))) return;
-        const msg = { kind: detectNoteKind(file), imageId, fileName: file.name, fileSize: file.size };
-        if (openNote.childId) store.addSubTaskNote(openNote.taskId, openNote.childId, msg);
-        else store.addTaskNote(openNote.taskId, msg);
-        return;
+        const up = await uploadNoteFile(file, imageId);
+        if (!up) return 'uploadFailed';
+        addMsg({ kind: detectNoteKind(file), imageId, remotePath: up.remotePath, remoteSha: up.sha, fileName: file.name, fileSize: file.size });
+        return null;
       }
       const items: NoteAttachmentItem[] = [];
       for (const file of files) {
         const imageId = newNoteImageId();
-        if (!(await saveNoteImage(imageId, file))) continue;
-        items.push({ kind: detectNoteKind(file), imageId, fileName: file.name, fileSize: file.size });
+        const up = await uploadNoteFile(file, imageId);
+        if (!up) continue;
+        items.push({ kind: detectNoteKind(file), imageId, remotePath: up.remotePath, remoteSha: up.sha, fileName: file.name, fileSize: file.size });
       }
-      if (!items.length) return;
-      if (openNote.childId) store.addSubTaskNote(openNote.taskId, openNote.childId, { kind: 'batch', items });
-      else store.addTaskNote(openNote.taskId, { kind: 'batch', items });
-    })();
+      if (!items.length) return 'uploadFailed';
+      addMsg({ kind: 'batch', items });
+      return null;
+    }
+    // 未登录同步：附件只存本机（老口径）
+    if (files.length === 1) {
+      const file = files[0];
+      const imageId = newNoteImageId();
+      if (!(await saveNoteImage(imageId, file))) return 'uploadFailed';
+      addMsg({ kind: detectNoteKind(file), imageId, fileName: file.name, fileSize: file.size });
+      return null;
+    }
+    const items: NoteAttachmentItem[] = [];
+    for (const file of files) {
+      const imageId = newNoteImageId();
+      if (!(await saveNoteImage(imageId, file))) continue;
+      items.push({ kind: detectNoteKind(file), imageId, fileName: file.name, fileSize: file.size });
+    }
+    if (!items.length) return 'uploadFailed';
+    addMsg({ kind: 'batch', items });
     return null;
   };
   const deleteNoteMsg = (noteId: string) => {
@@ -1326,8 +1476,8 @@ export function TasksSection({ store, pinned = false, wide = false }: { store: L
     const msg = openNoteNotes.find((n) => n.id === noteId);
     if (openNote.childId) store.deleteSubTaskNote(openNote.taskId, openNote.childId, noteId);
     else store.deleteTaskNote(openNote.taskId, noteId);
-    if (msg?.imageId) void deleteNoteImage(msg.imageId);
-    (msg?.items ?? []).forEach((it) => void deleteNoteImage(it.imageId));
+    if (msg) deleteAttachmentData(msg);
+    (msg?.items ?? []).forEach(deleteAttachmentData);
   };
   /** 改一条笔记的文字（2026-11-20：双击泡泡/右键菜单编辑） */
   const editNoteText = (noteId: string, text: string) => {
@@ -1335,37 +1485,49 @@ export function TasksSection({ store, pinned = false, wide = false }: { store: L
     if (openNote.childId) store.updateSubTaskNote(openNote.taskId, openNote.childId, noteId, { text });
     else store.updateTaskNote(openNote.taskId, noteId, { text });
   };
-  /** 换附件（2026-11-20：双击/右键编辑附件泡泡；单个换单个，批量泡泡换整批；新文件存好才换，旧文件随后删） */
-  const replaceNoteFiles = (noteId: string, files: File[]): 'tooLarge' | 'totalTooLarge' | null => {
+  /** 换附件（2026-11-20：双击/右键编辑附件泡泡；单个换单个，批量泡泡换整批；新文件存好才换，旧文件随后删；
+   * 同步已登录时新文件存仓库、旧文件从仓库删） */
+  const replaceNoteFiles = async (noteId: string, files: File[]): Promise<'tooLarge' | 'totalTooLarge' | 'uploadFailed' | null> => {
     if (!openNote || !files.length) return null;
     const msg = openNoteNotes.find((n) => n.id === noteId);
     if (!msg) return null;
     const oldBytes = (msg.fileSize ?? 0) + (msg.items ?? []).reduce((s, it) => s + (it.fileSize ?? 0), 0);
     const code = checkNoteFilesLimit(files, oldBytes);
     if (code) return code;
-    void (async () => {
-      const oldIds = [msg.imageId, ...(msg.items ?? []).map((it) => it.imageId)].filter((x): x is string => !!x);
-      if (msg.kind === 'batch' || files.length > 1) {
-        const items: NoteAttachmentItem[] = [];
-        for (const file of files) {
-          const imageId = newNoteImageId();
+    const oldFiles = [msg, ...(msg.items ?? [])];
+    const patchMsg = (patch: TaskNoteMsgPatch) => {
+      if (openNote.childId) store.updateSubTaskNote(openNote.taskId, openNote.childId, noteId, patch);
+      else store.updateTaskNote(openNote.taskId, noteId, patch);
+    };
+    const sync = getActiveNoteSync();
+    if (msg.kind === 'batch' || files.length > 1) {
+      const items: NoteAttachmentItem[] = [];
+      for (const file of files) {
+        const imageId = newNoteImageId();
+        if (sync) {
+          const up = await uploadNoteFile(file, imageId);
+          if (!up) continue;
+          items.push({ kind: detectNoteKind(file), imageId, remotePath: up.remotePath, remoteSha: up.sha, fileName: file.name, fileSize: file.size });
+        } else {
           if (!(await saveNoteImage(imageId, file))) continue;
           items.push({ kind: detectNoteKind(file), imageId, fileName: file.name, fileSize: file.size });
         }
-        if (!items.length) return;
-        const patch = { kind: 'batch' as const, items, imageId: undefined, fileName: undefined, fileSize: undefined };
-        if (openNote.childId) store.updateSubTaskNote(openNote.taskId, openNote.childId, noteId, patch);
-        else store.updateTaskNote(openNote.taskId, noteId, patch);
-      } else {
-        const file = files[0];
-        const imageId = newNoteImageId();
-        if (!(await saveNoteImage(imageId, file))) return;
-        const patch = { kind: detectNoteKind(file), imageId, fileName: file.name, fileSize: file.size };
-        if (openNote.childId) store.updateSubTaskNote(openNote.taskId, openNote.childId, noteId, patch);
-        else store.updateTaskNote(openNote.taskId, noteId, patch);
       }
-      oldIds.forEach((id) => void deleteNoteImage(id));
-    })();
+      if (!items.length) return 'uploadFailed';
+      patchMsg({ kind: 'batch' as const, items, imageId: undefined, fileName: undefined, fileSize: undefined, remotePath: undefined, remoteSha: undefined });
+    } else {
+      const file = files[0];
+      const imageId = newNoteImageId();
+      if (sync) {
+        const up = await uploadNoteFile(file, imageId);
+        if (!up) return 'uploadFailed';
+        patchMsg({ kind: detectNoteKind(file), imageId, remotePath: up.remotePath, remoteSha: up.sha, fileName: file.name, fileSize: file.size });
+      } else {
+        if (!(await saveNoteImage(imageId, file))) return 'uploadFailed';
+        patchMsg({ kind: detectNoteKind(file), imageId, fileName: file.name, fileSize: file.size });
+      }
+    }
+    oldFiles.forEach(deleteAttachmentData);
     return null;
   };
 
@@ -1476,8 +1638,8 @@ export function TasksSection({ store, pinned = false, wide = false }: { store: L
         dragChildId={inOpen ? drag.dragId : null}
         onChildPointerDown={inOpen ? (e, child) => drag.beginChildDrag(e, task, child) : undefined}
         wasJustDragged={drag.wasJustDragged}
-        onDeleteSelf={inOpen ? undefined : () => store.deleteTask(task.id)}
-        onDeleteChild={inOpen ? undefined : (childId) => store.deleteSubTask(task.id, childId)}
+        onDeleteSelf={inOpen ? undefined : () => deleteTaskCascade(task.id)}
+        onDeleteChild={inOpen ? undefined : (childId) => deleteSubTaskCascade(task.id, childId)}
       />
         {insertLine('after')}
       </Fragment>
@@ -1518,7 +1680,7 @@ export function TasksSection({ store, pinned = false, wide = false }: { store: L
           </>
         )}
         {!inOpen && editingTaskId !== task.id && (
-          <DoneTrashButton label={t('task.deleteDoneTodo', { title: task.title })} onDelete={() => store.deleteTask(task.id)} />
+          <DoneTrashButton label={t('task.deleteDoneTodo', { title: task.title })} onDelete={() => deleteTaskCascade(task.id)} />
         )}
       </div>
         {insertLine('after')}
@@ -1654,8 +1816,8 @@ export function TasksSection({ store, pinned = false, wide = false }: { store: L
                 startEditTask(task);
               }
             } else if (action === 'delete') {
-              if (menu.kind === 'taskChild' && menu.parentId) store.deleteSubTask(menu.parentId, menu.id);
-              else store.deleteTask(menu.id);
+              if (menu.kind === 'taskChild' && menu.parentId) deleteSubTaskCascade(menu.parentId, menu.id);
+              else deleteTaskCascade(menu.id);
             } else if (action === 'ungroup') {
               store.ungroupTask(menu.id);
             }
@@ -1672,7 +1834,20 @@ export function TasksSection({ store, pinned = false, wide = false }: { store: L
           count={doneEntries.length}
           onClose={() => setDoneMenu(null)}
           onConfirm={() => {
+            const doomed = tasks.filter(taskEntryDone).flatMap(collectTaskNoteFiles);
+            tasks.forEach((t) =>
+              (t.children ?? [])
+                .filter((c) => c.done)
+                .forEach((c) =>
+                  doomed.push(
+                    ...(c.notes ?? []).flatMap((n): { imageId?: string; remotePath?: string; remoteSha?: string }[] =>
+                      n.kind === 'batch' ? (n.items ?? []) : [n],
+                    ),
+                  ),
+                ),
+            );
             store.clearCompletedTasks();
+            doomed.forEach(deleteAttachmentData);
             setDoneMenu(null);
           }}
         />
@@ -1712,6 +1887,9 @@ export function TasksSection({ store, pinned = false, wide = false }: { store: L
             onDeleteNoteFile={deleteNoteFile}
             onJumpToNote={jumpToNote}
             onClose={() => setOpenNote(null)}
+            localOnlyCount={localOnlyFiles.length}
+            migrating={migrating}
+            onMigrate={getActiveNoteSync() ? migrateLocalFiles : null}
             className="flex-1"
           />
         </div>
@@ -1736,6 +1914,9 @@ export function TasksSection({ store, pinned = false, wide = false }: { store: L
           onDeleteNoteFile={deleteNoteFile}
           onJumpToNote={jumpToNote}
           onClose={() => setOpenNote(null)}
+          localOnlyCount={localOnlyFiles.length}
+          migrating={migrating}
+          onMigrate={getActiveNoteSync() ? migrateLocalFiles : null}
           className={
             pinned
               ? 'flex-1 min-w-0 rounded-2xl border border-white/10 bg-white/[0.03]'

@@ -1,106 +1,599 @@
 <!doctype html>
 <html lang="zh-CN">
-  <head>
-    <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <meta name="theme-color" content="#17171d" />
-    <meta name="description" content="杂盒 ZaBox 是你的个人工作台：一个新标签页，把网站分门别类收好，预设导航选一个就能用，任务计划和日程走到哪跟到哪，数据只存本地。" />
-    <link rel="canonical" href="https://zahe.hiitun.top/" />
-    <meta property="og:type" content="website" />
-    <meta property="og:site_name" content="杂盒 ZaBox" />
-    <meta property="og:title" content="杂盒 ZaBox - 网站导航、任务计划与日程管理" />
-    <meta property="og:description" content="一个新标签页，把网站分门别类收好：预设导航选一个就能用，任务计划和日程走到哪跟到哪，数据只存本地。" />
-    <meta property="og:url" content="https://zahe.hiitun.top/" />
-    <meta property="og:image" content="https://zahe.hiitun.top/og-image.png" />
-    <meta property="og:image:width" content="1200" />
-    <meta property="og:image:height" content="630" />
-    <meta property="og:locale" content="zh_CN" />
-    <meta property="og:locale:alternate" content="en_US" />
-    <meta name="twitter:card" content="summary_large_image" />
-    <meta name="twitter:title" content="杂盒 ZaBox - 网站导航、任务计划与日程管理" />
-    <meta name="twitter:description" content="一个新标签页，把网站分门别类收好：预设导航选一个就能用，任务计划和日程走到哪跟到哪，数据只存本地。" />
-    <meta name="twitter:image" content="https://zahe.hiitun.top/og-image.png" />
-    <link rel="manifest" href="/manifest.webmanifest" />
-    <link rel="apple-touch-icon" href="/icons/pwa-192.png" />
-    <title>杂盒 ZaBox - 网站导航、任务计划与日程管理</title>
-    <script type="application/ld+json">
-    {
-      "@context": "https://schema.org",
-      "@type": "WebApplication",
-      "name": "杂盒 ZaBox",
-      "alternateName": "ZaBox",
-      "url": "https://zahe.hiitun.top/",
-      "description": "个人资料整理收录、任务计划与日程处理的新标签页主页：网站分门别类，预设导航选一个就能用，任务计划和日程走到哪跟到哪，数据只存本地。",
-      "inLanguage": "zh-CN",
-      "applicationCategory": "ProductivityApplication",
-      "operatingSystem": "Windows, macOS, Linux, Android, iOS",
-      "browserRequirements": "Requires a modern web browser",
-      "offers": {
-        "@type": "Offer",
-        "price": "0",
-        "priceCurrency": "CNY"
+<head>
+<script>
+// OAuth / 桌面登录回跳桥（2026-11-19）：GitHub、Gitee 应用的回调地址注册的是站点根，
+// 桌面登录也是从根打开；带这些参数进来的访问直接转到 /web/，由应用接手处理。
+(function(){try{var q=new URLSearchParams(location.search);if(q.has('code')||q.has('state')||q.has('desktop_port')||q.has('desktop_state')||q.has('error')){location.replace('/web/'+location.search+location.hash);}}catch(e){}})();
+</script>
+
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+<meta name="color-scheme" content="light dark" />
+<link rel="icon" href="data:," />
+<title>杂盒 ZaBox — 浏览器新标签页插件</title>
+<meta name="description" content="杂而有序。一只盒子，装下你的网页、信息和日程。网页导航 · 搜集整理 · 日程计划" />
+<link rel="canonical" href="https://zahe.hiitun.top/" />
+<meta property="og:type" content="website" />
+<meta property="og:site_name" content="杂盒 ZaBox" />
+<meta property="og:title" content="杂盒 ZaBox — 浏览器新标签页插件" />
+<meta property="og:description" content="杂而有序。一只盒子，装下你的网页、信息和日程。网页导航 · 搜集整理 · 日程计划" />
+<meta property="og:url" content="https://zahe.hiitun.top/" />
+<meta property="og:image" content="https://zahe.hiitun.top/og-image.png" />
+<meta property="og:locale" content="zh_CN" />
+<meta property="og:locale:alternate" content="en_US" />
+<meta name="twitter:card" content="summary_large_image" />
+<meta name="twitter:title" content="杂盒 ZaBox — 浏览器新标签页插件" />
+<meta name="twitter:description" content="杂而有序。一只盒子，装下你的网页、信息和日程。" />
+<meta name="twitter:image" content="https://zahe.hiitun.top/og-image.png" />
+<script type="application/ld+json">
+{"@context":"https://schema.org","@type":"WebApplication","name":"杂盒 ZaBox","alternateName":"ZaBox","url":"https://zahe.hiitun.top/","description":"杂而有序。一只盒子，装下你的网页、信息和日程。浏览器新标签页插件：网页导航、搜集整理、日程计划。","inLanguage":"zh-CN","applicationCategory":"ProductivityApplication","operatingSystem":"Windows, macOS, Linux, Android, iOS","offers":{"@type":"Offer","price":"0","priceCurrency":"CNY"}}
+</script>
+<script type="application/ld+json">
+{"@context":"https://schema.org","@type":"FAQPage","mainEntity":[{"@type":"Question","name":"收费吗？","acceptedAnswer":{"@type":"Answer","text":"免费开源，MIT 协议。"}},{"@type":"Question","name":"数据存在哪里？","acceptedAnswer":{"@type":"Answer","text":"存在你自己的浏览器本地，登录后同步到你自己的 GitHub 私有仓。"}},{"@type":"Question","name":"离线版怎么用？","acceptedAnswer":{"@type":"Answer","text":"和桌面版一致，只有日程计划。下载解压，双击 index.html 就能用，不用安装、不用联网。"}}]}
+</script>
+
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Noto+Sans+SC:wght@400;500;700;900&family=Space+Grotesk:wght@500;700&display=swap" rel="stylesheet" />
+<style>
+:root{
+  --bg:#fbfbfa; --panel:#f2f2f0; --panel2:#ececea;
+  --ink:#101010; --ink2:#55554f; --ink3:#8a8a84;
+  --line:#e2e2de; --line2:#c9c9c3;
+  --r:18px;
+  color-scheme:light;
+}
+@media (prefers-color-scheme:dark){
+  :root:not([data-theme="light"]){
+    --bg:#0d0d0d; --panel:#161616; --panel2:#1d1d1d;
+    --ink:#f2f2ef; --ink2:#b5b5ae; --ink3:#7d7d76;
+    --line:#262624; --line2:#3d3d39;
+    color-scheme:dark;
+  }
+}
+:root[data-theme="dark"]{
+  --bg:#0d0d0d; --panel:#161616; --panel2:#1d1d1d;
+  --ink:#f2f2ef; --ink2:#b5b5ae; --ink3:#7d7d76;
+  --line:#262624; --line2:#3d3d39;
+  color-scheme:dark;
+}
+*{box-sizing:border-box}
+html{scroll-behavior:smooth}
+body{margin:0;background:var(--bg);color:var(--ink);font-family:"Noto Sans SC",-apple-system,"PingFang SC","Microsoft YaHei",sans-serif;-webkit-font-smoothing:antialiased;overflow-x:hidden;transition:background .45s ease,color .45s ease}
+a{color:inherit;text-decoration:none}
+button{font-family:inherit;cursor:pointer;color:inherit}
+::selection{background:var(--ink);color:var(--bg)}
+.en{font-family:"Space Grotesk","Noto Sans SC",sans-serif}
+.mono{font-family:ui-monospace,"SF Mono",Menlo,Consolas,monospace}
+
+.frame{max-width:1440px;margin:0 auto;border-left:1px solid var(--line);border-right:1px solid var(--line);border-top:1px solid var(--line);position:relative;transition:border-color .45s ease}
+.band{position:relative;border-top:1px solid var(--line);transition:border-color .45s ease}
+.band::before,.band::after{content:"";position:absolute;top:-4px;width:7px;height:7px;background:var(--bg);border:1px solid var(--line2);z-index:3;transition:background .45s ease,border-color .45s ease}
+.band::before{left:-4px}
+.band::after{right:-4px}
+.pad{padding-left:56px;padding-right:56px}
+.sec{padding-top:72px;padding-bottom:72px}
+
+.btn-k{display:inline-flex;align-items:center;justify-content:center;gap:10px;background:var(--ink);color:var(--bg);border:1px solid var(--ink);border-radius:999px;padding:14px 28px;font-size:13.5px;font-weight:700;letter-spacing:.12em;min-height:50px;transition:.25s;white-space:nowrap}
+.btn-k:hover{background:transparent;color:var(--ink)}
+.btn-k:active{transform:scale(.97)}
+.btn-w{display:inline-flex;align-items:center;justify-content:center;gap:10px;background:var(--bg);color:var(--ink);border:1px solid var(--bg);border-radius:999px;padding:14px 28px;font-size:13.5px;font-weight:700;letter-spacing:.12em;min-height:50px;transition:.25s;white-space:nowrap}
+.btn-w:hover{background:transparent;color:var(--bg)}
+.link-arrow{display:inline-flex;align-items:center;gap:10px;font-size:13.5px;font-weight:700;letter-spacing:.12em;padding:8px 0;min-height:50px}
+.link-arrow .arr{width:34px;height:34px;border:1px solid var(--line2);border-radius:50%;display:grid;place-items:center;font-size:15px;transition:.25s;flex:none}
+.link-arrow:hover .arr{background:var(--ink);color:var(--bg);border-color:var(--ink)}
+
+/* Hero — 只留三行 */
+.hero-grid{display:grid;grid-template-columns:1.08fr .92fr;min-height:560px}
+.hero-left{padding:88px 56px 80px;display:flex;flex-direction:column;justify-content:center}
+.hero-eyebrow{font-size:14px;font-weight:700;letter-spacing:.06em;color:var(--ink2);margin:0 0 28px;display:flex;align-items:center;gap:12px}
+.hero-eyebrow::before{content:"";width:12px;height:12px;background:var(--ink);flex:none}
+.hero-eyebrow .en{letter-spacing:.04em}
+h1{font-size:clamp(52px,6.4vw,88px);line-height:1.2;font-weight:900;margin:0 0 22px;letter-spacing:.02em}
+.hero-sub{display:flex;align-items:center;gap:14px;margin:0 0 20px;font-size:clamp(19px,2vw,24px);font-weight:700;line-height:1.6;color:var(--ink2);flex-wrap:wrap}
+.hero-sub::before{content:"";width:36px;height:2px;background:var(--ink);flex:none}
+.hero-sub .en{font-size:11px;letter-spacing:.18em;color:var(--ink3);font-weight:500}
+.hero-tags{font-size:16px;letter-spacing:.08em;color:var(--ink2);margin:0 0 44px;font-weight:500}
+.hero-tags b{color:var(--ink);font-weight:700}
+.hero-btns{display:flex;gap:24px;flex-wrap:wrap;align-items:center}
+.hero-right{border-left:1px solid var(--line);position:relative;overflow:hidden;min-height:420px;transition:border-color .45s ease}
+.hero-right canvas{position:absolute;inset:0;width:100%;height:100%;display:block}
+.hero-right .cap{position:absolute;left:18px;bottom:14px;font-size:11px;letter-spacing:.16em;color:var(--ink3);z-index:2}
+
+/* 三个功能 — 只留词 */
+.fgrid{display:grid;grid-template-columns:repeat(3,1fr);gap:1px;background:var(--line);border:1px solid var(--line)}
+.fcell{background:var(--bg);padding:44px 32px 40px;min-height:168px;display:flex;align-items:flex-end;justify-content:space-between;gap:16px;transition:background .45s ease}
+.fcell .word{font-size:clamp(36px,4vw,52px);font-weight:900;line-height:1;letter-spacing:.02em}
+.fcell .no{font-size:11.5px;letter-spacing:.18em;color:var(--ink3);padding-bottom:6px}
+
+/* 预设 — 一行 */
+.preset-row{display:grid;grid-template-columns:repeat(3,1fr);gap:1px;background:var(--line);border:1px solid var(--line)}
+.preset-cell{background:var(--bg);padding:26px 28px;display:flex;align-items:center;gap:16px;font-size:17px;font-weight:900;transition:background .2s}
+.preset-cell:hover{background:var(--panel)}
+.preset-cell .shape{font-size:18px;line-height:1}
+.preset-cell .arr{margin-left:auto;color:var(--ink3);font-weight:400}
+.sec-label{font-size:11.5px;letter-spacing:.2em;color:var(--ink3);margin:0 0 20px;font-weight:700}
+
+/* 下载 */
+.seg{display:inline-flex;background:var(--panel);border-radius:999px;padding:4px;gap:2px;flex-wrap:wrap;transition:background .45s ease}
+.seg button{border:none;background:transparent;padding:11px 22px;border-radius:999px;font-size:13.5px;font-weight:700;letter-spacing:.06em;color:var(--ink2);min-height:44px;transition:.2s}
+.seg button.active{background:var(--ink);color:var(--bg)}
+.seg a.seg-dl{display:inline-flex;align-items:center;justify-content:center;border:1px solid var(--line2);background:transparent;padding:11px 22px;border-radius:999px;font-size:13.5px;font-weight:700;letter-spacing:.06em;color:var(--ink);min-height:44px;transition:.2s;white-space:nowrap}
+.seg a.seg-dl:hover{background:var(--ink);color:var(--bg);border-color:var(--ink)}
+.dl-panel{margin-top:20px;border:1px solid var(--line);border-radius:var(--r);padding:28px 30px;display:flex;gap:22px;align-items:center;flex-wrap:wrap;transition:border-color .45s ease}
+.dl-panel .dp-t{font-size:19px;font-weight:900;display:flex;align-items:center;gap:10px;flex-wrap:wrap}
+.dp-badge{font-size:11px;font-weight:700;letter-spacing:.12em;background:var(--ink);color:var(--bg);padding:4px 10px;border-radius:999px;line-height:1}
+.dp-badge.muted{background:var(--panel2);color:var(--ink2)}
+.dl-panel .dp-d{font-size:13.5px;color:var(--ink2);margin-top:5px;line-height:1.7;max-width:520px}
+.dl-panel .btn-k{margin-left:auto}
+.dl-note{font-size:12.5px;color:var(--ink3);margin:14px 0 0;line-height:1.7}
+
+/* FAQ */
+.faq{border-bottom:1px solid var(--line)}
+.faq-item{border-top:1px solid var(--line)}
+.faq-item:first-child{border-top:none}
+.faq-q{width:100%;background:none;border:none;display:flex;align-items:center;gap:16px;text-align:left;padding:22px 4px;font-size:16px;font-weight:700;min-height:60px}
+.faq-q .chev{margin-left:auto;width:32px;height:32px;border-radius:50%;background:var(--panel);display:grid;place-items:center;font-size:14px;flex:none;transition:transform .3s,background .3s,color .3s}
+.faq-item.open .chev{transform:rotate(180deg);background:var(--ink);color:var(--bg)}
+.faq-a{display:grid;grid-template-rows:0fr;transition:grid-template-rows .35s ease}
+.faq-item.open .faq-a{grid-template-rows:1fr}
+.faq-a>div{overflow:hidden}
+.faq-a p{margin:0;padding:0 44px 24px 4px;color:var(--ink2);font-size:14.5px;line-height:1.8;max-width:720px}
+
+/* CTA */
+.cta{background:var(--ink);color:var(--bg);border-radius:24px;padding:56px;position:relative;overflow:hidden;transition:background .45s ease,color .45s ease}
+.cta::after{content:"";position:absolute;inset:0;background-image:radial-gradient(circle,rgba(128,128,128,.35) 1px,transparent 1.3px);background-size:15px 15px;opacity:.3;pointer-events:none;-webkit-mask-image:linear-gradient(100deg,transparent 55%,#000);mask-image:linear-gradient(100deg,transparent 55%,#000)}
+.cta h2{font-size:clamp(40px,5vw,64px);font-weight:900;margin:0 0 14px;line-height:1.2;letter-spacing:.02em;position:relative;z-index:1}
+.cta-sub{font-size:clamp(17px,1.8vw,21px);font-weight:500;margin:0 0 30px;line-height:1.6;position:relative;z-index:1;opacity:.78}
+.cta .row{display:flex;gap:24px;align-items:center;flex-wrap:wrap;position:relative;z-index:1}
+.cta .link-arrow .arr{border-color:rgba(128,128,128,.6)}
+.cta .link-arrow:hover .arr{background:var(--bg);color:var(--ink);border-color:var(--bg)}
+
+/* 页脚 */
+footer .foot-grid{display:flex;gap:40px;flex-wrap:wrap;justify-content:space-between;padding:48px 0 40px}
+.logo{display:flex;align-items:center;gap:10px;font-weight:900;font-size:17px;white-space:nowrap}
+.logo-mark{width:30px;height:30px;background:var(--ink);color:var(--bg);display:grid;place-items:center;font-size:15px;font-weight:900;flex:none}
+.logo small{font-weight:500;color:var(--ink3);font-size:11px;letter-spacing:.14em}
+.foot-note{font-size:13px;color:var(--ink3);line-height:1.7;max-width:260px;margin:12px 0 0}
+.fcol h4{font-size:11.5px;color:var(--ink3);margin:0 0 12px;font-weight:700;letter-spacing:.18em}
+.fcol a{display:block;font-size:14px;color:var(--ink2);padding:5px 0;min-height:32px}
+.fcol a:hover{color:var(--ink)}
+.big-word{font-family:"Space Grotesk",sans-serif;font-weight:700;font-size:clamp(88px,17.5vw,236px);line-height:.94;text-align:center;color:transparent;-webkit-text-stroke:1.5px var(--line2);user-select:none;letter-spacing:.02em;margin:6px 0 -.16em}
+.copyright{border-top:1px solid var(--line);padding:18px 0 10px;display:flex;gap:16px;flex-wrap:wrap;justify-content:space-between;font-size:12.5px;color:var(--ink3)}
+.icp{padding:0 0 calc(18px + env(safe-area-inset-bottom));text-align:center;font-size:12.5px;color:var(--ink3)}
+.icp a{color:var(--ink3)}
+.icp a:hover{color:var(--ink);text-decoration:underline}
+
+.theme-toggle{position:fixed;right:20px;bottom:calc(20px + env(safe-area-inset-bottom));z-index:50;width:48px;height:48px;border-radius:50%;border:1px solid var(--line2);background:var(--bg);color:var(--ink);font-size:19px;display:grid;place-items:center;box-shadow:0 6px 22px rgba(0,0,0,.10);transition:.25s}
+.theme-toggle:hover{transform:rotate(40deg)}
+
+/* 语言切换 — 左上角 */
+.lang-switch{position:absolute;top:20px;left:56px;z-index:20;display:inline-flex;background:var(--panel);border:1px solid var(--line);border-radius:999px;padding:3px;gap:2px;transition:background .45s ease,border-color .45s ease}
+.lang-switch button{border:none;background:transparent;padding:7px 16px;border-radius:999px;font-size:12px;font-weight:700;letter-spacing:.14em;color:var(--ink2);min-height:32px;min-width:52px;transition:.2s;font-family:"Space Grotesk","Noto Sans SC",sans-serif}
+.lang-switch button.active{background:var(--ink);color:var(--bg)}
+.lang-switch button:not(.active):hover{color:var(--ink)}
+
+.rv{opacity:0;transform:translateY(14px);transition:opacity .6s ease,transform .6s ease}
+.rv.in{opacity:1;transform:none}
+@media (prefers-reduced-motion:reduce){
+  html{scroll-behavior:auto}
+  .rv{opacity:1;transform:none;transition:none}
+  .theme-toggle:hover{transform:none}
+}
+
+@media (max-width:900px){
+  .lang-switch{left:22px;top:16px}
+  .pad{padding-left:22px;padding-right:22px}
+  .hero-grid{grid-template-columns:1fr;min-height:0}
+  .hero-left{padding:72px 22px 48px}
+  .hero-right{border-left:none;border-top:1px solid var(--line);height:320px;min-height:320px}
+  .sec{padding-top:56px;padding-bottom:56px}
+  .cta{padding:40px 24px}
+  .dl-panel .btn-k{margin-left:0}
+}
+@media (max-width:620px){
+  .fgrid,.preset-row{grid-template-columns:1fr}
+  .fcell{min-height:110px;padding:32px 24px}
+  .hero-btns .btn-k{flex:1;justify-content:center}
+  .seg{width:100%}
+  .seg button{flex:1;padding-left:8px;padding-right:8px}
+  .seg a.seg-dl{flex:1;padding-left:8px;padding-right:8px}
+}
+</style>
+</head>
+<body>
+<div class="frame">
+
+  <!-- 语言切换：左上角 -->
+  <div class="lang-switch" role="group" aria-label="Language / 语言">
+    <button type="button" data-lang="en" aria-pressed="false">EN</button>
+    <button type="button" data-lang="cn" class="active" aria-pressed="true">CN</button>
+  </div>
+
+  <!-- Hero：只留三行 -->
+  <header id="top">
+    <div class="hero-grid">
+      <div class="hero-left">
+        <p class="hero-eyebrow" data-t-html="eyebrow">杂盒 <span class="en">ZaBox</span> — 浏览器新标签页插件</p>
+        <h1 data-t="heroTitle">杂，而有序</h1>
+        <p class="hero-sub"><span data-t="heroSubMain">一只盒子，装下你的网页、信息和日程。</span> <span class="en mono" data-t="heroSubMono">MESSY, YET ORDERLY</span></p>
+        <p class="hero-tags" data-t-html="heroTags"><b>网页导航</b> · <b>搜集整理</b> · <b>日程计划</b></p>
+        <div class="hero-btns">
+          <a class="btn-k" href="#download" data-t="freeDownload">安装 Edge 扩展 ↓</a>
+          <a class="link-arrow" href="https://zahe.hiitun.top/web/" target="_blank" rel="noopener"><span data-t="openWeb">打开网页版</span> <span class="arr">→</span></a>
+        </div>
+      </div>
+      <div class="hero-right">
+        <canvas id="halftone" aria-hidden="true"></canvas>
+        <span class="cap mono">FIG.01 — THE BOX</span>
+      </div>
+    </div>
+  </header>
+
+  <!-- 三个功能：只留词 -->
+  <section class="band sec pad" id="features">
+    <p class="sec-label mono">01 — FEATURES</p>
+    <div class="fgrid">
+      <div class="fcell rv"><span class="word" data-t="feat1">导航</span><span class="no mono">01</span></div>
+      <div class="fcell rv"><span class="word" data-t="feat2">搜集</span><span class="no mono">02</span></div>
+      <div class="fcell rv"><span class="word" data-t="feat3">计划</span><span class="no mono">03</span></div>
+    </div>
+  </section>
+
+  <!-- 预设：一行带过 -->
+  <section class="band sec pad" id="presets">
+    <p class="sec-label mono" data-t="presetLabel">02 — PRESETS · 装好就能用</p>
+    <div class="preset-row">
+      <a class="preset-cell" href="https://zahe.hiitun.top/web/" target="_blank" rel="noopener"><span class="shape">■</span><span data-t="preset1">设计师导航</span><span class="arr">→</span></a>
+      <a class="preset-cell" href="https://zahe.hiitun.top/web/" target="_blank" rel="noopener"><span class="shape">▲</span><span data-t="preset2">程序员导航</span><span class="arr">→</span></a>
+      <a class="preset-cell" href="https://zahe.hiitun.top/web/" target="_blank" rel="noopener"><span class="shape">●</span><span data-t="preset3">娱乐电影导航</span><span class="arr">→</span></a>
+    </div>
+  </section>
+
+  <!-- 下载 -->
+  <section class="band sec pad" id="download">
+    <p class="sec-label mono" data-t="dlLabel">03 — DOWNLOAD · 免费开源</p>
+    <div class="seg" role="tablist" aria-label="下载入口">
+      <button class="active" data-dl="0" data-t="tab0">Edge 扩展</button>
+      <button data-dl="1" data-t="tab1">网页版</button>
+      <button data-dl="2" data-t="tab2">离线版</button>
+      <a class="seg-dl" href="https://github.com/0waitgoo/zabox/releases/download/plan-desktop/_0.1.8_x64-setup.exe" target="_blank" rel="noopener" data-t="tab3">日程计划（桌面）</a>
+    </div>
+    <div class="dl-panel">
+      <div>
+        <div class="dp-t"><span id="dpTitle">Edge 浏览器扩展</span><span class="dp-badge" id="dpBadge" style="display:none"></span></div>
+        <div class="dp-d" id="dpDesc">新标签页就是杂盒，网页导航、搜集整理、日程计划全都有。</div>
+      </div>
+      <a class="btn-k" id="dpBtn" href="https://microsoftedge.microsoft.com/addons/detail/kkjkajpmbplfkbjicconehklkaocmijg" target="_blank" rel="noopener">去商店安装</a>
+    </div>
+    <p class="dl-note" data-t="dlNote">离线版和桌面版只有日程计划，功能一致；完整功能请用 Edge 扩展或网页版。</p>
+  </section>
+
+  <!-- FAQ：只留三问 -->
+  <section class="band sec pad" id="faq">
+    <p class="sec-label mono">04 — FAQ</p>
+    <div class="faq">
+      <div class="faq-item">
+        <button class="faq-q" aria-expanded="false"><span data-t="faqQ1">收费吗？</span><span class="chev">⌄</span></button>
+        <div class="faq-a"><div><p data-t="faqA1">免费开源，MIT 协议。</p></div></div>
+      </div>
+      <div class="faq-item">
+        <button class="faq-q" aria-expanded="false"><span data-t="faqQ2">数据存在哪里？</span><span class="chev">⌄</span></button>
+        <div class="faq-a"><div><p data-t="faqA2">存在你自己的浏览器本地，登录后同步到你自己的 GitHub 私有仓。</p></div></div>
+      </div>
+      <div class="faq-item">
+        <button class="faq-q" aria-expanded="false"><span data-t="faqQ3">离线版怎么用？</span><span class="chev">⌄</span></button>
+        <div class="faq-a"><div><p data-t="faqA3">和桌面版一致，只有日程计划。下载解压，双击 index.html 就能用，不用安装、不用联网。</p></div></div>
+      </div>
+    </div>
+  </section>
+
+  <!-- CTA -->
+  <section class="band sec pad">
+    <div class="cta rv">
+      <h2 data-t="heroTitle">杂，而有序</h2>
+      <p class="cta-sub" data-t="heroSubMain">一只盒子，装下你的网页、信息和日程。</p>
+      <div class="row">
+        <a class="btn-w" href="#download" data-t="freeDownload">安装 Edge 扩展 ↓</a>
+        <a class="link-arrow" href="https://zahe.hiitun.top/web/" target="_blank" rel="noopener"><span data-t="openWeb">打开网页版</span> <span class="arr">→</span></a>
+      </div>
+    </div>
+  </section>
+
+  <!-- 页脚 -->
+  <footer class="band">
+    <div class="pad">
+      <div class="foot-grid">
+        <div>
+          <a class="logo" href="#top"><span class="logo-mark">杂</span><span data-t="logoName">杂盒</span> <small class="en">ZABOX</small></a>
+          <p class="foot-note" data-t-html="footNote">杂而有序<br />浏览器新标签页插件<br />网页导航 · 搜集整理 · 日程计划</p>
+        </div>
+        <div class="fcol">
+          <h4 data-t="footProduct">产品</h4>
+          <a href="#features" data-t="footFeat">导航 / 搜集 / 计划</a><a href="#presets" data-t="footPresets">预设导航</a><a href="#download" data-t="footDownload">下载</a>
+        </div>
+        <div class="fcol">
+          <h4 data-t="footMaintainer">维护者</h4>
+          <a href="mailto:379941321@qq.com">379941321@qq.com</a>
+          <a href="#top" data-t="footWechat">微信：waitgoo</a>
+        </div>
+      </div>
+    </div>
+    <div class="big-word" aria-hidden="true">ZABOX</div>
+    <div class="pad">
+      <div class="copyright">
+        <span data-t="copyrightLeft">© 2026 杂盒 ZaBox · 免费开源 · MIT</span>
+        <span data-t="copyrightRight">网页导航 · 搜集整理 · 日程计划</span>
+      </div>
+      <div class="icp"><a href="https://beian.miit.gov.cn/" target="_blank" rel="noopener">粤ICP备2024198509号-5</a></div>
+    </div>
+  </footer>
+</div>
+
+<button class="theme-toggle" id="themeToggle" aria-label="切换黑白反转">◐</button>
+
+<script>
+(function(){
+  var root=document.documentElement;
+
+  /* ---------- 盒子画布 ---------- */
+  var cv=document.getElementById('halftone'), ctx=cv.getContext('2d');
+  var CH=[' ','·','−','+','#'], STEP=17, W=0, H=0, cols=0, rows=0;
+  var ink='#101010', pointer={x:-9999,y:-9999}, hovering=false;
+  var reduced=matchMedia('(prefers-reduced-motion: reduce)').matches;
+  function readInk(){ ink=getComputedStyle(root).getPropertyValue('--ink').trim()||'#101010'; }
+  function sizeCanvas(){
+    var r=cv.parentElement.getBoundingClientRect();
+    W=Math.max(200,r.width); H=Math.max(200,r.height);
+    cv.width=W; cv.height=H; cols=Math.ceil(W/STEP); rows=Math.ceil(H/STEP);
+  }
+  function segDist(px,py,ax,ay,bx,by){
+    var dx=bx-ax,dy=by-ay,len2=dx*dx+dy*dy||1;
+    var u=Math.max(0,Math.min(1,((px-ax)*dx+(py-ay)*dy)/len2));
+    var ex=ax+u*dx-px,ey=ay+u*dy-py; return Math.sqrt(ex*ex+ey*ey);
+  }
+  function polyInfo(px,py,poly){
+    var inside=false,minD=1e9;
+    for(var k=0;k<poly.length;k++){
+      var a=poly[k],b=poly[(k+1)%poly.length];
+      var d=segDist(px,py,a[0],a[1],b[0],b[1]); if(d<minD)minD=d;
+      if((a[1]>py)!==(b[1]>py)&&px<(b[0]-a[0])*(py-a[1])/(b[1]-a[1])+a[0])inside=!inside;
+    }
+    return {inside:inside,edge:minD};
+  }
+  var boxParts=[];
+  function buildBox(cx,cy,s,openK,tt){
+    var hw=s, hh=s*.52, dep=s*.86;
+    var T=[cx,cy-hh], R=[cx+hw,cy], B=[cx,cy+hh], L=[cx-hw,cy];
+    var B2=[B[0],B[1]+dep], L2=[L[0],L[1]+dep], R2=[R[0],R[1]+dep];
+    var parts=[];
+    var la=Math.PI*(0.05+0.53*openK), lw=s*.92;
+    var ldx=-Math.cos(la)*lw, ldy=-Math.sin(la)*lw*.55;
+    var LT2=[T[0]+ldx,T[1]+ldy], LL2=[L[0]+ldx,L[1]+ldy];
+    parts.push({poly:[L,T,LT2,LL2],base:.30,edgeCh:'+'});
+    var ra=Math.PI*(0.05+0.53*openK);
+    var rdx=Math.cos(ra)*lw, rdy=-Math.sin(ra)*lw*.55;
+    var RT2=[T[0]+rdx,T[1]+rdy], RR2=[R[0]+rdx,R[1]+rdy];
+    parts.push({poly:[T,R,RR2,RT2],base:.42,edgeCh:'+'});
+    parts.push({poly:[T,R,B,L],base:.52,rim:true});
+    if(openK>0.04){
+      var inset=1-0.16*openK;
+      var iT=[cx+(T[0]-cx)*inset,cy+(T[1]-cy)*inset], iR=[cx+(R[0]-cx)*inset,cy+(R[1]-cy)*inset],
+          iB=[cx+(B[0]-cx)*inset,cy+(B[1]-cy)*inset], iL=[cx+(L[0]-cx)*inset,cy+(L[1]-cy)*inset];
+      parts.push({poly:[iT,iR,iB,iL],base:.16+0.10*Math.sin(tt*2.2),inner:true});
+    }
+    parts.push({poly:[L,B,B2,L2],base:.78});
+    parts.push({poly:[B,R,R2,B2],base:.58});
+    parts.push({shadow:true,y:B2[1]+STEP*.9,hw:hw*1.02});
+    return parts;
+  }
+  function draw(t){
+    ctx.clearRect(0,0,W,H);
+    ctx.fillStyle=ink; ctx.font='700 13px ui-monospace,Menlo,Consolas,monospace';
+    ctx.textAlign='center'; ctx.textBaseline='middle';
+    var tt=t*.0006;
+    var s=Math.min(W,H)*.30;
+    var cx=W/2, cy=H*.40+Math.sin(tt*1.4)*7;
+    var target=hovering?1:0.25;
+    draw._open=(draw._open===undefined?0.25:draw._open)+(target-(draw._open===undefined?0.25:draw._open))*.06;
+    boxParts=buildBox(cx,cy,s,draw._open,tt);
+    for(var j=0;j<rows;j++){
+      for(var i=0;i<cols;i++){
+        var x=i*STEP+STEP/2, y=j*STEP+STEP/2;
+        var ch=null;
+        for(var p=boxParts.length-1;p>=0;p--){
+          var part=boxParts[p];
+          if(part.shadow){
+            var sd=Math.abs(y-part.y), sx=Math.abs(x-cx);
+            if(sd<STEP*.55&&sx<part.hw){ ch=(sx% (STEP*2)<STEP)?'−':'·'; }
+            continue;
+          }
+          var info=polyInfo(x,y,part.poly);
+          if(!info.inside)continue;
+          if(info.edge<STEP*.62){ ch=part.edgeCh||'#'; }
+          else if(part.rim){ ch=null; continue; }
+          else{
+            var v=part.base+0.10*Math.sin(x*.03+tt*2)+0.07*Math.sin(y*.04-tt*1.5);
+            var pdx=x-pointer.x,pdy=y-pointer.y;
+            v+=Math.exp(-(pdx*pdx+pdy*pdy)/(2*110*110))*.55;
+            var idx=Math.max(1,Math.min(CH.length-1,Math.floor(v*(CH.length-1))));
+            ch=CH[idx];
+          }
+          break;
+        }
+        if(ch)ctx.fillText(ch,x,y);
       }
     }
-    </script>
-    <script type="application/ld+json">
-    {
-      "@context": "https://schema.org",
-      "@type": "FAQPage",
-      "mainEntity": [
-        {
-          "@type": "Question",
-          "name": "杂盒 ZaBox 是什么？",
-          "acceptedAnswer": {
-            "@type": "Answer",
-            "text": "杂盒 ZaBox 是个人资料整理收录、任务计划与日程处理的新标签页主页：网站分门别类收好，预设导航选一个就能用，还有待办、组合卡、Dock 栏、数据一键回退和同步。"
-          }
-        },
-        {
-          "@type": "Question",
-          "name": "杂盒免费吗？",
-          "acceptedAnswer": {
-            "@type": "Answer",
-            "text": "免费。在 Microsoft Edge 商店搜索 ZaBox 即可免费安装扩展，也可直接打开 zahe.hiitun.top 使用网页版。"
-          }
-        },
-        {
-          "@type": "Question",
-          "name": "我的数据存在哪里？",
-          "acceptedAnswer": {
-            "@type": "Answer",
-            "text": "默认只存在你自己的浏览器本地。同步是可选的，走你自己的 GitHub 或 Gitee 私有仓库，不经过开发者服务器。"
-          }
-        },
-        {
-          "@type": "Question",
-          "name": "预设导航有哪些？",
-          "acceptedAnswer": {
-            "@type": "Answer",
-            "text": "设计师导航、程序员导航、娱乐电影导航，选一个就能用；也可以在「我的」预设里按自己的需要整理。"
-          }
-        },
-        {
-          "@type": "Question",
-          "name": "能在手机、电脑、平板上同步吗？",
-          "acceptedAnswer": {
-            "@type": "Answer",
-            "text": "可以。杂盒支持手机、电脑、平板三端使用，任务和日程走到哪跟到哪。"
-          }
-        },
-        {
-          "@type": "Question",
-          "name": "Edge 扩展怎么安装？",
-          "acceptedAnswer": {
-            "@type": "Answer",
-            "text": "打开 Microsoft Edge 商店，搜索 ZaBox，免费安装。装好后打开新标签页就是杂盒主页；在任意网页右键「添加到杂盒主页」，也可以把当前网站收进来。"
-          }
-        }
-      ]
+    var items=['■','▲','●','◆','✚'];
+    for(var n=0;n<5;n++){
+      var ph=((t*.00012)+(n*.23))%1;
+      var ix=cx+Math.sin(n*2.7)*s*.5*(1-ph*.6);
+      var iy=cy-s*1.55+ph*s*1.15;
+      ctx.globalAlpha=ph<.8?1:1-(ph-.8)*5;
+      ctx.fillText(items[n%items.length],ix,iy);
     }
-    </script>
-  </head>
-  <body>
-    <div id="root"></div>
-    <script type="module" src="/src/main.tsx"></script>
-  </body>
+    ctx.globalAlpha=1;
+  }
+  var running=false, rafId=null;
+  function loop(t){ draw(t); if(running)rafId=requestAnimationFrame(loop); }
+  function start(){ if(reduced||running)return; running=true; rafId=requestAnimationFrame(loop); }
+  function stop(){ running=false; if(rafId)cancelAnimationFrame(rafId); }
+  readInk(); sizeCanvas();
+  if(reduced){ draw(1400); } else { start(); }
+  addEventListener('resize',function(){ sizeCanvas(); if(reduced)draw(1400); });
+  new IntersectionObserver(function(es){ es.forEach(function(e){ if(e.isIntersecting)start(); else stop(); }); }).observe(cv);
+  cv.parentElement.addEventListener('mousemove',function(e){
+    var r=cv.getBoundingClientRect(); pointer.x=e.clientX-r.left; pointer.y=e.clientY-r.top;
+    hovering=true; if(reduced)draw(1400);
+  });
+  cv.parentElement.addEventListener('mouseleave',function(){ pointer.x=-9999; pointer.y=-9999; hovering=false; if(reduced)draw(1400); });
+  cv.parentElement.addEventListener('touchstart',function(){ hovering=true; },{passive:true});
+  cv.parentElement.addEventListener('touchend',function(){ hovering=false; },{passive:true});
+
+  /* ---------- 明暗开关 ---------- */
+  var mqDark=matchMedia('(prefers-color-scheme: dark)');
+  document.getElementById('themeToggle').addEventListener('click',function(){
+    var cur=root.getAttribute('data-theme');
+    var isDark=cur==='dark'||(!cur&&mqDark.matches);
+    root.setAttribute('data-theme',isDark?'light':'dark');
+    readInk(); if(reduced)draw(1400);
+  });
+  if(mqDark.addEventListener)mqDark.addEventListener('change',function(){ readInk(); if(reduced)draw(1400); });
+
+  /* ---------- 滚动显现 ---------- */
+  var io=new IntersectionObserver(function(es){
+    es.forEach(function(en){ if(en.isIntersecting){ en.target.classList.add('in'); io.unobserve(en.target); } });
+  },{threshold:.3});
+  document.querySelectorAll('.rv').forEach(function(el){io.observe(el)});
+
+  /* ---------- 中英文切换 ---------- */
+  var I18N={
+    cn:{
+      eyebrow:'杂盒 <span class="en">ZaBox</span> — 浏览器新标签页插件',
+      heroTitle:'杂，而有序',
+      heroSubMain:'一只盒子，装下你的网页、信息和日程。',
+      heroSubMono:'MESSY, YET ORDERLY',
+      heroTags:'<b>网页导航</b> · <b>搜集整理</b> · <b>日程计划</b>',
+      freeDownload:'安装 Edge 扩展 ↓',
+      openWeb:'打开网页版',
+      feat1:'导航', feat2:'搜集', feat3:'计划',
+      presetLabel:'02 — PRESETS · 装好就能用',
+      preset1:'设计师导航', preset2:'程序员导航', preset3:'娱乐电影导航',
+      dlLabel:'03 — DOWNLOAD · 免费开源',
+      tab0:'Edge 扩展', tab1:'网页版', tab2:'离线版', tab3:'日程计划（桌面）',
+      dlNote:'离线版和桌面版只有日程计划，功能一致；完整功能请用 Edge 扩展或网页版。',
+      faqQ1:'收费吗？', faqA1:'免费开源，MIT 协议。',
+      faqQ2:'数据存在哪里？', faqA2:'存在你自己的浏览器本地，登录后同步到你自己的 GitHub 私有仓。',
+      faqQ3:'离线版怎么用？', faqA3:'和桌面版一致，只有日程计划。下载解压，双击 index.html 就能用，不用安装、不用联网。',
+      logoName:'杂盒',
+      footNote:'杂而有序<br />浏览器新标签页插件<br />网页导航 · 搜集整理 · 日程计划',
+      footProduct:'产品', footFeat:'导航 / 搜集 / 计划', footPresets:'预设导航', footDownload:'下载',
+      footMaintainer:'维护者', footWechat:'微信：waitgoo',
+      copyrightLeft:'© 2026 杂盒 ZaBox · 免费开源 · MIT',
+      copyrightRight:'网页导航 · 搜集整理 · 日程计划',
+      docTitle:'杂盒 ZaBox — 浏览器新标签页插件',
+      themeLabel:'切换黑白反转'
+    },
+    en:{
+      eyebrow:'<span class="en">ZaBox</span> — Browser New Tab Extension',
+      heroTitle:'Messy, Yet Orderly',
+      heroSubMain:'One box for your webpages, info and schedule.',
+      heroSubMono:'杂，而有序',
+      heroTags:'<b>Web Navigation</b> · <b>Collect &amp; Organize</b> · <b>Schedule &amp; Plans</b>',
+      freeDownload:'Get Edge Extension ↓',
+      openWeb:'Open Web Version',
+      feat1:'Navigate', feat2:'Collect', feat3:'Plan',
+      presetLabel:'02 — PRESETS · Ready to Use',
+      preset1:'For Designers', preset2:'For Developers', preset3:'Entertainment & Movies',
+      dlLabel:'03 — DOWNLOAD · Free & Open Source',
+      tab0:'Edge Extension', tab1:'Web', tab2:'Offline', tab3:'Plans (Desktop)',
+      dlNote:'Offline and Desktop are identical — schedule & plans only. For the full ZaBox, use the Edge extension or the web version.',
+      faqQ1:'Is it free?', faqA1:'Free and open source, under the MIT license.',
+      faqQ2:'Where is my data stored?', faqA2:'Locally in your own browser, and synced to your own private GitHub repo after you sign in.',
+      faqQ3:'How does the offline version work?', faqA3:'Same as the desktop version — schedule & plans only. Download, unzip, and double-click index.html. No install, no internet needed.',
+      logoName:'ZaBox',
+      footNote:'Messy, Yet Orderly<br />Browser new tab extension<br />Web Navigation · Collect &amp; Organize · Schedule &amp; Plans',
+      footProduct:'Product', footFeat:'Navigate / Collect / Plan', footPresets:'Presets', footDownload:'Download',
+      footMaintainer:'Maintainer', footWechat:'WeChat: waitgoo',
+      copyrightLeft:'© 2026 ZaBox · Free & Open Source · MIT',
+      copyrightRight:'Web Navigation · Collect & Organize · Schedule & Plans',
+      docTitle:'ZaBox — Browser New Tab Extension',
+      themeLabel:'Toggle light / dark'
+    }
+  };
+  var DLS={
+    cn:[
+      {t:'Edge 浏览器扩展',badge:'',muted:false,d:'新标签页就是杂盒，网页导航、搜集整理、日程计划全都有。',b:'去商店安装',href:'https://microsoftedge.microsoft.com/addons/detail/kkjkajpmbplfkbjicconehklkaocmijg'},
+      {t:'网页版 · zahe.hiitun.top/web',badge:'',muted:false,d:'打开就用，网页导航、搜集整理、日程计划全都有，登录后自动同步。',b:'打开网页版 →',href:'https://zahe.hiitun.top/web/'},
+      {t:'离线版',badge:'只有日程计划',muted:true,d:'和桌面版一致，只有日程计划。解压后双击 index.html 就能用，不用安装、不用联网。',b:'下载离线版 ↓',href:'/zabox-offline.zip',download:true},
+      {t:'Windows 桌面版',badge:'只有日程计划',muted:true,d:'独立窗口，常驻桌面。只有日程计划，没有网页导航和搜集整理。',b:'下载桌面版 ↓'}
+    ],
+    en:[
+      {t:'Edge Extension',badge:'',muted:false,d:'Your new tab is ZaBox — navigation, collect & organize, and schedule & plans, all included.',b:'Install from Store',href:'https://microsoftedge.microsoft.com/addons/detail/kkjkajpmbplfkbjicconehklkaocmijg'},
+      {t:'Web Version · zahe.hiitun.top/web',badge:'',muted:false,d:'Open and use it right away — navigation, collect & organize, and schedule & plans, all included. Syncs after sign-in.',b:'Open Web Version →',href:'https://zahe.hiitun.top/web/'},
+      {t:'Offline Version',badge:'Plans only',muted:true,d:'Identical to the desktop version — schedule & plans only. Unzip and double-click index.html. No internet needed.',b:'Download Offline ↓',href:'/zabox-offline.zip',download:true},
+      {t:'Windows Desktop',badge:'Plans only',muted:true,d:'A standalone window, always on your desktop. Schedule & plans only — no navigation or collecting.',b:'Download Desktop ↓'}
+    ]
+  };
+  var curLang='cn', curDl=0;
+  function renderDl(){
+    var v=DLS[curLang][curDl];
+    document.getElementById('dpTitle').textContent=v.t;
+    var badge=document.getElementById('dpBadge');
+    badge.textContent=v.badge;
+    badge.style.display=v.badge?'':'none';
+    badge.classList.toggle('muted',!!v.muted);
+    document.getElementById('dpDesc').textContent=v.d;
+    var btn=document.getElementById('dpBtn');
+    btn.textContent=v.b;
+    btn.href=v.href||'https://zahe.hiitun.top/web/';
+    if(v.download){btn.setAttribute('download','');btn.removeAttribute('target');}
+    else{btn.removeAttribute('download');btn.setAttribute('target','_blank');}
+  }
+  function setLang(lang){
+    curLang=lang;
+    var dict=I18N[lang];
+    document.querySelectorAll('[data-t]').forEach(function(el){
+      var k=el.getAttribute('data-t'); if(dict[k]!==undefined)el.textContent=dict[k];
+    });
+    document.querySelectorAll('[data-t-html]').forEach(function(el){
+      var k=el.getAttribute('data-t-html'); if(dict[k]!==undefined)el.innerHTML=dict[k];
+    });
+    document.querySelectorAll('.lang-switch button').forEach(function(b){
+      var on=b.getAttribute('data-lang')===lang;
+      b.classList.toggle('active',on); b.setAttribute('aria-pressed',on?'true':'false');
+    });
+    root.setAttribute('lang',lang==='en'?'en':'zh-CN');
+    document.title=dict.docTitle;
+    document.getElementById('themeToggle').setAttribute('aria-label',dict.themeLabel);
+    renderDl();
+  }
+  document.querySelectorAll('.lang-switch button').forEach(function(b){
+    b.addEventListener('click',function(){ setLang(b.getAttribute('data-lang')); });
+  });
+
+  /* ---------- 下载切换 ---------- */
+  document.querySelectorAll('.seg button').forEach(function(tab){
+    tab.addEventListener('click',function(){
+      document.querySelectorAll('.seg button').forEach(function(x){x.classList.remove('active')});
+      tab.classList.add('active');
+      curDl=+tab.dataset.dl;
+      renderDl();
+    });
+  });
+
+  /* ---------- FAQ ---------- */
+  document.querySelectorAll('.faq-q').forEach(function(q){
+    q.addEventListener('click',function(){
+      var item=q.parentElement, open=item.classList.contains('open');
+      document.querySelectorAll('.faq-item').forEach(function(it){
+        it.classList.remove('open'); it.querySelector('.faq-q').setAttribute('aria-expanded','false');
+      });
+      if(!open){ item.classList.add('open'); q.setAttribute('aria-expanded','true'); }
+    });
+  });
+})();
+</script>
+</body>
 </html>

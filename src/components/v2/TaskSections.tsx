@@ -441,6 +441,8 @@ export function TasksSection({ store, pinned = false }: { store: LocalStore; pin
   const [doneMenu, setDoneMenu] = useState<{ x: number; y: number } | null>(null);
   const [editingTaskId, setEditingTaskId] = useState<string | null>(null);
   const [editText, setEditText] = useState('');
+  /** 正在双击编辑的小组内子任务（2026-11-20）：{ 组 id, 子任务 id }，与顶层编辑互斥 */
+  const [editingChild, setEditingChild] = useState<{ groupId: string; childId: string } | null>(null);
   const [showDone, setShowDone] = useState(false);
   const [newTask, setNewTask] = useState('');
   const [showGroupForm, setShowGroupForm] = useState(false);
@@ -475,6 +477,7 @@ export function TasksSection({ store, pinned = false }: { store: LocalStore; pin
   };
 
   const startEditTask = (task: TaskItem) => {
+    setEditingChild(null);
     setEditingTaskId(task.id);
     setEditText(task.title);
   };
@@ -482,6 +485,18 @@ export function TasksSection({ store, pinned = false }: { store: LocalStore; pin
   const commitEditTask = () => {
     if (editingTaskId) store.renameTask(editingTaskId, editText);
     setEditingTaskId(null);
+  };
+
+  /** 小组内子任务双击编辑（2026-11-20）：与顶层条目共用 editText/titleEditor，提交走 renameSubTask */
+  const startEditChild = (groupId: string, child: TaskChild) => {
+    setEditingTaskId(null);
+    setEditingChild({ groupId, childId: child.id });
+    setEditText(child.title);
+  };
+
+  const commitEditChild = () => {
+    if (editingChild) store.renameSubTask(editingChild.groupId, editingChild.childId, editText);
+    setEditingChild(null);
   };
 
   const changeNewTask = (v: string) => {
@@ -531,17 +546,21 @@ export function TasksSection({ store, pinned = false }: { store: LocalStore; pin
     </button>
   );
 
-  const titleEditor = () => (
+  /** 标题编辑框：默认提交顶层条目；小组子任务传入自己的 commit/cancel（2026-11-20） */
+  const titleEditor = (
+    commit: () => void = commitEditTask,
+    cancel: () => void = () => setEditingTaskId(null),
+  ) => (
     <input
       value={editText}
       autoFocus
       onChange={(e) => setEditText(e.target.value)}
       onKeyDown={(e) => {
         // 输入法组合中的回车只上屏，别把半成品标题提前提交（第五十七轮）
-        if (e.key === 'Enter' && !e.nativeEvent.isComposing) commitEditTask();
-        if (e.key === 'Escape') setEditingTaskId(null);
+        if (e.key === 'Enter' && !e.nativeEvent.isComposing) commit();
+        if (e.key === 'Escape') cancel();
       }}
-      onBlur={commitEditTask}
+      onBlur={commit}
       className="flex-1 min-w-0 bg-white/5 border border-indigo-400/50 rounded-lg px-2 py-1 text-sm outline-none"
       data-task-edit-input
     />
@@ -571,6 +590,12 @@ export function TasksSection({ store, pinned = false }: { store: LocalStore; pin
         onTitleDoubleClick={() => {
           if (drag.wasJustDragged()) return;
           startEditTask(task);
+        }}
+        editingChildId={editingChild?.groupId === task.id ? editingChild.childId : null}
+        childEditor={titleEditor(commitEditChild, () => setEditingChild(null))}
+        onChildDoubleClick={(child) => {
+          if (drag.wasJustDragged()) return;
+          startEditChild(task.id, child);
         }}
         checkBtn={checkBtn}
         entryId={inOpen ? task.id : undefined}
@@ -824,7 +849,13 @@ const GroupBlock: React.FC<{
   onDeleteChild?: (childId: string) => void;
   /** 组标题双击改名（与右键菜单改名同走 editing/editor） */
   onTitleDoubleClick?: () => void;
-}> = ({ group, store, startExpanded, editing, editor, onMenu, onChildMenu, checkBtn, entryId, dragVisual, onGripPointerDown, dragChildId, onChildPointerDown, wasJustDragged, onDeleteSelf, onDeleteChild, onTitleDoubleClick }) => {
+  /** 正在双击编辑的子任务 id（2026-11-20） */
+  editingChildId?: string | null;
+  /** 子任务标题编辑框（与组标题 editor 同款输入框，走 renameSubTask 提交） */
+  childEditor?: React.ReactNode;
+  /** 子任务标题双击改名（2026-11-20） */
+  onChildDoubleClick?: (child: TaskChild) => void;
+}> = ({ group, store, startExpanded, editing, editor, onMenu, onChildMenu, checkBtn, entryId, dragVisual, onGripPointerDown, dragChildId, onChildPointerDown, wasJustDragged, onDeleteSelf, onDeleteChild, onTitleDoubleClick, editingChildId, childEditor, onChildDoubleClick }) => {
   const [expanded, setExpanded] = useState(startExpanded);
   const { t } = useLang();
   /** 组标题/子任务标题的点击展开全文（第六十九轮，点文字切换，与展开箭头的折叠子任务互不影响） */
@@ -897,6 +928,9 @@ const GroupBlock: React.FC<{
               className={`flex items-center gap-2.5 py-[3px] min-w-0 ${dragChildId === child.id ? 'opacity-40' : ''}`}
             >
               {checkBtn(child.done, () => store.toggleSubTask(group.id, child.id), child.done ? t('task.unmarkDone') : t('task.markDone'))}
+              {editingChildId === child.id ? (
+                childEditor
+              ) : (
               <ExpandableTitle
                 text={child.title}
                 expanded={expandedKids.has(child.id)}
@@ -909,11 +943,13 @@ const GroupBlock: React.FC<{
                     return next;
                   });
                 }}
+                onDoubleClick={() => onChildDoubleClick?.(child)}
                 titleAttr={expandedKids.has(child.id) ? t('task.clickCollapse') : t('task.clickExpand')}
                 sizeClass="text-[13px]"
                 toneClass={child.done ? 'line-through text-white/35' : 'text-white/80'}
                 spanData={{ 'data-subtask-title': '' }}
               />
+              )}
               {onDeleteChild && (
                 <DoneTrashButton label={t('task.deleteDoneSubtask', { title: child.title })} onDelete={() => onDeleteChild(child.id)} />
               )}

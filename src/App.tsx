@@ -94,9 +94,12 @@ export default function App() {
   // 「深海蓝」第九十二轮改纯色自选：底色 = displayPrefs.oceanColor（默认 #0d2140 原深海蓝）；
   // 第四十四轮的 Binary Orbits 动态背景随之整体下线（本轮口径覆盖旧队列，不再挂载）
   const isOceanSolid = background.kind === 'preset' && background.presetId === 'ocean';
+  // 2026-11-19 线框外观：整页翻纸面底，背景层/遮罩/动态背景一律不渲染（见下方背景层）
+
+  const isWireframe = displayPrefs.theme === 'wireframe';
 
   return (
-    <div className="relative min-h-screen w-full text-white bg-black">
+    <div className={`relative min-h-screen w-full ${isWireframe ? 'text-[#161616] bg-[#FAF8F2]' : 'text-white bg-black'}`}>
       {displayPrefs.theme === 'liquid' && <LiquidGlassFilter />}
       {/* 全页固定背景层：底层永远是当前预设（纯 CSS），本地图片就绪后淡入覆盖其上，
           再压深色遮罩保证卡片文字可读；默认预设额外保留 DarkVeil 纹理层，维持原观感。
@@ -107,9 +110,9 @@ export default function App() {
       <div
         data-background-layer
         className="pointer-events-none fixed inset-0 z-0 overflow-hidden transition-all duration-700"
-        style={{ background: isOceanSolid ? displayPrefs.oceanColor : preset.css }}
+        style={{ background: isWireframe ? '#FAF8F2' : isOceanSolid ? displayPrefs.oceanColor : preset.css }}
       >
-        {showLocalImage && (
+        {showLocalImage && !isWireframe && (
           <img
             src={localUrl}
             alt=""
@@ -119,13 +122,15 @@ export default function App() {
             }`}
           />
         )}
-        {/* 遮罩：三档外观一律压黑保文字可读。白天旧版曾改压白（bg-white/55）洗浅整个背景，
+        {/* 遮罩：三档外观一律压黑保文字可读。线框外观不压（纸面底本身就是底色）。
+            白天旧版曾改压白（bg-white/55）洗浅整个背景，
             用户实测「整个页面被一层白雾罩住发灰发白」后于第五十八轮撤除——白天只让编组卡
             卡面变白（index.css 作用域规则），背景层与暗夜像素级一致，不叠任何白色 veil。
             本地图片背景时本层另带 backdrop 模糊把照片糊柔：第六十二轮起强度由背景面板
             「背景模糊」滑杆控制（displayPrefs.bgBlur，默认 0.3 ↔ 6px = 此前写死值，0 时不加
             模糊、图片原始清晰度）；行内直写与 TopBarShade 同理，绕开样式表 backdrop 坑。
             压黑的 bg-black/50 本身不动。 */}
+        {!isWireframe && (
         <div
           className="absolute inset-0 bg-black/50"
           data-bg-veil
@@ -138,8 +143,10 @@ export default function App() {
               : undefined
           }
         ></div>
-        {/* DarkVeil Background（仅默认预设：三档外观都在，背景层不随主题变的口径下与暗夜一致） */}
-        {background.kind === 'preset' && background.presetId === 'violet' && (
+        )}
+        {/* DarkVeil Background（仅默认预设：三档外观都在，背景层不随主题变的口径下与暗夜一致；
+            线框外观不挂载） */}
+        {background.kind === 'preset' && background.presetId === 'violet' && !isWireframe && (
           <div className="absolute inset-0 z-1">
             <Suspense fallback={null}>
               <DarkVeil hueShift={0} noiseIntensity={0} scanlineIntensity={0} speed={1} scanlineFrequency={0} warpAmount={2} resolutionScale={0.6} />
@@ -147,8 +154,8 @@ export default function App() {
           </div>
         )}
         {/* 第九十二轮自研动态背景「斑驳光影」：与 DarkVeil 同位（压黑遮罩之上、近黑底色不影响文字可读）；
-            只在对应预设被选中时挂载，组件内部管 DPR 封顶与隐藏暂停 */}
-        {background.kind === 'preset' && preset.dynamic === 'dappled' && (
+            只在对应预设被选中时挂载，组件内部管 DPR 封顶与隐藏暂停；线框外观不挂载 */}
+        {background.kind === 'preset' && preset.dynamic === 'dappled' && !isWireframe && (
           <div className="absolute inset-0 z-1">
             <Suspense fallback={null}><DappledLight className="absolute inset-0" /></Suspense>
           </div>

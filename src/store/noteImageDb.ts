@@ -1,12 +1,28 @@
 /**
- * 待办笔记图片的 IndexedDB 小封装（2026-11-20：笔记气泡里的图片）。
- * - 与 bgImageDb.ts 同口径：图片 Blob 只存在用户自己设备的浏览器里，不发网络请求、不上服务器；
- *   store 里只记 imageId，图片本体按 id 存在这里；删笔记消息时顺带删图。
- * - 隐私模式/配额等异常一律静默失败，调用方直接跳过这条图片消息。
+ * 待办笔记附件的 IndexedDB 小封装（2026-11-20：笔记气泡里的图片/视频/音乐/文件）。
+ * - 与 bgImageDb.ts 同口径：附件 Blob 只存在用户自己设备的浏览器里，不发网络请求、不上服务器；
+ *   store 里只记 id，附件本体按 id 存在这里；删笔记消息时顺带删附件。
+ * - 隐私模式/配额等异常一律静默失败，调用方直接跳过这条附件消息。
+ * - 限额（2026-11-20 按 GitHub/Gitee 官方限制定）：单文件 50 MB（Gitee 单文件硬上限）、
+ *   附件总量 400 MB（Gitee 单仓库 500 MB，留 100 MB 给数据和 Git 历史）；前端拦截，见 TaskSections。
  */
+
+/** 笔记附件单文件上限 MB（2026-11-20：Gitee Git 单文件硬上限 50 MB，GitHub 50 MiB 起警告） */
+export const NOTE_FILE_MAX_MB = 50;
+/** 笔记附件总量上限 MB（2026-11-20：Gitee 单仓库 500 MB，留 100 MB 给数据和 Git 历史） */
+export const NOTE_FILES_TOTAL_MAX_MB = 400;
 
 const DB_NAME = 'ainav-note-images';
 const STORE_NAME = 'images';
+
+/** 把附件库升级为持久存储（2026-11-20）：避免磁盘紧张时浏览器把整个 origin 的数据清掉；Chrome 按互动历史静默批准，不弹提示 */
+function ensurePersistent() {
+  try {
+    void navigator.storage?.persist?.();
+  } catch {
+    /* 忽略 */
+  }
+}
 
 function openDb(): Promise<IDBDatabase | null> {
   return new Promise((resolve) => {
@@ -25,8 +41,9 @@ function openDb(): Promise<IDBDatabase | null> {
   });
 }
 
-/** 保存一张笔记图片；成功返回 true */
+/** 保存一个笔记附件；成功返回 true */
 export async function saveNoteImage(id: string, blob: Blob): Promise<boolean> {
+  ensurePersistent();
   const db = await openDb();
   if (!db) return false;
   return new Promise((resolve) => {

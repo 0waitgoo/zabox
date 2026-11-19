@@ -3,14 +3,9 @@
  * - 与 bgImageDb.ts 同口径：附件 Blob 只存在用户自己设备的浏览器里，不发网络请求、不上服务器；
  *   store 里只记 id，附件本体按 id 存在这里；删笔记消息时顺带删附件。
  * - 隐私模式/配额等异常一律静默失败，调用方直接跳过这条附件消息。
- * - 限额（2026-11-20 按 GitHub/Gitee 官方限制定）：单文件 50 MB（Gitee 单文件硬上限）、
- *   附件总量 400 MB（Gitee 单仓库 500 MB，留 100 MB 给数据和 Git 历史）；前端拦截，见 TaskSections。
+ * - 限额按登录方式分档，见 src/store/noteRemote.ts（GitHub 100 MB/4 GB、Gitee 50 MB/400 MB）；
+ *   登录了同步时附件改存仓库、不走这里（远端直读、不缓存）。
  */
-
-/** 笔记附件单文件上限 MB（2026-11-20：Gitee Git 单文件硬上限 50 MB，GitHub 50 MiB 起警告） */
-export const NOTE_FILE_MAX_MB = 50;
-/** 笔记附件总量上限 MB（2026-11-20：Gitee 单仓库 500 MB，留 100 MB 给数据和 Git 历史） */
-export const NOTE_FILES_TOTAL_MAX_MB = 400;
 
 const DB_NAME = 'ainav-note-images';
 const STORE_NAME = 'images';

@@ -38,7 +38,7 @@ function extensionAssets(): Plugin {
         // 默认语言：包里有了 _locales 目录后 Chromium 要求必须声明
         default_locale: 'en',
         description: '__MSG_app_description__',
-        chrome_url_overrides: { newtab: 'index.html' },
+        chrome_url_overrides: { newtab: 'web/index.html' },
         // action：点工具栏图标弹出添加面板（popup.html）；sidePanel：面板里「打开侧边栏」
         // 用同一份新标签页；tabs：添加面板只读当前标签的标题与网址（不读历史）。
         action: {
@@ -51,7 +51,7 @@ function extensionAssets(): Plugin {
             '128': 'icons/icon-128.png',
           },
         },
-        side_panel: { default_path: 'index.html' },
+        side_panel: { default_path: 'web/index.html' },
         // background：右键菜单「添加到杂盒主页」的 service worker；contextMenus：注册该菜单
         background: { service_worker: 'background.js' },
         permissions: ['storage', 'tabs', 'sidePanel', 'contextMenus'],
@@ -84,11 +84,12 @@ export default defineConfig(({ mode }) => {
     build: {
       outDir: 'dist-ext',
       emptyOutDir: true,
-      // 双入口：index.html（新标签页/侧边栏）+ popup.html（添加面板），各自独立产物；
+      // 双入口：web/index.html（应用，新标签页/侧边栏）+ popup.html（添加面板），各自独立产物；
       // 网站版构建（vite.config.ts）不读此配置，popup 绝不会进网站版 dist/。
+      // 注意：根 index.html 自 2026-11-19 起是着陆页，扩展入口必须用 web/index.html。
       rollupOptions: {
         input: {
-          index: path.resolve(__dirname, 'index.html'),
+          index: path.resolve(__dirname, 'web/index.html'),
           popup: path.resolve(__dirname, 'popup.html'),
         },
       },

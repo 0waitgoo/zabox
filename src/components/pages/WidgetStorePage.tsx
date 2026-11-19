@@ -104,7 +104,7 @@ export default function WidgetStorePage({
      外框自有文字（标题/尺寸标注/脚注）改按 theme 条件类在白天翻深（下方 light 变量）。
      （第一百零二轮：原玻璃档的折射接法已随液态玻璃整体删除。） */
   const { theme } = useDisplayPrefs();
-  const light = theme === 'light';
+  const light = theme === 'light' || theme === 'wireframe';
 
   const tabs: { id: StoreTab; label: string }[] = [
     { id: 'all', label: t('store.tabAll') },

@@ -230,13 +230,28 @@ export interface TaskChild {
 }
 
 /** 待办笔记里的一条消息：一段文字或一张图片（图片本体存 IndexedDB，见 noteImageDb.ts） */
+/** 笔记里一个附件（批量发送时一条消息里有多个） */
+export interface NoteAttachmentItem {
+  kind: 'image' | 'video' | 'audio' | 'file';
+  imageId: string;
+  fileName?: string;
+  fileSize?: number;
+}
+
 export interface TaskNoteMsg {
   id: string;
-  kind: 'text' | 'image';
+  /** text 文字 / image 图片 / video 视频 / audio 音乐 / file 其他文件 / batch 一次发多个文件（合并成一个泡泡） */
+  kind: 'text' | 'image' | 'video' | 'audio' | 'file' | 'batch';
   /** kind=text 时的文字 */
   text?: string;
-  /** kind=image 时的图片 id（noteImageDb 的键） */
+  /** kind!=text 时的附件 id（noteImageDb 的键，本机 IndexedDB 里的 Blob） */
   imageId?: string;
+  /** 附件原文件名（video/audio/file 泡泡上显示；下载用） */
+  fileName?: string;
+  /** 附件字节数 */
+  fileSize?: number;
+  /** kind=batch 时的多个附件 */
+  items?: NoteAttachmentItem[];
   createdAt: number;
 }
 
@@ -2607,9 +2622,10 @@ export function useLocalStore() {
 
   /** 待办笔记（2026-11-20：每项单击开气泡笔记；文字消息空文本不落库，图片消息只记 imageId） */
   const addTaskNote = useCallback(
-    (taskId: string, msg: { kind: 'text' | 'image'; text?: string; imageId?: string }) => {
+    (taskId: string, msg: { kind: TaskNoteMsg['kind']; text?: string; imageId?: string; fileName?: string; fileSize?: number; items?: NoteAttachmentItem[] }) => {
       if (msg.kind === 'text' && !msg.text?.trim()) return;
-      if (msg.kind === 'image' && !msg.imageId) return;
+      if (msg.kind !== 'text' && msg.kind !== 'batch' && !msg.imageId) return;
+      if (msg.kind === 'batch' && !(msg.items ?? []).length) return;
       update((d) => {
         const task = d.tasks.find((x) => x.id === taskId);
         if (task) {
@@ -2633,10 +2649,24 @@ export function useLocalStore() {
     [update],
   );
 
+  /** 改一条笔记（2026-11-20：气泡编辑；文字改 text，图片换 imageId；空文本不写） */
+  const updateTaskNote = useCallback(
+    (taskId: string, noteId: string, patch: { kind?: TaskNoteMsg['kind']; text?: string; imageId?: string; fileName?: string; fileSize?: number; items?: NoteAttachmentItem[] }) => {
+      if (patch.text !== undefined && !patch.text.trim()) return;
+      update((d) => {
+        const note = d.tasks.find((x) => x.id === taskId)?.notes?.find((n) => n.id === noteId);
+        if (note) Object.assign(note, patch);
+        return d;
+      });
+    },
+    [update],
+  );
+
   const addSubTaskNote = useCallback(
-    (taskId: string, childId: string, msg: { kind: 'text' | 'image'; text?: string; imageId?: string }) => {
+    (taskId: string, childId: string, msg: { kind: TaskNoteMsg['kind']; text?: string; imageId?: string; fileName?: string; fileSize?: number; items?: NoteAttachmentItem[] }) => {
       if (msg.kind === 'text' && !msg.text?.trim()) return;
-      if (msg.kind === 'image' && !msg.imageId) return;
+      if (msg.kind !== 'text' && msg.kind !== 'batch' && !msg.imageId) return;
+      if (msg.kind === 'batch' && !(msg.items ?? []).length) return;
       update((d) => {
         const child = d.tasks.find((x) => x.id === taskId)?.children?.find((c) => c.id === childId);
         if (child) {
@@ -2654,6 +2684,22 @@ export function useLocalStore() {
       update((d) => {
         const child = d.tasks.find((x) => x.id === taskId)?.children?.find((c) => c.id === childId);
         if (child?.notes) child.notes = child.notes.filter((n) => n.id !== noteId);
+        return d;
+      });
+    },
+    [update],
+  );
+
+  /** 改子任务的一条笔记（2026-11-20：气泡编辑；口径同 updateTaskNote） */
+  const updateSubTaskNote = useCallback(
+    (taskId: string, childId: string, noteId: string, patch: { kind?: TaskNoteMsg['kind']; text?: string; imageId?: string; fileName?: string; fileSize?: number; items?: NoteAttachmentItem[] }) => {
+      if (patch.text !== undefined && !patch.text.trim()) return;
+      update((d) => {
+        const note = d.tasks
+          .find((x) => x.id === taskId)
+          ?.children?.find((c) => c.id === childId)
+          ?.notes?.find((n) => n.id === noteId);
+        if (note) Object.assign(note, patch);
         return d;
       });
     },
@@ -3347,8 +3393,10 @@ export function useLocalStore() {
     renameSubTask,
     addTaskNote,
     deleteTaskNote,
+    updateTaskNote,
     addSubTaskNote,
     deleteSubTaskNote,
+    updateSubTaskNote,
     toggleTask,
     renameTask,
     deleteTask,

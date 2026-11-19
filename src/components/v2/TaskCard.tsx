@@ -265,7 +265,7 @@ export default function TaskCard({
             data-nodrag
             className="flex-1 min-h-0 flex flex-col"
           >
-            <TasksSection store={store} pinned />
+            <TasksSection store={store} pinned wide={colSpan === 2} />
           </div>
         )}
         </div>

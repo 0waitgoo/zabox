@@ -113,7 +113,6 @@ export default function TaskCard({
   // 进度口径：组按子任务摊平（普通待办计 1，组计子任务数），见 taskFlatStats
   const { total, done: doneCount } = taskFlatStats(tasks);
   const open = tasks.filter((t) => !taskEntryDone(t));
-  const pct = total > 0 ? Math.round((doneCount / total) * 100) : 0;
 
   const handleToggle = (task: TaskItem) => {
     store.toggleTask(task.id);
@@ -240,9 +239,6 @@ export default function TaskCard({
             {cardView === 'ai' ? <ArrowLeft size={13} /> : <Sparkles size={13} />}
           </button>
         </div>
-        <div className="h-1 rounded-full bg-white/20 overflow-hidden shrink-0 mb-2">
-          <div className="h-full rounded-full bg-indigo-400 transition-all duration-300" style={{ width: `${pct}%` }} />
-        </div>
 
         {cardView === 'ai' ? (
           <div className="flex-1 min-h-0 flex flex-col" data-nodrag>
@@ -334,9 +330,6 @@ export default function TaskCard({
           {doneCount}/{total}
         </span>
         {planPageEntry}
-      </div>
-      <div className="h-1 rounded-full bg-white/20 overflow-hidden shrink-0 mb-2">
-        <div className="h-full rounded-full bg-indigo-400 transition-all duration-300" style={{ width: `${pct}%` }} />
       </div>
 
       {face === 'list' ? (

@@ -1,5 +1,6 @@
 import React from 'react';
 import { createPortal } from 'react-dom';
+import { LiquiGlass } from '@liqui-design/glass';
 import { Check, MoreHorizontal, Trash2 } from 'lucide-react';
 import type { DockEntry, LocalStore } from '../../store/localStore';
 import { setDisplayPrefs, useDisplayPrefs, type DockHide, type DockSize } from '../../store/displayPrefs';
@@ -72,6 +73,19 @@ export default function DockBar({ store }: { store: LocalStore }) {
   const [autoVisible, setAutoVisible] = React.useState(false);
   const dragActiveRef = React.useRef(false);
   const hideTimerRef = React.useRef<number | null>(null);
+
+  // 减透明偏好：系统要求减透明时不渲染液态玻璃，回到原来的纯 CSS 磨砂底
+  const [reduceTransparency, setReduceTransparency] = React.useState(
+    () =>
+      typeof window !== 'undefined' &&
+      window.matchMedia('(prefers-reduced-transparency: reduce)').matches,
+  );
+  React.useEffect(() => {
+    const mq = window.matchMedia('(prefers-reduced-transparency: reduce)');
+    const onChange = () => setReduceTransparency(mq.matches);
+    mq.addEventListener('change', onChange);
+    return () => mq.removeEventListener('change', onChange);
+  }, []);
 
   // 自动隐藏：鼠标贴到底边 16px 内浮现
   React.useEffect(() => {
@@ -333,10 +347,27 @@ export default function DockBar({ store }: { store: LocalStore }) {
         data-dock-bar
         onMouseEnter={clearAutoHideTimer}
         onMouseLeave={scheduleAutoHide}
- className={`fixed bottom-3 sm:bottom-5 left-1/2 z-50 -translate-x-1/2 flex items-center gap-1 sm:gap-1.5 rounded-[28px] border border-white/10 bg-[#14141a]/70 ${size.padClass} backdrop-blur-md max-w-[calc(100vw-20px)] overflow-x-auto select-none transition-all duration-300 ${
+        // 液态玻璃试用（2026-11-20 用户令，只试 Dock 栏）：@liqui-design/glass 的
+        // LiquiGlass 作栏底绝对层（inset-0、pointer-events-none，不挡图标拖拽/点击），
+        // 栏本身只留定位与圆角，原 bg/backdrop-blur/border 由玻璃面接管；
+        // material 默认 auto：Chromium 走真折射，Safari/Firefox 自动落磨砂＋烤制边缘；
+        // 减透明偏好时不渲染玻璃、回到原纯 CSS 磨砂底。
+        className={`fixed bottom-3 sm:bottom-5 left-1/2 z-50 -translate-x-1/2 flex items-center gap-1 sm:gap-1.5 rounded-[28px] ${
+          reduceTransparency ? 'border border-white/10 bg-[#14141a]/70 backdrop-blur-md' : ''
+        } ${size.padClass} max-w-[calc(100vw-20px)] overflow-x-auto select-none transition-all duration-300 ${
           dockHide === 'auto' && !barShown ? 'translate-y-[140%] opacity-0 pointer-events-none' : ''
         }`}
       >
+        {!reduceTransparency && (
+          <LiquiGlass
+            aria-hidden
+            radius={28}
+            bezel={14}
+            frost={0.5}
+            elevated
+            className="pointer-events-none absolute inset-0"
+          />
+        )}
         {dockHide !== 'hide' && ordered.length === 0 && (
           <p data-dock-empty className="px-3 py-1.5 text-xs text-white/55 whitespace-nowrap">
             {t('dock.empty')}

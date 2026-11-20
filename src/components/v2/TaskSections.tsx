@@ -1018,7 +1018,11 @@ function TaskNotePane({
               <div
                 key={msg.id}
                 data-note-bubble
-                onDoubleClick={() => startEdit(msg)}
+                onDoubleClick={() => {
+                  // 编辑中双击不重进编辑：否则 startEdit 会拿已保存的原文重置编辑态、正在改的内容被撤回（2026-11-20）
+                  if (editingId) return;
+                  startEdit(msg);
+                }}
                 onContextMenu={(e) => {
                   // 只出泡泡菜单：拦住冒泡到卡片包装层，否则同时弹出卡的尺寸菜单盖住它（2026-11-20）
                   e.preventDefault();

@@ -1,6 +1,6 @@
 import React from 'react';
 import { createPortal } from 'react-dom';
-import LiquidGlass from 'liquid-glass-react';
+import { LiquidGlass } from 'quick-liquid/react';
 import { Check, MoreHorizontal, Trash2 } from 'lucide-react';
 import type { DockEntry, LocalStore } from '../../store/localStore';
 import { setDisplayPrefs, useDisplayPrefs, type DockHide, type DockSize } from '../../store/displayPrefs';
@@ -417,56 +417,56 @@ export default function DockBar({ store }: { store: LocalStore }) {
 
   return (
     <>
-      {/* 液态玻璃试用（2026-11-20 用户令改用 rdev/liquid-glass-react，只试 Dock 栏；
-        samasante 版用户认效果但嫌整页卡顿，已撤下）。
-        参数是用户 2026-11-20 22:27 按演示页（liquid-glass.maxrovensky.com）控制
-        面板新截图逐项给的第二组：折射模式 standard、位移量表 100、模糊量 0.5、
-        饱和度 140%、色差 2、弹性 0.00、圆角 32px（取代 22:00 那组 200/0.1/100/
-        0/0/28）。色差 2 把三通道色散开回来了，弹性 0 仍无鼠标追踪；流畅度最终
-        以用户真机为准。
-        接法注意（读该包 1.1.1 源码实证）：<LiquidGlass> 渲染一组同级层（背景层、
-        混合层、装 SVG 滤镜的 GlassContainer、亮边 span），各层默认 relative、
-        top/left 50%＋translate(-50%,-50%) 居中；直接放进栏里会把栏撑高。所以
-        外层栏加 dock-glass（display:grid，index.css 里各层 grid-area:1/1 叠在
-        同一格），栏尺寸由内容定。该包只在挂载＋窗口 resize 时量尺寸，Dock 增减
-        图标/换尺寸时靠 key 重挂重新量（key=尺寸:顺序签名）。它自带投影已在
-        index.css 里按本站去投影口径清掉（.dock-glass .glass box-shadow:none）。
-        减透明偏好时不用玻璃、回到原纯 CSS 磨砂底。 */}
+      {/* 液态玻璃试用（2026-11-21 用户令改用 quick-liquid，只试 Dock 栏；
+        rdev 版用户判效果不好，已撤下；samasante 版用户认效果但嫌整页卡顿）。
+        参数是用户 2026-11-21 00:16 按 quickLiquid 演示逐项给的：
+        material thin、borderRadius 44、blur 5.5、refractionStrength 50、
+        bezelWidth 27、chromaticAberration 0、lightAngle -156、
+        specularStrength 0.35、dispersionMode auto、appearance dark。
+        接法注意（读该包 0.1.2 源码实证）：<LiquidGlass> 是单个宿主 div，
+        引擎（LiquidGlassEngine）挂在宿主上、在其内部建 ql-lens/ql-tint/
+        ql-rim/ql-sheen/ql-noise 效果层，children 包在 .ql-content（zIndex 10）
+        里；宿主自身带 backdrop-filter（SVG 位移滤镜）。尺寸变化走
+        ResizeObserver 自动跟，不用 key 重挂。ref 正常转发（forwardRef）。
+        该包 Browser Notes 警告：宿主上不要挂 isolation/filter/opacity/mask——
+        外层栏的自动隐藏（translate-y/opacity-0）只在隐藏态出现，显示态无 opacity，
+        不冲突。减透明偏好时不用玻璃、回到原纯 CSS 磨砂底。 */}
       <div
         ref={barRef}
         data-dock-bar
         onMouseEnter={clearAutoHideTimer}
         onMouseLeave={scheduleAutoHide}
-        className={`fixed bottom-3 sm:bottom-5 left-1/2 z-50 -translate-x-1/2 rounded-[32px] max-w-[calc(100vw-20px)] overflow-x-auto select-none transition-all duration-300 ${
-          reduceTransparency ? '' : ' dock-glass'
+        className={`fixed bottom-3 sm:bottom-5 left-1/2 z-50 -translate-x-1/2 rounded-[44px] max-w-[calc(100vw-20px)] overflow-x-auto select-none transition-all duration-300 ${
+          reduceTransparency ? '' : ''
         } ${
           dockHide === 'auto' && !barShown ? 'translate-y-[140%] opacity-0 pointer-events-none' : ''
         }`}
       >
         {reduceTransparency ? (
           <div
-            className={`flex items-center gap-1 sm:gap-1.5 rounded-[28px] border border-white/10 bg-[#14141a]/70 ${size.padClass} backdrop-blur-md`}
+            className={`flex items-center gap-1 sm:gap-1.5 rounded-[44px] border border-white/10 bg-[#14141a]/70 ${size.padClass} backdrop-blur-md`}
           >
             {barInner}
           </div>
         ) : (
-          <React.Fragment key={`${dockSize}:${orderKey}`}>
           <LiquidGlass
-            className="dock-glass-root"
-            displacementScale={100}
-            blurAmount={0.5}
-            saturation={140}
-            aberrationIntensity={2}
-            elasticity={0}
-            cornerRadius={32}
-            mode="standard"
-            padding="0px"
+            config={{
+              material: 'thin',
+              borderRadius: 44,
+              blur: 5.5,
+              refractionStrength: 50,
+              bezelWidth: 27,
+              chromaticAberration: 0,
+              lightAngle: -156,
+              specularStrength: 0.35,
+              dispersionMode: 'auto',
+              appearance: 'dark',
+            }}
           >
             <div className={`flex items-center gap-1 sm:gap-1.5 ${size.padClass}`}>
               {barInner}
             </div>
           </LiquidGlass>
-          </React.Fragment>
         )}
       </div>
       {drag && draggedItem &&

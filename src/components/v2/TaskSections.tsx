@@ -1010,7 +1010,9 @@ function TaskNotePane({
         ) : notes.length === 0 ? (
           <p className="m-auto text-[13px] text-zinc-400 text-center px-4">{t('task.noteEmptyItem')}</p>
         ) : (
-          notes.map((msg) => {
+          // 文字气泡按行打包排布（2026-11-20）：一排能放下就往后排，放不下一整句才换行；图片/视频/文件泡泡仍独占一排
+          <div className="flex flex-wrap items-start justify-end gap-2.5">
+          {notes.map((msg) => {
             const editing = editingId === msg.id;
             return (
               <div
@@ -1018,10 +1020,14 @@ function TaskNotePane({
                 data-note-bubble
                 onDoubleClick={() => startEdit(msg)}
                 onContextMenu={(e) => {
+                  // 只出泡泡菜单：拦住冒泡到卡片包装层，否则同时弹出卡的尺寸菜单盖住它（2026-11-20）
                   e.preventDefault();
+                  e.stopPropagation();
                   setMenu({ noteId: msg.id, x: e.clientX, y: e.clientY });
                 }}
-                className="flex flex-col items-end min-w-0 cursor-default select-none"
+                className={`flex flex-col items-end min-w-0 cursor-default select-none ${
+                  editing || msg.kind !== 'text' ? 'w-full' : 'w-fit max-w-[88%]'
+                }`}
               >
                 {editing && msg.kind === 'text' ? (
                   <div className="w-[88%] rounded-2xl rounded-br-md bg-indigo-500/80 p-2">
@@ -1184,13 +1190,14 @@ function TaskNotePane({
                     />
                   </div>
                 ) : (
-                  <div className="min-w-0 max-w-[88%] rounded-2xl rounded-br-md bg-indigo-500/80 px-3 py-2 text-[13px] leading-relaxed break-words whitespace-pre-wrap text-white">
+                  <div className="min-w-0 max-w-full rounded-2xl rounded-br-md bg-indigo-500/80 px-3 py-2 text-[13px] leading-relaxed break-words whitespace-pre-wrap text-white">
                     {renderNoteContent(msg.text ?? '')}
                   </div>
                 )}
               </div>
             );
-          })
+          })}
+          </div>
         )}
       </div>
       {title && !showFiles && (
@@ -1294,6 +1301,11 @@ function TaskNotePane({
           <div
             className="fixed z-50 min-w-[120px] rounded-xl bg-[#23232c] py-1 shadow-xl ring-1 ring-white/15"
             style={{ left: Math.min(menu.x, window.innerWidth - 140), top: Math.min(menu.y, window.innerHeight - 90) }}
+            onContextMenu={(e) => {
+              // 菜单上再右键不另开菜单（2026-11-20）
+              e.preventDefault();
+              e.stopPropagation();
+            }}
           >
             <button
               type="button"
@@ -2101,7 +2113,7 @@ export function TasksSection({ store, pinned = false, wide = false }: { store: L
           className={
             pinned
               ? 'flex-1 min-w-0 rounded-2xl border border-white/10 bg-white/[0.03]'
-              : 'w-[420px] max-w-[45%] shrink-0 sticky top-4 h-[600px] rounded-2xl border border-white/10 bg-white/[0.03]'
+              : 'w-1/2 shrink-0 sticky top-4 h-[600px] rounded-2xl border border-white/10 bg-white/[0.03]'
           }
         />
       </div>
@@ -2354,7 +2366,11 @@ function DoneClearMenu({
  className="fixed z-[90] w-[196px] rounded-2xl bg-[#1e1e26] border border-white/15 p-1.5"
       style={{ left: x, top: y }}
       onClick={(e) => e.stopPropagation()}
-      onContextMenu={(e) => e.preventDefault()}
+      onContextMenu={(e) => {
+        // 菜单上再右键不另开菜单（2026-11-20）
+        e.preventDefault();
+        e.stopPropagation();
+      }}
     >
       <button
         type="button"
@@ -2416,7 +2432,11 @@ function RowContextMenu({
  className="fixed z-[90] w-[172px] rounded-2xl bg-[#1e1e26] border border-white/15 p-1.5"
       style={{ left: state.x, top: state.y }}
       onClick={(e) => e.stopPropagation()}
-      onContextMenu={(e) => e.preventDefault()}
+      onContextMenu={(e) => {
+        // 菜单上再右键不另开菜单（2026-11-20）
+        e.preventDefault();
+        e.stopPropagation();
+      }}
     >
       {!confirming ? (
         <>

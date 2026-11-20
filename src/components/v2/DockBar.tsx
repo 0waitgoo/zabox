@@ -419,10 +419,11 @@ export default function DockBar({ store }: { store: LocalStore }) {
     <>
       {/* 液态玻璃试用（2026-11-20 用户令改用 rdev/liquid-glass-react，只试 Dock 栏；
         samasante 版用户认效果但嫌整页卡顿，已撤下）。
-        参数是用户 2026-11-20 22:00 按演示页（liquid-glass.maxrovensky.com）控制
-        面板逐项给的：折射模式 standard、位移量表 200、模糊量 0.1、饱和度 100%、
-        色差 0、弹性 0.00；圆角仍用本站的 28。弹性 0＋色差 0 去掉了鼠标追踪晃动
-        与三通道色散，应比 samasante 轻；流畅度最终以用户真机为准。
+        参数是用户 2026-11-20 22:27 按演示页（liquid-glass.maxrovensky.com）控制
+        面板新截图逐项给的第二组：折射模式 standard、位移量表 100、模糊量 0.5、
+        饱和度 140%、色差 2、弹性 0.00、圆角 32px（取代 22:00 那组 200/0.1/100/
+        0/0/28）。色差 2 把三通道色散开回来了，弹性 0 仍无鼠标追踪；流畅度最终
+        以用户真机为准。
         接法注意（读该包 1.1.1 源码实证）：<LiquidGlass> 渲染一组同级层（背景层、
         混合层、装 SVG 滤镜的 GlassContainer、亮边 span），各层默认 relative、
         top/left 50%＋translate(-50%,-50%) 居中；直接放进栏里会把栏撑高。所以
@@ -436,7 +437,7 @@ export default function DockBar({ store }: { store: LocalStore }) {
         data-dock-bar
         onMouseEnter={clearAutoHideTimer}
         onMouseLeave={scheduleAutoHide}
-        className={`fixed bottom-3 sm:bottom-5 left-1/2 z-50 -translate-x-1/2 rounded-[28px] max-w-[calc(100vw-20px)] overflow-x-auto select-none transition-all duration-300 ${
+        className={`fixed bottom-3 sm:bottom-5 left-1/2 z-50 -translate-x-1/2 rounded-[32px] max-w-[calc(100vw-20px)] overflow-x-auto select-none transition-all duration-300 ${
           reduceTransparency ? '' : ' dock-glass'
         } ${
           dockHide === 'auto' && !barShown ? 'translate-y-[140%] opacity-0 pointer-events-none' : ''
@@ -452,12 +453,12 @@ export default function DockBar({ store }: { store: LocalStore }) {
           <React.Fragment key={`${dockSize}:${orderKey}`}>
           <LiquidGlass
             className="dock-glass-root"
-            displacementScale={200}
-            blurAmount={0.1}
-            saturation={100}
-            aberrationIntensity={0}
+            displacementScale={100}
+            blurAmount={0.5}
+            saturation={140}
+            aberrationIntensity={2}
             elasticity={0}
-            cornerRadius={28}
+            cornerRadius={32}
             mode="standard"
             padding="0px"
           >

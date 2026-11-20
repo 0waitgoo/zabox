@@ -11,6 +11,7 @@ import GroupExpandedBody, { SiteForm, SiteTagBadges } from './GroupExpanded';
 import { SITE_DRAG_PLACEHOLDER_STYLE, useSiteDragSort } from './useSiteDragSort';
 import SiteContextMenu, { siteMenuPosition, type SiteMenuState } from './SiteContextMenu';
 import CardGlass from './CardGlass';
+import { useDisplayPrefs } from '../../store/displayPrefs';
 
 /**
  * B 型 · 编组列表卡（收起态占格由右键布局决定：默认 2 栏 × 2x）
@@ -50,6 +51,10 @@ export default function GroupListCard({
   delay?: number;
 }) {
   const { t, lang } = useLang();
+  /* 玻璃只在液态玻璃主题（2026-11-21 用户令：暗夜是黑色卡贴、白天是白色卡贴，
+     玻璃只属于液态玻璃档；暗夜/白天回落原来的磨砂卡面） */
+  const { theme } = useDisplayPrefs();
+  const glass = theme === 'liquid';
   const sorted = sortSites(group.sites);
   const cols = colSpan === 1 ? 1 : 3;
   /* 收起行数实测填充：行区高度由卡高（桌面网格行高/手机估算高）固定，与内容无关，
@@ -199,11 +204,16 @@ export default function GroupListCard({
       onPointerDown={trackPressStart}
       onPointerUp={trackPressEnd}
       onDoubleClick={handleCardDoubleClick}
-      className="relative rounded-[28px] h-full overflow-hidden"
+      className={
+        glass
+          ? 'relative rounded-[28px] h-full overflow-hidden'
+          : 'group-card-panel group-card-panel-hover relative rounded-[28px] h-full p-4 sm:p-5 flex flex-col overflow-hidden transition-colors'
+      }
     >
-      {/* 卡面改玻璃（2026-11-21 用户令）：根节点只留布局/圆角/裁剪，底色与描边由 CardGlass 提供；
-          内边距与纵向排布移到玻璃宿主上，卡内量高/拖拽/右键逻辑不动 */}
-      <CardGlass radius={28} className="h-full w-full p-4 sm:p-5 flex flex-col">
+      {/* 卡面：liquid 主题走玻璃（根节点只留布局/圆角/裁剪，底色与描边由 CardGlass 提供，
+          内边距与纵向排布移到玻璃宿主上）；暗夜/白天走原来的磨砂卡面（CardGlass 透传，
+          根节点恢复 .group-card-panel 底色与描边，卡内量高/拖拽/右键逻辑不动） */}
+      <CardGlass radius={28} enabled={glass} className="h-full w-full p-4 sm:p-5 flex flex-col">
       {/* 标题行：组名（展开时其后跟「收起」胶囊按钮）；展开时右侧同行放组操作（标题行内点击不触发卡片展开/收起） */}
       <div className="flex flex-wrap items-center gap-x-2 gap-y-1.5 mb-2 shrink-0" onClick={expanded ? stop : undefined}>
         {expanded && renaming ? (

@@ -162,14 +162,16 @@ export default function ComboCard({
                 <div
                   data-combo-tab={g.id}
                   data-combo-tab-active={isActive ? 'true' : 'false'}
-                  className={`flex-1 flex items-center min-w-0 py-1 rounded-[10px] transition-all ${
-                    compactTabs ? 'gap-1.5 px-1' : 'gap-2 px-1.5'
+                  className={`flex-1 flex items-center min-w-0 rounded-[10px] transition-all ${
+                    /* 2026-11-20 用户令：tab 头几何与普通 C 卡头对齐——头图标 30、字号 15px、图标与名间距 10px、
+                       桌面去掉 py-1（tab 高 = 图标 30，与 C 卡标题行同高，口线 Y 一致 57px）；手机 compactTabs 原样保留 */
+                    compactTabs ? 'gap-1.5 px-1 py-1' : 'gap-2.5 px-1.5'
                   } ${isActive ? 'bg-white/[0.07] opacity-100' : 'opacity-45'}`}
                 >
-                  <StackGroupIcon group={g} size={compactTabs ? 22 : 26} />
+                  <StackGroupIcon group={g} size={compactTabs ? 22 : 30} />
                   <span
                     className={`flex-1 min-w-0 font-bold tracking-tight text-left ${
-                      compactTabs ? 'text-[13px] whitespace-nowrap' : 'text-[14px] truncate'
+                      compactTabs ? 'text-[13px] whitespace-nowrap' : 'text-[15px] truncate'
                     }`}
                   >
                     {displayGroupName(g, lang)}

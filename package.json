@@ -19,7 +19,7 @@
     "test:ui": "node --import tsx tests/desktop-ui.browser.ts"
   },
   "dependencies": {
-    "@liqui-design/glass": "0.8.0",
+    "@samasante/liquid-glass": "0.1.1",
     "@tailwindcss/vite": "^4.1.14",
     "@tauri-apps/api": "^2.12.4",
     "@tauri-apps/plugin-http": "^2.8.3",

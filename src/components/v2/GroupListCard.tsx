@@ -10,6 +10,7 @@ import { SiteLogo } from './Card';
 import GroupExpandedBody, { SiteForm, SiteTagBadges } from './GroupExpanded';
 import { SITE_DRAG_PLACEHOLDER_STYLE, useSiteDragSort } from './useSiteDragSort';
 import SiteContextMenu, { siteMenuPosition, type SiteMenuState } from './SiteContextMenu';
+import CardGlass from './CardGlass';
 
 /**
  * B 型 · 编组列表卡（收起态占格由右键布局决定：默认 2 栏 × 2x）
@@ -198,8 +199,11 @@ export default function GroupListCard({
       onPointerDown={trackPressStart}
       onPointerUp={trackPressEnd}
       onDoubleClick={handleCardDoubleClick}
-      className="group-card-panel group-card-panel-hover relative rounded-[28px] h-full p-4 sm:p-5 flex flex-col overflow-hidden transition-colors"
+      className="relative rounded-[28px] h-full overflow-hidden"
     >
+      {/* 卡面改玻璃（2026-11-21 用户令）：根节点只留布局/圆角/裁剪，底色与描边由 CardGlass 提供；
+          内边距与纵向排布移到玻璃宿主上，卡内量高/拖拽/右键逻辑不动 */}
+      <CardGlass radius={28} className="h-full w-full p-4 sm:p-5 flex flex-col">
       {/* 标题行：组名（展开时其后跟「收起」胶囊按钮）；展开时右侧同行放组操作（标题行内点击不触发卡片展开/收起） */}
       <div className="flex flex-wrap items-center gap-x-2 gap-y-1.5 mb-2 shrink-0" onClick={expanded ? stop : undefined}>
         {expanded && renaming ? (
@@ -416,6 +420,7 @@ export default function GroupListCard({
           }}
         />
       )}
+      </CardGlass>
     </motion.div>
   );
 }

@@ -212,8 +212,10 @@ export function StackGroupIcon({ group, size = 30 }: { group: NavGroup; size?: n
  * gap 同为全形态统一常量 16px（横向与纵向同值）：1 栏卡面 5 个图标恰好排满一整行——
  * 4 个图标间隙恒为 16px，两侧各 17px 只是卡身自带的 16px 内边距 + 1px 边框、无额外分配；
  * 5 个/行只是这套常量在 1 栏宽下的自然结果，不是排布规则；更宽的卡每行个数由卡宽自然决定。
- * 2026-10-31 拉伸：上限会让宽卡每行末尾剩出空位（2 栏卡约一个瓷砖宽），useStretchedTileSize
- * 把该行剩余空位摊进瓷砖宽度（行数不变），名字少截断；1 栏卡剩余≈0，尺寸与原来一致。
+ * 2026-11-20 修正（用户令：2 栏图标变大、1x/2x 与组合位置不一致）：cqw 以本卡宽为基准，
+ * 2 栏卡算到上限 60.4px，比 1 栏大；且 2026-10-31 的拉伸又把宽卡再拉大。现改由
+ * useOneColTileSize 按网格 1 栏宽算统一尺寸并覆盖 --face-tile-size，cqw 公式只作
+ * 量测前的回落；拉伸逻辑已删，宽卡行尾留空接受。
  */
 const FACE_TILE_VARS = {
   '--face-tile-size': 'min(60.4px, calc((100cqw - 64px) / 5))',
@@ -221,29 +223,11 @@ const FACE_TILE_VARS = {
 } as React.CSSProperties;
 
 /**
- * 行拉伸尺寸（2026-10-31）：实测图标区宽 W，先按上限尺寸算一行可容纳数 n，
+ * 行拉伸尺寸（2026-10-31，已废弃 2026-11-20）：实测图标区宽 W，先按上限尺寸算一行可容纳数 n，
  * 再把 (W − (n−1)×gap) / n 作为瓷砖边长——行尾不再留空，宽卡瓷砖随之变宽。
- * 测不到宽度时返回 null，调用方回落 CSS 公式。
+ * 2026-11-20 用户令废弃：2 栏瓷砖比 1 栏大，违背“全形态统一以 1 栏 2x 为准”；
+ * 改由 useOneColTileSize 按 1 栏卡身宽算统一尺寸，宽卡行尾留空接受。函数已删。
  */
-function useStretchedTileSize(zoneRef: React.RefObject<HTMLDivElement | null>) {
-  const [size, setSize] = React.useState<number | null>(null);
-  React.useEffect(() => {
-    const el = zoneRef.current;
-    if (!el) return;
-    const update = () => {
-      const w = el.clientWidth;
-      if (!w) return;
-      const base = Math.min(60.4, (w - 64) / 5);
-      const n = Math.max(1, Math.floor((w + 16 + 0.5) / (base + 16)));
-      setSize((w - (n - 1) * 16) / n);
-    };
-    update();
-    const ro = new ResizeObserver(update);
-    ro.observe(el);
-    return () => ro.disconnect();
-  }, [zoneRef]);
-  return size;
-}
 
 /** 单个站点瓷砖（圆角块 + 铺满的站点图标 + 下方名字，名字字号与弹窗瓷砖一致 11px；
  * 尺寸走全形态统一变量；点击直达并阻止冒泡；
@@ -311,12 +295,49 @@ function SiteTile({ site, guardClick, dragging }: { site: SiteEntry; guardClick?
 }
 
 /**
+ * 1 栏瓷砖统一尺寸（2026-11-20 用户令：无论 1x/2x、1 栏/2 栏、单组/组合，全部以「1 栏 2x 非组合 C 卡」为准）：
+ * 直接量主页网格的 1 栏宽——栏宽 = (网格宽 − (栏数−1)×gap) / 栏数，1 栏卡身 content 宽 = 栏宽 − 34
+ * （卡身边框 2 + px-4 32，与 phoneHeights 的 34 同口径），瓷砖 = min(60.4, max(20, (卡身宽 − 64) / 5))。
+ * 栏数与 gap 取网格计算样式（桌面 4 栏 / 平板 2 栏 / 手机 1 栏自适应），不靠断点硬编码。
+ * 测不到时返回 null，调用方回落 CSS 公式（--face-tile-size 的 cqw 旧值）。
+ */
+function useOneColTileSize(zoneRef: React.RefObject<HTMLDivElement | null>) {
+  const [size, setSize] = React.useState<number | null>(null);
+  React.useEffect(() => {
+    const el = zoneRef.current;
+    if (!el) return;
+    const update = () => {
+      const grid = el.closest('[data-home-grid]') as HTMLElement | null;
+      const cols = grid
+        ? Math.max(1, getComputedStyle(grid).gridTemplateColumns.split(' ').filter(Boolean).length)
+        : 1;
+      const gap = grid ? parseFloat(getComputedStyle(grid).columnGap) || 0 : 0;
+      const gridW = grid ? grid.clientWidth : el.clientWidth;
+      const colW = (gridW - (cols - 1) * gap) / cols;
+      const bodyW1 = colW - 34;
+      setSize(Math.min(60.4, Math.max(20, (bodyW1 - 64) / 5)));
+    };
+    update();
+    const ro = new ResizeObserver(update);
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, [zoneRef]);
+  return size;
+}
+
+/**
  * 1x 卡面单行可容纳的瓷砖数（第五十六轮）：实测图标区宽度后按第五十三轮的同一套
  * 尺寸/间距常量反推——瓷砖边长 t = min(60.4, (W − 64) / 5)、gap 16px（W = 图标区宽，
  * 与卡身 content-box 同宽，即 cqw 公式里的基准宽），一行可容纳数 = floor((W + gap) / (t + gap))。
  * +0.5px 容差抵消「5 个恰好排满」边界上的浮点误差。测不到宽度时不截断（返回 Infinity）。
+ * 2026-11-20：t 改取统一尺寸（useOneColTileSize 的值），不再按本卡宽算——2 栏卡 1x 行
+ * 按统一瓷砖算可容纳数，与实际渲染一致。
  */
-function useRowFitCount(zoneRef: React.RefObject<HTMLDivElement | null>, enabled: boolean) {
+function useRowFitCount(
+  zoneRef: React.RefObject<HTMLDivElement | null>,
+  enabled: boolean,
+  tileSize: number | null,
+) {
   const [count, setCount] = React.useState<number>(Number.POSITIVE_INFINITY);
   React.useEffect(() => {
     if (!enabled) {
@@ -328,7 +349,7 @@ function useRowFitCount(zoneRef: React.RefObject<HTMLDivElement | null>, enabled
     const update = () => {
       const w = el.clientWidth;
       if (!w) return;
-      const tile = Math.min(60.4, (w - 64) / 5);
+      const tile = tileSize ?? Math.min(60.4, (w - 64) / 5);
       const n = Math.max(1, Math.floor((w + 16 + 0.5) / (tile + 16)));
       setCount(n);
     };
@@ -336,17 +357,18 @@ function useRowFitCount(zoneRef: React.RefObject<HTMLDivElement | null>, enabled
     const ro = new ResizeObserver(update);
     ro.observe(el);
     return () => ro.disconnect();
-  }, [zoneRef, enabled]);
+  }, [zoneRef, enabled, tileSize]);
   return count;
 }
 
 /**
  * C 卡底部瓷砖区（普通 C 卡与组合卡共用，第五十三轮尺寸口径 + 第五十六轮布局修正）：
- * 全部形态共用同一套常量——图标尺寸（FACE_TILE_VARS 的 1栏2X 基准）+ 统一 gap 16px，
- * 排布按高度分两型（用户第五十六轮拍板）：
- * - 高 1x：卡面只显示**一行**——按卡宽可容纳数截断（见 useRowFitCount），超出的站点
- *   不在卡面出现（弹窗里照常可见）；这一行在图标区内垂直居中、水平**从左起排**
- *   （第六十三轮：用户「不要居中，靠左就行」推翻第五十六轮的单行居中，左缘与 2x 第一行一致）。
+ * 全部形态共用同一套常量——图标尺寸（2026-11-20 起为 1 栏 2x 基准的统一尺寸，
+ * useOneColTileSize 按网格 1 栏宽算，不再随本卡宽变）+ 统一 gap 16px，
+ * 排布按高度分两型（用户第五十六轮拍板，2026-11-20 用户令补齐：1x 也顶部起排）：
+ * - 高 1x：卡面只显示**一行**——按统一瓷砖尺寸与卡宽可容纳数截断（见 useRowFitCount），超出的站点
+ *   不在卡面出现（弹窗里照常可见）；这一行**从图标区顶部起排**，与 2x 第一行同 Y
+ *   （2026-11-20 前是垂直居中，1x/2x 第一行 Y 不一致；第六十三轮只改了水平居中→靠左）。
  * - 高 2x：流式网格**从图标区左上角开始布局**——第一行顶着图标区顶部、每行从左边缘
  *   逐个排、逐行向下，全部站点都摆出来（排不下自动换行，每行个数由卡宽决定）；
  *   取消第五十三轮的整块横向/纵向居中（居中会让上方留大块空白、末行单个图标跑到中间）。
@@ -367,8 +389,8 @@ export function StackSiteTiles({
   const sorted = sortSites(group.sites);
   const zoneRef = React.useRef<HTMLDivElement | null>(null);
   const { t } = useLang();
-  const fitCount = useRowFitCount(zoneRef, heightUnits === 1);
-  const stretched = useStretchedTileSize(zoneRef);
+  const oneColTile = useOneColTileSize(zoneRef);
+  const fitCount = useRowFitCount(zoneRef, heightUnits === 1, oneColTile);
   const visible = heightUnits === 1 ? sorted.slice(0, fitCount) : sorted;
   /** 拖动中切 tab 后被拖站点的 url 仍要能查到（Dock 落点用）：按 id 累积，不随切组丢失 */
   const siteUrlByIdRef = React.useRef(new Map<string, string>());
@@ -438,11 +460,12 @@ export function StackSiteTiles({
       data-cross-source
       onPointerDown={siteDrag.onContainerPointerDown}
       onDragStart={siteDrag.onContainerDragStart}
-      style={{ ...FACE_TILE_VARS, ...(stretched ? { '--face-tile-size': `${stretched}px` } : {}) }}
+      style={{ ...FACE_TILE_VARS, ...(oneColTile ? { '--face-tile-size': `${oneColTile}px` } : {}) }}
       className={`flex-1 min-h-0 flex pt-3 relative ${
-        /* 1x：补 pb-3 与 pt-3 对称，单行在整个图标区（含内边距）内真正垂直居中；水平靠左（第六十三轮） */
+        /* 1x 与 2x 同为顶部起排（2026-11-20 用户令）：第一行顶着 pt-3，与 2x 第一行同 Y；
+           此前 1x 是 items-center + pb-3 垂直居中，第一行 Y 随瓷砖数/卡高浮动，与 2x 不一致 */
         /* 2x：卡内悬停滚动（无可见滚动条、滚到底自动续滚页面） */
-        heightUnits === 1 ? 'items-center justify-start pb-3' : 'items-start justify-start overflow-y-auto'
+        heightUnits === 1 ? 'items-start justify-start' : 'items-start justify-start overflow-y-auto'
       }`}
     >
       {group.sites.length === 0 ? (

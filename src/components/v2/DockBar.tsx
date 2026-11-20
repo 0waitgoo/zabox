@@ -1,6 +1,6 @@
 import React from 'react';
 import { createPortal } from 'react-dom';
-import { LiquiGlass } from '@liqui-design/glass';
+import { Glass } from '@samasante/liquid-glass';
 import { Check, MoreHorizontal, Trash2 } from 'lucide-react';
 import type { DockEntry, LocalStore } from '../../store/localStore';
 import { setDisplayPrefs, useDisplayPrefs, type DockHide, type DockSize } from '../../store/displayPrefs';
@@ -417,43 +417,62 @@ export default function DockBar({ store }: { store: LocalStore }) {
 
   return (
     <>
-      {/* 液态玻璃试用（2026-11-20 用户令，只试 Dock 栏）：
-        第一版把 LiquiGlass 作绝对背景层放在栏里是错的——图标是栏的静态子节点，
-        绘制顺序在定位的玻璃层之下，玻璃的磨砂＋着色层盖在图标上面，图标全糊成色块
-        （2026-11-20 用户截图实证）。正确接法是 LiquiGlass 作栏根、图标当它的 children
-        进 .liqui-glass__content（z-index 3，在各玻璃层之上），图标才清晰、折射只折背后。
-        material 默认 auto：Chromium 走真折射，Safari/Firefox 自动落磨砂＋烤制边缘；
+      {/* 液态玻璃试用（2026-11-20 用户令换 @samasante/liquid-glass，只试 Dock 栏）：
+        <Glass> 干净裸包走 GlassMaterial 路线（backdrop-filter 式、专为 dock/菜单
+        设计，折背后实况、图标 crisp 在上层）；传 filterResolution、depth、scale、
+        live 等任一高级参数都会退回 GlassDOM 拷贝引擎（透镜改折自身内容、还要量
+        尺寸），所以这里一个都不能传。光学参数是用户 2026-11-20 21:23 按 samasante
+        演示页 Lens 面板逐项给的数值（圆角用本站的 28）。
+        关键坑（2026-11-20 隔离复现证实）：ref 绝不能传给 <Glass>——它经 ...rest
+        透传后盖掉该包自己挂在根 div 上的 ref（wrapRef），量尺寸的 effect 拿不到
+        元素、透镜永远不生效（滤镜空、backdrop-filter 仍是 none）。所以定位、
+        ref、data-dock-bar、鼠标事件全放在外层普通 div 上，<Glass> 只做玻璃面。
         减透明偏好时不用玻璃、回到原纯 CSS 磨砂底。 */}
-      {reduceTransparency ? (
-        <div
-          ref={barRef}
-          data-dock-bar
-          onMouseEnter={clearAutoHideTimer}
-          onMouseLeave={scheduleAutoHide}
-          className={`fixed bottom-3 sm:bottom-5 left-1/2 z-50 -translate-x-1/2 flex items-center gap-1 sm:gap-1.5 rounded-[28px] border border-white/10 bg-[#14141a]/70 ${size.padClass} backdrop-blur-md max-w-[calc(100vw-20px)] overflow-x-auto select-none transition-all duration-300 ${
-            dockHide === 'auto' && !barShown ? 'translate-y-[140%] opacity-0 pointer-events-none' : ''
-          }`}
-        >
-          {barInner}
-        </div>
-      ) : (
-        <LiquiGlass
-          ref={barRef}
-          data-dock-bar
-          onMouseEnter={clearAutoHideTimer}
-          onMouseLeave={scheduleAutoHide}
-          radius={28}
-          bezel={14}
-          frost={0.5}
-          elevated
-          className={`fixed bottom-3 sm:bottom-5 left-1/2 z-50 -translate-x-1/2 rounded-[28px] max-w-[calc(100vw-20px)] overflow-x-auto select-none transition-all duration-300 ${
-            dockHide === 'auto' && !barShown ? 'translate-y-[140%] opacity-0 pointer-events-none' : ''
-          }`}
-          contentClassName={`flex items-center gap-1 sm:gap-1.5 ${size.padClass}`}
-        >
-          {barInner}
-        </LiquiGlass>
-      )}
+      <div
+        ref={barRef}
+        data-dock-bar
+        onMouseEnter={clearAutoHideTimer}
+        onMouseLeave={scheduleAutoHide}
+        className={`fixed bottom-3 sm:bottom-5 left-1/2 z-50 -translate-x-1/2 rounded-[28px] max-w-[calc(100vw-20px)] overflow-x-auto select-none transition-all duration-300 ${
+          dockHide === 'auto' && !barShown ? 'translate-y-[140%] opacity-0 pointer-events-none' : ''
+        }`}
+      >
+        {reduceTransparency ? (
+          <div
+            className={`flex items-center gap-1 sm:gap-1.5 rounded-[28px] border border-white/10 bg-[#14141a]/70 ${size.padClass} backdrop-blur-md`}
+          >
+            {barInner}
+          </div>
+        ) : (
+          <Glass
+            data-liquid-glass-dock
+            radius={28}
+            optics={{
+              // 用户 2026-11-20 21:23 按 samasante 演示页 Lens 面板逐项给的数值
+              // （圆角按用户话用本站的 28，不用演示的 119；演示的宽/高 200 是透镜
+              // 几何，不适用于自适应宽度的 Dock，未取）
+              strength: 0.14,
+              depth: 0.95,
+              curvature: 0.5,
+              dispersion: 0.2,
+              bend: 0.4,
+              bendWidth: 0.07,
+              sheen: 1.2,
+              sheenWidth: 3.5,
+              specular: 1.6,
+              sheenAngle: 0,
+              glow: 0.1,
+              frost: 1,
+              brightness: 0,
+            }}
+            style={{ background: 'rgba(20, 20, 26, 0.35)' }}
+          >
+            <div className={`flex items-center gap-1 sm:gap-1.5 ${size.padClass}`}>
+              {barInner}
+            </div>
+          </Glass>
+        )}
+      </div>
       {drag && draggedItem &&
         createPortal(
           <div

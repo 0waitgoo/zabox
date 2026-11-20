@@ -1794,6 +1794,11 @@ export default function HomePage({ onNavigate, store }: { onNavigate: (page: str
             transition={{ duration: 0.12 }}
  className="fixed z-[80] w-[200px] rounded-2xl bg-[#1e1e26] border border-white/15 p-2.5"
             style={{ left: sizeMenu.x, top: sizeMenu.y }}
+            onContextMenu={(e) => {
+              // 菜单上再右键不另开菜单（2026-11-20）
+              e.preventDefault();
+              e.stopPropagation();
+            }}
           >
             <p className="px-1 pb-2 text-[11px] font-medium text-white/60">{sizeMenuTitle}</p>
             <p className="px-1 pb-1 text-[10px] tracking-wider text-white/40 uppercase">{t('home.sizeWidth')}</p>
@@ -2040,6 +2045,11 @@ export default function HomePage({ onNavigate, store }: { onNavigate: (page: str
             data-blank-menu
  className="fixed z-[80] w-[200px] rounded-2xl bg-[#1e1e26] border border-white/15 p-2"
             style={{ left: blankMenu.x, top: blankMenu.y }}
+            onContextMenu={(e) => {
+              // 菜单上再右键不另开菜单（2026-11-20）
+              e.preventDefault();
+              e.stopPropagation();
+            }}
           >
             <button
               data-blank-new-group

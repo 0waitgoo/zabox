@@ -1,6 +1,5 @@
 import React from 'react';
 import { createPortal } from 'react-dom';
-import { LiquidGlass } from 'quick-liquid/react';
 import { Check, MoreHorizontal, Trash2 } from 'lucide-react';
 import type { DockEntry, LocalStore } from '../../store/localStore';
 import { setDisplayPrefs, useDisplayPrefs, type DockHide, type DockSize } from '../../store/displayPrefs';
@@ -59,7 +58,10 @@ type DragState = {
 
 export default function DockBar({ store }: { store: LocalStore }) {
   const { t } = useLang();
-  const { dockVisible, dockSize, dockHide } = useDisplayPrefs();
+  const { theme, dockVisible, dockSize, dockHide } = useDisplayPrefs();
+  /* Dock 跟随主题（2026-11-21 用户令）：暗夜深色磨砂、白天白色磨砂；
+     液态玻璃档时也用暗夜同款、不挂玻璃——Dock 不再用 liquid glass */
+  const light = theme === 'light';
   const size = DOCK_SIZES[dockSize] ?? DOCK_SIZES.m;
   const barRef = React.useRef<HTMLDivElement | null>(null);
   const itemEls = React.useRef(new Map<string, HTMLElement>());
@@ -73,19 +75,6 @@ export default function DockBar({ store }: { store: LocalStore }) {
   const [autoVisible, setAutoVisible] = React.useState(false);
   const dragActiveRef = React.useRef(false);
   const hideTimerRef = React.useRef<number | null>(null);
-
-  // 减透明偏好：系统要求减透明时不渲染液态玻璃，回到原来的纯 CSS 磨砂底
-  const [reduceTransparency, setReduceTransparency] = React.useState(
-    () =>
-      typeof window !== 'undefined' &&
-      window.matchMedia('(prefers-reduced-transparency: reduce)').matches,
-  );
-  React.useEffect(() => {
-    const mq = window.matchMedia('(prefers-reduced-transparency: reduce)');
-    const onChange = () => setReduceTransparency(mq.matches);
-    mq.addEventListener('change', onChange);
-    return () => mq.removeEventListener('change', onChange);
-  }, []);
 
   // 自动隐藏：鼠标贴到底边 16px 内浮现
   React.useEffect(() => {
@@ -340,12 +329,12 @@ export default function DockBar({ store }: { store: LocalStore }) {
     store.removeDockSite(item.entryGroupId, item.entrySiteId, item.entryUrl);
   };
 
-  // 栏内内容（图标/空态/分隔线/设置钮）：玻璃态与减透明态共用同一份，
-  // 只换外壳——图标必须在 LiquiGlass 的 content 层里（见下注释），不能放外壳外。
+  // 栏内内容（图标/空态/分隔线/设置钮）：深色/白色磨砂底共用同一份，
+  // 只换底色与描边（见下），图标与设置钮颜色随主题翻。
   const barInner = (
     <>
     {dockHide !== 'hide' && ordered.length === 0 && (
-      <p data-dock-empty className="px-3 py-1.5 text-xs text-white/55 whitespace-nowrap">
+      <p data-dock-empty className={`px-3 py-1.5 text-xs whitespace-nowrap ${light ? 'text-black/55' : 'text-white/55'}`}>
         {t('dock.empty')}
       </p>
     )}
@@ -382,7 +371,7 @@ export default function DockBar({ store }: { store: LocalStore }) {
                 }
                 window.open(item.site.url, '_blank');
               }}
-              className={`flex ${size.btnClass} items-center justify-center rounded-2xl p-1 transition-colors hover:bg-white/8 touch-none cursor-grab active:cursor-grabbing`}
+              className={`flex ${size.btnClass} items-center justify-center rounded-2xl p-1 transition-colors ${light ? 'hover:bg-black/8' : 'hover:bg-white/8'} touch-none cursor-grab active:cursor-grabbing`}
             >
               <SiteLogo
                 logo={siteIconSrc(item.site)}
@@ -396,7 +385,7 @@ export default function DockBar({ store }: { store: LocalStore }) {
         );
       })}
     {dockHide !== 'hide' && ordered.length > 0 && (
-      <div aria-hidden className="mx-0.5 h-6 w-px shrink-0 bg-white/15" />
+      <div aria-hidden className={`mx-0.5 h-6 w-px shrink-0 ${light ? 'bg-black/15' : 'bg-white/15'}`} />
     )}
     <button
       ref={settingsBtnRef}
@@ -408,7 +397,7 @@ export default function DockBar({ store }: { store: LocalStore }) {
         setMenu(null);
         setSettingsOpen((v) => !v);
       }}
-      className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-white/65 transition-colors hover:bg-white/10 hover:text-white"
+      className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-full transition-colors ${light ? 'text-black/55 hover:bg-black/10 hover:text-black' : 'text-white/65 hover:bg-white/10 hover:text-white'}`}
     >
       <MoreHorizontal size={18} />
     </button>
@@ -417,61 +406,26 @@ export default function DockBar({ store }: { store: LocalStore }) {
 
   return (
     <>
-      {/* 液态玻璃试用（2026-11-21 用户令改用 quick-liquid，只试 Dock 栏；
-        rdev 版用户判效果不好，已撤下；samasante 版用户认效果但嫌整页卡顿）。
-        参数是用户 2026-11-21 00:16 按 quickLiquid 演示逐项给的：
-        material thin、borderRadius 44、blur 5.5、refractionStrength 50、
-        bezelWidth 27、chromaticAberration 0、lightAngle -156、
-        specularStrength 0.35、dispersionMode auto、appearance dark。
-        接法注意（读该包 0.1.2 源码实证）：<LiquidGlass> 是单个宿主 div，
-        引擎（LiquidGlassEngine）挂在宿主上、在其内部建 ql-lens/ql-tint/
-        ql-rim/ql-sheen/ql-noise 效果层，children 包在 .ql-content（zIndex 10）
-        里；宿主自身带 backdrop-filter（SVG 位移滤镜）。尺寸变化走
-        ResizeObserver 自动跟，不用 key 重挂。ref 正常转发（forwardRef）。
-        该包 Browser Notes 警告：宿主上不要挂 isolation/filter/opacity/mask——
-        外层栏的自动隐藏（translate-y/opacity-0）只在隐藏态出现，显示态无 opacity，
-        不冲突。减透明偏好时不用玻璃、回到原纯 CSS 磨砂底。 */}
+      {/* Dock 栏磨砂底（2026-11-21 用户令：Dock 跟随主题——暗夜深色磨砂、
+          白天白色磨砂；液态玻璃档时也用暗夜同款、不挂玻璃。此前 quickLiquid
+          玻璃（thin/圆角 44/blur 5.5 等参数）已按用户令整段撤下，卡片玻璃
+          不受影响，仍只在 liquid 主题。圆角回 28（玻璃期的 44 已同步撤回）。 */}
       <div
         ref={barRef}
         data-dock-bar
         onMouseEnter={clearAutoHideTimer}
         onMouseLeave={scheduleAutoHide}
-        className={`fixed bottom-3 sm:bottom-5 left-1/2 z-50 -translate-x-1/2 rounded-[44px] max-w-[calc(100vw-20px)] overflow-x-auto select-none transition-all duration-300 ${
-          reduceTransparency ? '' : ''
-        } ${
+        className={`fixed bottom-3 sm:bottom-5 left-1/2 z-50 -translate-x-1/2 rounded-[28px] max-w-[calc(100vw-20px)] overflow-x-auto select-none transition-all duration-300 ${
           dockHide === 'auto' && !barShown ? 'translate-y-[140%] opacity-0 pointer-events-none' : ''
         }`}
       >
-        {reduceTransparency ? (
-          <div
-            className={`flex items-center gap-1 sm:gap-1.5 rounded-[44px] border border-white/10 bg-[#14141a]/70 ${size.padClass} backdrop-blur-md`}
-          >
-            {barInner}
-          </div>
-        ) : (
-          <LiquidGlass
-            config={{
-              material: 'thin',
-              borderRadius: 44,
-              blur: 5.5,
-              refractionStrength: 50,
-              bezelWidth: 27,
-              chromaticAberration: 0,
-              lightAngle: -156,
-              specularStrength: 0.35,
-              dispersionMode: 'auto',
-              appearance: 'dark',
-              /* 性能档与卡片一致（2026-11-21 用户令优化速度、效果不变）：medium 位移图
-                 上限 384；Dock 本身只有 191px 宽，medium 与 high 出同一张图，改这里
-                 只为与卡片保持同一套配置口径 */
-              quality: 'medium',
-            }}
-          >
-            <div className={`flex items-center gap-1 sm:gap-1.5 ${size.padClass}`}>
-              {barInner}
-            </div>
-          </LiquidGlass>
-        )}
+        <div
+          className={`flex items-center gap-1 sm:gap-1.5 rounded-[28px] border ${size.padClass} backdrop-blur-md ${
+            light ? 'border-black/10 bg-white/70' : 'border-white/10 bg-[#14141a]/70'
+          }`}
+        >
+          {barInner}
+        </div>
       </div>
       {drag && draggedItem &&
         createPortal(

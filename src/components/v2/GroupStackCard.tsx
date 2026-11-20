@@ -544,8 +544,11 @@ export default function GroupStackCard({
   heightUnits?: 1 | 2;
 }) {
   const { lang, t } = useLang();
+  // 单张 C 卡也挂玻璃（2026-11-21 用户令：单个 C 卡也要适配液态玻璃；
+  // 与组合卡同一路：StackCardFrame 内按主题门控，liquid 才挂玻璃，
+  // 暗夜/白天回落磨砂卡身）
   return (
-    <StackCardFrame tabColor={group.tabColor ?? ''} onClick={() => onOpen(group)} delay={delay} ariaLabel={t('card.groupLabel', { name: displayGroupName(group, lang) })}>
+    <StackCardFrame glass tabColor={group.tabColor ?? ''} onClick={() => onOpen(group)} delay={delay} ariaLabel={t('card.groupLabel', { name: displayGroupName(group, lang) })}>
       {/* 标题行：组图标瓷砖 + 组名；右侧小字「N 个站点」 */}
       <div className="flex items-center gap-2.5 min-w-0">
         <StackGroupIcon group={group} />

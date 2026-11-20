@@ -15,6 +15,11 @@ const CARD_GLASS_BASE = {
   specularStrength: 0.35,
   dispersionMode: 'auto' as const,
   appearance: 'dark' as const,
+  /* 性能档（2026-11-21 用户令优化速度、效果不变）：medium 把位移图分辨率上限从
+     1024 降到 384（库文档原话：dense lists or background UI 用 medium/low）。
+     位移图是平滑渐变，384 仍够平滑，折射形状不变；同尺寸卡共用一张图，像素量
+     降约 7 倍，生成与采样都更便宜。 */
+  quality: 'medium' as const,
 };
 
 export default function CardGlass({

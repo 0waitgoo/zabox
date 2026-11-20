@@ -1,5 +1,6 @@
 import React from 'react';
 import CardGlass from './CardGlass';
+import { useDisplayPrefs } from '../../store/displayPrefs';
 import { motion } from 'motion/react';
 import { groupIcon, siteIconSrc, siteTags, sortSites, type NavGroup, type SiteEntry } from '../../data/groups';
 import type { LocalStore } from '../../store/localStore';
@@ -106,6 +107,10 @@ export function StackCardFrame({
   glass?: boolean;
 }) {
   const color = tabColor?.trim() ? tabColor.trim() : '';
+  /* 玻璃只在液态玻璃主题（2026-11-21 用户令：暗夜黑色卡贴、白天白色卡贴，
+     玻璃只属于液态玻璃档）；暗夜/白天回落原来的磨砂卡身 */
+  const { theme } = useDisplayPrefs();
+  const useGlass = glass && theme === 'liquid';
   return (
     <motion.div
       initial={{ opacity: 0, y: 16 }}
@@ -123,7 +128,7 @@ export function StackCardFrame({
       <div
         data-stack-body
         style={
-          glass
+          useGlass
             ? {
                 /* 玻璃态：底色/模糊/描边由 CardGlass 提供，卡身只留容器查询上下文 */
                 containerType: 'inline-size',
@@ -137,10 +142,10 @@ export function StackCardFrame({
               }
         }
         className={`group-card-scope absolute inset-x-0 bottom-0 top-[13px] z-10 rounded-[22px] flex flex-col overflow-hidden ${
-          glass ? '' : 'border border-white/10 transition-colors group-hover/card:border-white/[0.18] px-4 pt-3.5 pb-4'
+          useGlass ? '' : 'border border-white/10 transition-colors group-hover/card:border-white/[0.18] px-4 pt-3.5 pb-4'
         }`}
       >
-        {glass ? (
+        {useGlass ? (
           <CardGlass radius={22} className="h-full w-full px-4 pt-3.5 pb-4 flex flex-col">
             {children}
           </CardGlass>

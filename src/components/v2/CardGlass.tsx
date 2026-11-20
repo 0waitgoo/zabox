@@ -25,13 +25,17 @@ const CARD_GLASS_BASE = {
 export default function CardGlass({
   radius,
   className,
+  enabled = true,
   children,
 }: {
   /** 玻璃圆角（px），与卡身圆角一致 */
   radius: number;
   className?: string;
+  /** 关时不挂玻璃、原样透传 children（供暗夜/白天主题回落磨砂卡面） */
+  enabled?: boolean;
   children: React.ReactNode;
 }) {
+  if (!enabled) return <>{children}</>;
   return (
     <LiquidGlass config={{ ...CARD_GLASS_BASE, borderRadius: radius }} className={className}>
       {children}

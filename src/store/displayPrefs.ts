@@ -80,7 +80,8 @@ export function bgBlurPx(strength: number): number {
 }
 
 export const DEFAULT_DISPLAY_PREFS: DisplayPrefs = {
-  theme: 'dark',
+  // 新用户默认外观（2026-11-21 用户令：默认液态玻璃；背景默认已是星云紫，见 localStore DEFAULT_BACKGROUND）
+  theme: 'liquid',
   groupCardAlpha: 0.4,
   // 缺省种子用户从没动过滑杆：小组件初值按旧耦合公式由默认 0.4 推导（≈0.89），与拆分前观感一致
   widgetAlpha: legacyWidgetStrength(0.4),

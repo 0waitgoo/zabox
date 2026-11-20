@@ -1,4 +1,5 @@
 import React from 'react';
+import CardGlass from './CardGlass';
 import { motion } from 'motion/react';
 import { groupIcon, siteIconSrc, siteTags, sortSites, type NavGroup, type SiteEntry } from '../../data/groups';
 import type { LocalStore } from '../../store/localStore';
@@ -84,6 +85,7 @@ export function StackCardFrame({
   ariaLabel,
   children,
   rootProps,
+  glass = false,
 }: {
   /** 小角填充色（已解析：空字符串 = 默认同色灰） */
   tabColor: string;
@@ -99,6 +101,9 @@ export function StackCardFrame({
   children: React.ReactNode;
   /** 透传到根节点的数据属性（如组合卡的 data-combo-card） */
   rootProps?: Record<string, string>;
+  /** 玻璃卡身（2026-11-21 用户令，仅组合卡开）：卡身底色/描边由 CardGlass 提供，
+   *  children 包进玻璃宿主；不传时保持原磨砂底，普通 C 卡不受影响 */
+  glass?: boolean;
 }) {
   const color = tabColor?.trim() ? tabColor.trim() : '';
   return (
@@ -117,16 +122,31 @@ export function StackCardFrame({
           悬停只提亮描边，不改变底色 */}
       <div
         data-stack-body
-        style={{
-          background: 'rgb(var(--group-card-rgb) / var(--group-card-alpha, 0.4))',
-          backdropFilter: 'blur(24px)',
-          WebkitBackdropFilter: 'blur(24px)',
-          /* 第五十三轮：卡身作容器查询上下文，卡面瓷砖尺寸变量（--face-tile-size）里的 cqw 以卡宽为基准解析 */
-          containerType: 'inline-size',
-        }}
-        className="group-card-scope absolute inset-x-0 bottom-0 top-[13px] z-10 rounded-[22px] border border-white/10 transition-colors group-hover/card:border-white/[0.18] px-4 pt-3.5 pb-4 flex flex-col overflow-hidden"
+        style={
+          glass
+            ? {
+                /* 玻璃态：底色/模糊/描边由 CardGlass 提供，卡身只留容器查询上下文 */
+                containerType: 'inline-size',
+              }
+            : {
+                background: 'rgb(var(--group-card-rgb) / var(--group-card-alpha, 0.4))',
+                backdropFilter: 'blur(24px)',
+                WebkitBackdropFilter: 'blur(24px)',
+                /* 第五十三轮：卡身作容器查询上下文，卡面瓷砖尺寸变量（--face-tile-size）里的 cqw 以卡宽为基准解析 */
+                containerType: 'inline-size',
+              }
+        }
+        className={`group-card-scope absolute inset-x-0 bottom-0 top-[13px] z-10 rounded-[22px] flex flex-col overflow-hidden ${
+          glass ? '' : 'border border-white/10 transition-colors group-hover/card:border-white/[0.18] px-4 pt-3.5 pb-4'
+        }`}
       >
-        {children}
+        {glass ? (
+          <CardGlass radius={22} className="h-full w-full px-4 pt-3.5 pb-4 flex flex-col">
+            {children}
+          </CardGlass>
+        ) : (
+          children
+        )}
       </div>
 
       {/* 小角（标签凸起）：从卡身上沿探出，与卡身同色系一体；设了 tabColor 时按组色填充（含同色描边，避免浮在亮背景上丢边）。

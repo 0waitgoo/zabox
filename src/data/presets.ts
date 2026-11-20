@@ -257,7 +257,7 @@ export function buildDesignerPreset(): CompositionSnapshot {
   },
     appearance: {
     "background": {"presetId": "violet", "oceanColor": "#0d2140"},
-    "theme": "dark",
+    "theme": "liquid",
     "groupCardAlpha": 0.4,
     "widgetAlpha": 0.888888888888889,
     "bgBlur": 0.3
@@ -373,7 +373,7 @@ export function buildDeveloperPreset(): CompositionSnapshot {
   },
     appearance: {
     "background": {"presetId": "violet", "oceanColor": "#0d2140"},
-    "theme": "dark",
+    "theme": "liquid",
     "groupCardAlpha": 0.4,
     "widgetAlpha": 0.888888888888889,
     "bgBlur": 0.3
@@ -540,7 +540,7 @@ export function buildEntertainmentPreset(): CompositionSnapshot {
   },
     appearance: {
     "background": {"presetId": "violet", "oceanColor": "#0d2140"},
-    "theme": "dark",
+    "theme": "liquid",
     "groupCardAlpha": 0.4,
     "widgetAlpha": 0.888888888888889,
     "bgBlur": 0.3

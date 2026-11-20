@@ -461,6 +461,10 @@ export default function DockBar({ store }: { store: LocalStore }) {
               specularStrength: 0.35,
               dispersionMode: 'auto',
               appearance: 'dark',
+              /* 性能档与卡片一致（2026-11-21 用户令优化速度、效果不变）：medium 位移图
+                 上限 384；Dock 本身只有 191px 宽，medium 与 high 出同一张图，改这里
+                 只为与卡片保持同一套配置口径 */
+              quality: 'medium',
             }}
           >
             <div className={`flex items-center gap-1 sm:gap-1.5 ${size.padClass}`}>

@@ -697,6 +697,43 @@ function renderNoteContent(text: string) {
   return out;
 }
 
+/** 取出文字里第一张 Markdown 表格（2026-11-20：表格泡泡双击进可视化编辑，不用手改 | 符号） */
+type NoteTableData = { before: string; header: string[]; rows: string[][]; after: string };
+function parseFirstNoteTable(text: string): NoteTableData | null {
+  const lines = text.split('\n');
+  const isSep = (s: string) => /^\|[\s:|-]+\|$/.test(s.trim()) && s.includes('-');
+  const cells = (s: string) =>
+    s
+      .trim()
+      .replace(/^\||\|$/g, '')
+      .split('|')
+      .map((c) => c.trim());
+  for (let i = 0; i + 1 < lines.length; i++) {
+    if (lines[i].trim().startsWith('|') && isSep(lines[i + 1])) {
+      const header = cells(lines[i]);
+      const rows: string[][] = [];
+      let j = i + 2;
+      while (j < lines.length && lines[j].trim().startsWith('|') && !isSep(lines[j])) {
+        const row = cells(lines[j]);
+        while (row.length < header.length) row.push('');
+        rows.push(row.slice(0, header.length));
+        j++;
+      }
+      return { before: lines.slice(0, i).join('\n').trim(), header, rows, after: lines.slice(j).join('\n').trim() };
+    }
+  }
+  return null;
+}
+
+/** 可视化编辑后的表格写回 Markdown（单元格里的 | 写成全角 ｜，换行去空格，不断表） */
+function noteTableToMarkdown(t: NoteTableData): string {
+  const esc = (s: string) => s.replace(/\|/g, '｜').replace(/\n/g, ' ');
+  const row = (cs: string[]) => `| ${cs.map(esc).join(' | ')} |`;
+  const sep = `| ${t.header.map(() => '---').join(' | ')} |`;
+  const body = [row(t.header), sep, ...t.rows.map(row)].join('\n');
+  return [t.before, body, t.after].filter(Boolean).join('\n');
+}
+
 /** 待办笔记面板（2026-11-20）：气泡对话式笔记，一条消息一个气泡，可发文字/图片。
  * - 宽栏时常驻右栏（无选中时显示空提示）；窄栏时以浮层盖在待办列上，由调用方包一层定位壳 */
 function TaskNotePane({
@@ -746,6 +783,8 @@ function TaskNotePane({
   /** 正在编辑的泡泡（2026-11-20）：双击泡泡直接进编辑，右键菜单也能进；附件泡泡的编辑是换文件 */
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editDraft, setEditDraft] = useState('');
+  /** 正在可视化编辑的表格（2026-11-20）：有表格的文字泡泡双击进格子编辑，null 时走原文本框 */
+  const [editTable, setEditTable] = useState<NoteTableData | null>(null);
   /** 泡泡右键菜单（2026-11-20）：编辑 / 删除 */
   const [menu, setMenu] = useState<{ noteId: string; x: number; y: number } | null>(null);
   /** 文件管理器（2026-11-20）：列出全部笔记里的所有附件 */
@@ -811,15 +850,59 @@ function TaskNotePane({
       input?.click();
       return;
     }
+    const table = parseFirstNoteTable(msg.text ?? '');
+    if (table) {
+      setEditTable(table);
+      setEditDraft('');
+    } else {
+      setEditTable(null);
+      setEditDraft(msg.text ?? '');
+    }
     setEditingId(msg.id);
-    setEditDraft(msg.text ?? '');
+  };
+
+  /** 取消泡泡编辑（文本框与表格格子共用） */
+  const cancelEdit = () => {
+    setEditingId(null);
+    setEditTable(null);
   };
 
   const commitEdit = () => {
-    const v = editDraft.trim();
-    if (editingId && v) onEditText(editingId, v);
+    if (editingId && editTable) {
+      onEditText(editingId, noteTableToMarkdown(editTable));
+    } else {
+      const v = editDraft.trim();
+      if (editingId && v) onEditText(editingId, v);
+    }
     setEditingId(null);
+    setEditTable(null);
   };
+
+  /** 改表格格子里一个单元格（ri=-1 改表头） */
+  const updateEditCell = (ri: number, ci: number, v: string) => {
+    setEditTable((t) => {
+      if (!t) return t;
+      if (ri < 0) {
+        const header = [...t.header];
+        header[ci] = v;
+        return { ...t, header };
+      }
+      return { ...t, rows: t.rows.map((r, i) => (i === ri ? r.map((c, j) => (j === ci ? v : c)) : r)) };
+    });
+  };
+  /** 表格编辑：加行 / 加列 / 删末行 / 删末列（至少留 1 列） */
+  const addEditRow = () => setEditTable((t) => (t ? { ...t, rows: [...t.rows, Array(t.header.length).fill('')] } : t));
+  const addEditCol = () =>
+    setEditTable((t) =>
+      t ? { ...t, header: [...t.header, ''], rows: t.rows.map((r) => [...r, '']) } : t,
+    );
+  const delEditRow = () => setEditTable((t) => (t && t.rows.length ? { ...t, rows: t.rows.slice(0, -1) } : t));
+  const delEditCol = () =>
+    setEditTable((t) =>
+      t && t.header.length > 1
+        ? { ...t, header: t.header.slice(0, -1), rows: t.rows.map((r) => r.slice(0, -1)) }
+        : t,
+    );
 
   /** 插入一张空表格模板（2026-11-20）：3 列 2 行，插在光标处，发送后渲染成表格 */
   const insertTableTemplate = () => {
@@ -942,40 +1025,138 @@ function TaskNotePane({
               >
                 {editing && msg.kind === 'text' ? (
                   <div className="w-[88%] rounded-2xl rounded-br-md bg-indigo-500/80 p-2">
-                    <textarea
-                      value={editDraft}
-                      onChange={(e) => setEditDraft(e.target.value)}
-                      onKeyDown={(e) => {
-                        if (e.key === 'Enter' && !e.shiftKey && !e.nativeEvent.isComposing) {
-                          e.preventDefault();
-                          commitEdit();
-                        } else if (e.key === 'Escape') {
-                          setEditingId(null);
-                        }
-                      }}
-                      autoFocus
-                      rows={3}
-                      data-note-edit-input
-                      className="w-full resize-none rounded-lg bg-white/10 px-2 py-1.5 text-[13px] leading-relaxed text-white outline-none placeholder:text-white/50"
-                    />
-                    <div className="mt-1.5 flex justify-end gap-1">
-                      <button
-                        type="button"
-                        data-note-edit-cancel
-                        onClick={() => setEditingId(null)}
-                        className="rounded-md px-2 py-0.5 text-[12px] text-white/70 hover:bg-white/10"
-                      >
-                        {t('task.noteCancel')}
-                      </button>
-                      <button
-                        type="button"
-                        data-note-edit-save
-                        onClick={commitEdit}
-                        className="rounded-md bg-white/20 px-2 py-0.5 text-[12px] text-white hover:bg-white/30"
-                      >
-                        {t('task.noteSave')}
-                      </button>
-                    </div>
+                    {editTable ? (
+                      <>
+                        <div className="overflow-x-auto" data-note-table-editor>
+                          <table className="border-collapse text-[12px] leading-snug w-full">
+                            <thead>
+                              <tr>
+                                {editTable.header.map((c, j) => (
+                                  <th key={j} className="border border-white/25 bg-white/10 p-0">
+                                    <input
+                                      value={c}
+                                      onChange={(e) => updateEditCell(-1, j, e.target.value)}
+                                      onKeyDown={(e) => {
+                                        if (e.key === 'Escape') cancelEdit();
+                                      }}
+                                      data-note-table-cell={`h-${j}`}
+                                      className="w-full min-w-[48px] bg-transparent px-2 py-1 text-white outline-none"
+                                    />
+                                  </th>
+                                ))}
+                              </tr>
+                            </thead>
+                            <tbody>
+                              {editTable.rows.map((r, ri) => (
+                                <tr key={ri}>
+                                  {r.map((c, j) => (
+                                    <td key={j} className="border border-white/20 p-0">
+                                      <input
+                                        value={c}
+                                        onChange={(e) => updateEditCell(ri, j, e.target.value)}
+                                        onKeyDown={(e) => {
+                                          if (e.key === 'Escape') cancelEdit();
+                                        }}
+                                        data-note-table-cell={`${ri}-${j}`}
+                                        className="w-full min-w-[48px] bg-transparent px-2 py-1 text-white outline-none"
+                                      />
+                                    </td>
+                                  ))}
+                                </tr>
+                              ))}
+                            </tbody>
+                          </table>
+                        </div>
+                        <div className="mt-1.5 flex flex-wrap gap-1">
+                          <button
+                            type="button"
+                            data-note-table-add-row
+                            onClick={addEditRow}
+                            className="rounded-md px-2 py-0.5 text-[12px] text-white/70 hover:bg-white/10"
+                          >
+                            {t('task.noteAddRow')}
+                          </button>
+                          <button
+                            type="button"
+                            data-note-table-add-col
+                            onClick={addEditCol}
+                            className="rounded-md px-2 py-0.5 text-[12px] text-white/70 hover:bg-white/10"
+                          >
+                            {t('task.noteAddCol')}
+                          </button>
+                          <button
+                            type="button"
+                            data-note-table-del-row
+                            onClick={delEditRow}
+                            className="rounded-md px-2 py-0.5 text-[12px] text-white/70 hover:bg-white/10"
+                          >
+                            {t('task.noteDelRow')}
+                          </button>
+                          <button
+                            type="button"
+                            data-note-table-del-col
+                            onClick={delEditCol}
+                            className="rounded-md px-2 py-0.5 text-[12px] text-white/70 hover:bg-white/10"
+                          >
+                            {t('task.noteDelCol')}
+                          </button>
+                          <span className="flex-1" />
+                          <button
+                            type="button"
+                            data-note-edit-cancel
+                            onClick={cancelEdit}
+                            className="rounded-md px-2 py-0.5 text-[12px] text-white/70 hover:bg-white/10"
+                          >
+                            {t('task.noteCancel')}
+                          </button>
+                          <button
+                            type="button"
+                            data-note-edit-save
+                            onClick={commitEdit}
+                            className="rounded-md bg-white/20 px-2 py-0.5 text-[12px] text-white hover:bg-white/30"
+                          >
+                            {t('task.noteSave')}
+                          </button>
+                        </div>
+                      </>
+                    ) : (
+                      <>
+                        <textarea
+                          value={editDraft}
+                          onChange={(e) => setEditDraft(e.target.value)}
+                          onKeyDown={(e) => {
+                            if (e.key === 'Enter' && !e.shiftKey && !e.nativeEvent.isComposing) {
+                              e.preventDefault();
+                              commitEdit();
+                            } else if (e.key === 'Escape') {
+                              cancelEdit();
+                            }
+                          }}
+                          autoFocus
+                          rows={3}
+                          data-note-edit-input
+                          className="w-full resize-none rounded-lg bg-white/10 px-2 py-1.5 text-[13px] leading-relaxed text-white outline-none placeholder:text-white/50"
+                        />
+                        <div className="mt-1.5 flex justify-end gap-1">
+                          <button
+                            type="button"
+                            data-note-edit-cancel
+                            onClick={cancelEdit}
+                            className="rounded-md px-2 py-0.5 text-[12px] text-white/70 hover:bg-white/10"
+                          >
+                            {t('task.noteCancel')}
+                          </button>
+                          <button
+                            type="button"
+                            data-note-edit-save
+                            onClick={commitEdit}
+                            className="rounded-md bg-white/20 px-2 py-0.5 text-[12px] text-white hover:bg-white/30"
+                          >
+                            {t('task.noteSave')}
+                          </button>
+                        </div>
+                      </>
+                    )}
                   </div>
                 ) : msg.kind === 'batch' && msg.items ? (
                   <div className="flex max-w-[88%] flex-col items-end gap-1.5">
@@ -1040,6 +1221,16 @@ function TaskNotePane({
             />
             <button
               type="button"
+              aria-label={t('task.noteAddTable')}
+              title={t('task.noteAddTable')}
+              data-note-table
+              onClick={insertTableTemplate}
+              className="w-8 h-8 rounded-lg flex items-center justify-center shrink-0 text-white/55 hover:text-white hover:bg-white/10 transition-colors"
+            >
+              <Table size={16} />
+            </button>
+            <button
+              type="button"
               aria-label={t('task.noteAddFile')}
               title={t('task.noteAddFile')}
               data-note-attach
@@ -1059,16 +1250,6 @@ function TaskNotePane({
                 e.target.value = '';
               }}
             />
-          <button
-            type="button"
-            aria-label={t('task.noteAddTable')}
-            title={t('task.noteAddTable')}
-            data-note-table
-            onClick={insertTableTemplate}
-            className="w-8 h-8 rounded-lg flex items-center justify-center shrink-0 text-white/55 hover:text-white hover:bg-white/10 transition-colors"
-          >
-            <Table size={16} />
-          </button>
           <textarea
             ref={inputRef}
             value={draft}

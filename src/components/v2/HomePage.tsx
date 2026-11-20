@@ -1594,6 +1594,7 @@ export default function HomePage({ onNavigate, store }: { onNavigate: (page: str
           顶部留白约 28–32px 级别（移动端略小），让第一行卡片与吸顶导航条明显隔开、有呼吸感 */}
       <div
         ref={gridRef}
+        data-home-grid
         className={`grid gap-3 sm:gap-4 mt-10 sm:mt-12 lg:mt-14 ${
           phoneViewport
             ? 'grid-cols-1'

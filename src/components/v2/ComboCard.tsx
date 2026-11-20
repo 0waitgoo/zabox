@@ -132,6 +132,7 @@ export default function ComboCard({
       ]}
       onTabEarClick={activateTab}
       onClick={() => onOpen(combo)}
+      glass
       delay={delay}
       ariaLabel={t('menu.comboLabel', { a: displayGroupName(groups[0], lang), b: displayGroupName(groups[1], lang) })}
       rootProps={{ 'data-combo-card': combo.id }}

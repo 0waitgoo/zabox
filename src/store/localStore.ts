@@ -138,10 +138,11 @@ export interface PresetAppearance {
   bgBlur: number;
 }
 
-/** 四套内置预设共用的外观（第一百一十一轮）：星云紫 + 暗夜 + 默认透明度，可预测、不玩花样 */
+/** 四套内置预设共用的外观（第一百一十一轮）：星云紫 + 液态玻璃 + 默认透明度，可预测、不玩花样
+ *  （2026-11-21 用户令新用户默认星云紫＋液态玻璃：背景本来就是星云紫，主题由暗夜改液态玻璃） */
 export const DEFAULT_PRESET_APPEARANCE: PresetAppearance = {
   background: { presetId: 'violet', oceanColor: OCEAN_DEFAULT_COLOR },
-  theme: 'dark',
+  theme: 'liquid',
   groupCardAlpha: DEFAULT_DISPLAY_PREFS.groupCardAlpha,
   widgetAlpha: DEFAULT_DISPLAY_PREFS.widgetAlpha,
   bgBlur: DEFAULT_DISPLAY_PREFS.bgBlur,

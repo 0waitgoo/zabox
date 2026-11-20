@@ -1251,7 +1251,7 @@ export default function DataMenu({
           setConfirmRollback(false);
         }}
         title={t('data.menuTitle')}
-        className="card-glass-surface h-12 sm:h-13 px-2.5 sm:px-3 rounded-2xl border border-white/[0.07] text-white/45 hover:text-white/85 hover:border-white/15 flex items-center gap-1.5 text-xs transition-colors"
+        className="h-12 sm:h-13 px-2.5 sm:px-3 text-white/45 hover:text-white/85 flex items-center gap-1.5 text-xs transition-colors"
       >
         <Database size={15} />
         <span className="hidden sm:inline">{t('data.menuLabel')}</span>
@@ -1397,9 +1397,32 @@ export default function DataMenu({
               <p className={`px-3 py-2 text-[11px] ${message.ok ? 'text-emerald-300' : 'text-red-300'}`}>{message.text}</p>
             )}
 
-            {/* ---- 本地文件保存（第十四轮）：设置一次保存文件，之后点击保存 / 变化自动保存都写回它 ---- */}
+            {/* ---- 本地文件保存（第十四轮）：设置一次保存文件，之后点击保存 / 变化自动保存都写回它；
+                 自动保存开关直接放标题行右端，不再独占一行（2026-11-20） ---- */}
             <div className="mt-1 border-t border-white/8 px-3 pt-2.5 pb-1">
-              <p className={sectionHeadCls}><HardDrive size={11} className="text-white/40" /> {t('data.localFileHeading')}</p>
+              <div className="flex items-center justify-between">
+                <p className={sectionHeadCls}><HardDrive size={11} className="text-white/40" /> {t('data.localFileHeading')}</p>
+                {supported ? (
+                  <button
+                    onClick={() => handle && setMeta((m) => ({ ...m, autoSave: !m.autoSave }))}
+                    disabled={!handle}
+                    title={t('data.autoSave')}
+                    className={`flex items-center shrink-0 text-xs ${handle ? 'text-white/75' : 'text-white/30 cursor-not-allowed'}`}
+                  >
+                    <span
+                      className={`relative h-4.5 w-8 rounded-full transition-colors ${meta.autoSave && handle ? 'bg-violet-500' : 'bg-white/15'}`}
+                    >
+                      <span
+                        className={`absolute top-0.5 h-3.5 w-3.5 rounded-full bg-white transition-all ${meta.autoSave && handle ? 'left-4' : 'left-0.5'}`}
+                      />
+                    </span>
+                  </button>
+                ) : (
+                  <span className="relative h-4.5 w-8 shrink-0 rounded-full bg-white/10">
+                    <span className="absolute top-0.5 left-0.5 h-3.5 w-3.5 rounded-full bg-white/50" />
+                  </span>
+                )}
+              </div>
               {supported ? (
                 <>
                   {handle ? (
@@ -1431,20 +1454,6 @@ export default function DataMenu({
                       </button>
                     </div>
                   )}
-                  <button
-                    onClick={() => handle && setMeta((m) => ({ ...m, autoSave: !m.autoSave }))}
-                    disabled={!handle}
-                    title={t('data.autoSave')}
-                    className={`mt-1 w-full flex items-center justify-end py-1.5 text-xs ${handle ? 'text-white/75' : 'text-white/30 cursor-not-allowed'}`}
-                  >
-                    <span
-                      className={`relative h-4.5 w-8 rounded-full transition-colors ${meta.autoSave && handle ? 'bg-violet-500' : 'bg-white/15'}`}
-                    >
-                      <span
-                        className={`absolute top-0.5 h-3.5 w-3.5 rounded-full bg-white transition-all ${meta.autoSave && handle ? 'left-4' : 'left-0.5'}`}
-                      />
-                    </span>
-                  </button>
                   {saveStatus && (
                     <p
                       className={`pb-1 text-[11px] leading-relaxed ${
@@ -1478,11 +1487,6 @@ export default function DataMenu({
                       <span className={iconLabelCls}>{t('data.iconSave')}</span>
                     </button>
                   </div>
-                  <div className={itemDisabledCls}>
-                    <span className="relative h-4.5 w-8 rounded-full bg-white/10">
-                      <span className="absolute top-0.5 left-0.5 h-3.5 w-3.5 rounded-full bg-white/50" />
-                    </span>
-                  </div>
                   <p className="pb-1 text-[10px] text-white/35 leading-relaxed">
                     {t('data.noFsAccess')}
                   </p>
@@ -1492,9 +1496,35 @@ export default function DataMenu({
 
             {/* ---- 云同步：GitHub / Gitee 二选一（Gitee 线 2026-10-31 新增，与 GitHub 线镜像）；
                  同一时间只一条在跑；网站版一键登录（OAuth，仓库固定 ainav-data），
-                 扩展构建走方案 B 粘贴令牌（OAuth 回跳不可用），仓库约定与 OAuth 相同 ---- */}
+                 扩展构建走方案 B 粘贴令牌（OAuth 回跳不可用），仓库约定与 OAuth 相同；
+                 开启同步开关直接放标题行右端，不再独占一行（2026-11-20） ---- */}
             <div className="mt-1 border-t border-white/8 px-3 pt-2.5 pb-1">
-              <p className={sectionHeadCls}><Cloud size={11} className="text-white/40" /> {t('data.cloudSync')}</p>
+              <div className="flex items-center justify-between">
+                <p className={sectionHeadCls}><Cloud size={11} className="text-white/40" /> {t('data.cloudSync')}</p>
+                {provider === 'github' ? (
+                  isGhLoggedIn ? (
+                    <button
+                      onClick={toggleGhEnabled}
+                      title={t('data.enableSync')}
+                      className="flex items-center shrink-0 text-xs text-white/75"
+                    >
+                      <span className={`relative h-4.5 w-8 shrink-0 rounded-full transition-colors ${ghMeta.enabled ? 'bg-violet-500' : 'bg-white/15'}`}>
+                        <span className={`absolute top-0.5 h-3.5 w-3.5 rounded-full bg-white transition-all ${ghMeta.enabled ? 'left-4' : 'left-0.5'}`} />
+                      </span>
+                    </button>
+                  ) : null
+                ) : isGeLoggedIn ? (
+                  <button
+                    onClick={toggleGeEnabled}
+                    title={t('data.enableSync')}
+                    className="flex items-center shrink-0 text-xs text-white/75"
+                  >
+                    <span className={`relative h-4.5 w-8 shrink-0 rounded-full transition-colors ${geMeta.enabled ? 'bg-violet-500' : 'bg-white/15'}`}>
+                      <span className={`absolute top-0.5 h-3.5 w-3.5 rounded-full bg-white transition-all ${geMeta.enabled ? 'left-4' : 'left-0.5'}`} />
+                    </span>
+                  </button>
+                ) : null}
+              </div>
               <div className="mt-1.5 flex gap-1.5" data-sync-provider-tabs>
                 <button
                   onClick={() => void switchProvider('github')}
@@ -1518,15 +1548,6 @@ export default function DataMenu({
                     {isPatLoggedIn ? t('data.connectedGhToken') : t('data.loggedInGhLabel')}
                     <span className="text-white/90">{ghMeta.oauthLogin || ghMeta.owner}</span>
                   </p>
-                  <button
-                    onClick={toggleGhEnabled}
-                    title={t('data.enableSync')}
-                    className="mt-1 w-full flex items-center justify-end py-1.5 text-xs text-white/75"
-                  >
-                    <span className={`relative h-4.5 w-8 shrink-0 rounded-full transition-colors ${ghMeta.enabled ? 'bg-violet-500' : 'bg-white/15'}`}>
-                      <span className={`absolute top-0.5 h-3.5 w-3.5 rounded-full bg-white transition-all ${ghMeta.enabled ? 'left-4' : 'left-0.5'}`} />
-                    </span>
-                  </button>
                   <div className="mt-0.5 -mx-3">
                     <div className="flex">
                       <button onClick={() => void pullFromGithub()} className={iconBtnCls} title={t('data.pullNow')}>
@@ -1653,15 +1674,6 @@ export default function DataMenu({
                     {isGePatLoggedIn ? t('data.connectedGeToken') : t('data.loggedInGeLabel')}
                     <span className="text-white/90">{geMeta.oauthLogin || geMeta.owner}</span>
                   </p>
-                  <button
-                    onClick={toggleGeEnabled}
-                    title={t('data.enableSync')}
-                    className="mt-1 w-full flex items-center justify-end py-1.5 text-xs text-white/75"
-                  >
-                    <span className={`relative h-4.5 w-8 shrink-0 rounded-full transition-colors ${geMeta.enabled ? 'bg-violet-500' : 'bg-white/15'}`}>
-                      <span className={`absolute top-0.5 h-3.5 w-3.5 rounded-full bg-white transition-all ${geMeta.enabled ? 'left-4' : 'left-0.5'}`} />
-                    </span>
-                  </button>
                   <div className="mt-0.5 -mx-3">
                     <div className="flex">
                       <button onClick={() => void pullFromGitee()} className={iconBtnCls} title={t('data.pullNow')}>

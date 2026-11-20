@@ -1,6 +1,6 @@
 import React from 'react';
 import { createPortal } from 'react-dom';
-import { Glass } from '@samasante/liquid-glass';
+import LiquidGlass from 'liquid-glass-react';
 import { Check, MoreHorizontal, Trash2 } from 'lucide-react';
 import type { DockEntry, LocalStore } from '../../store/localStore';
 import { setDisplayPrefs, useDisplayPrefs, type DockHide, type DockSize } from '../../store/displayPrefs';
@@ -417,16 +417,19 @@ export default function DockBar({ store }: { store: LocalStore }) {
 
   return (
     <>
-      {/* 液态玻璃试用（2026-11-20 用户令换 @samasante/liquid-glass，只试 Dock 栏）：
-        <Glass> 干净裸包走 GlassMaterial 路线（backdrop-filter 式、专为 dock/菜单
-        设计，折背后实况、图标 crisp 在上层）；传 filterResolution、depth、scale、
-        live 等任一高级参数都会退回 GlassDOM 拷贝引擎（透镜改折自身内容、还要量
-        尺寸），所以这里一个都不能传。光学参数是用户 2026-11-20 21:23 按 samasante
-        演示页 Lens 面板逐项给的数值（圆角用本站的 28）。
-        关键坑（2026-11-20 隔离复现证实）：ref 绝不能传给 <Glass>——它经 ...rest
-        透传后盖掉该包自己挂在根 div 上的 ref（wrapRef），量尺寸的 effect 拿不到
-        元素、透镜永远不生效（滤镜空、backdrop-filter 仍是 none）。所以定位、
-        ref、data-dock-bar、鼠标事件全放在外层普通 div 上，<Glass> 只做玻璃面。
+      {/* 液态玻璃试用（2026-11-20 用户令改用 rdev/liquid-glass-react，只试 Dock 栏；
+        samasante 版用户认效果但嫌整页卡顿，已撤下）。
+        参数是用户 2026-11-20 22:00 按演示页（liquid-glass.maxrovensky.com）控制
+        面板逐项给的：折射模式 standard、位移量表 200、模糊量 0.1、饱和度 100%、
+        色差 0、弹性 0.00；圆角仍用本站的 28。弹性 0＋色差 0 去掉了鼠标追踪晃动
+        与三通道色散，应比 samasante 轻；流畅度最终以用户真机为准。
+        接法注意（读该包 1.1.1 源码实证）：<LiquidGlass> 渲染一组同级层（背景层、
+        混合层、装 SVG 滤镜的 GlassContainer、亮边 span），各层默认 relative、
+        top/left 50%＋translate(-50%,-50%) 居中；直接放进栏里会把栏撑高。所以
+        外层栏加 dock-glass（display:grid，index.css 里各层 grid-area:1/1 叠在
+        同一格），栏尺寸由内容定。该包只在挂载＋窗口 resize 时量尺寸，Dock 增减
+        图标/换尺寸时靠 key 重挂重新量（key=尺寸:顺序签名）。它自带投影已在
+        index.css 里按本站去投影口径清掉（.dock-glass .glass box-shadow:none）。
         减透明偏好时不用玻璃、回到原纯 CSS 磨砂底。 */}
       <div
         ref={barRef}
@@ -434,6 +437,8 @@ export default function DockBar({ store }: { store: LocalStore }) {
         onMouseEnter={clearAutoHideTimer}
         onMouseLeave={scheduleAutoHide}
         className={`fixed bottom-3 sm:bottom-5 left-1/2 z-50 -translate-x-1/2 rounded-[28px] max-w-[calc(100vw-20px)] overflow-x-auto select-none transition-all duration-300 ${
+          reduceTransparency ? '' : ' dock-glass'
+        } ${
           dockHide === 'auto' && !barShown ? 'translate-y-[140%] opacity-0 pointer-events-none' : ''
         }`}
       >
@@ -444,33 +449,23 @@ export default function DockBar({ store }: { store: LocalStore }) {
             {barInner}
           </div>
         ) : (
-          <Glass
-            data-liquid-glass-dock
-            radius={28}
-            optics={{
-              // 用户 2026-11-20 21:23 按 samasante 演示页 Lens 面板逐项给的数值
-              // （圆角按用户话用本站的 28，不用演示的 119；演示的宽/高 200 是透镜
-              // 几何，不适用于自适应宽度的 Dock，未取）
-              strength: 0.14,
-              depth: 0.95,
-              curvature: 0.5,
-              dispersion: 0.2,
-              bend: 0.4,
-              bendWidth: 0.07,
-              sheen: 1.2,
-              sheenWidth: 3.5,
-              specular: 1.6,
-              sheenAngle: 0,
-              glow: 0.1,
-              frost: 1,
-              brightness: 0,
-            }}
-            style={{ background: 'rgba(20, 20, 26, 0.35)' }}
+          <React.Fragment key={`${dockSize}:${orderKey}`}>
+          <LiquidGlass
+            className="dock-glass-root"
+            displacementScale={200}
+            blurAmount={0.1}
+            saturation={100}
+            aberrationIntensity={0}
+            elasticity={0}
+            cornerRadius={28}
+            mode="standard"
+            padding="0px"
           >
             <div className={`flex items-center gap-1 sm:gap-1.5 ${size.padClass}`}>
               {barInner}
             </div>
-          </Glass>
+          </LiquidGlass>
+          </React.Fragment>
         )}
       </div>
       {drag && draggedItem &&

@@ -146,6 +146,19 @@ body {
     backdrop-filter: url(#zabox-liquid-glass) saturate(190%) !important;
   }
 }
+/* quickLiquid 内容层 .ql-content（2026-11-21 液态玻璃组滚不动的根因）：
+   该库只给它 position:relative + z-index:10（读 0.1.2 源码实证），没有 display
+   与高度——它是普通块盒，卡内 flex-1 的滚动区（收起态 data-collapsed-scroll、
+   展开态 data-nodrag）在它里面失去高度约束、长到内容全高，超出部分被卡身
+   overflow-hidden 裁掉，scrollHeight == clientHeight 所以滚轮毫无反应。
+   让它成为撑满宿主的纵向 flex 容器，恢复滚动链；组合卡/C 卡无 flex-1
+   子项，布局不受影响。Dock 已不用该库，此规则只作用于卡片。 */
+.ql-content {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  min-height: 0;
+}
 /* 白天钉回暗夜值（第五十八轮）：--group-card-rgb 在白天翻白，故搜索/数据面直接写死暗夜 rgb，
    只让 alpha 随滑杆——与暗夜下计算值逐字一致；文字/图标本就用白色系类，与深底相配 */
 [data-theme="light"] .card-glass-surface {

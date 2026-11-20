@@ -361,3 +361,27 @@ html {
   user-select: text;
   -webkit-touch-callout: default;
 }
+
+/* Dock 栏 rdev 液态玻璃（2026-11-20）：该包各层是同级 relative 元素，不叠会把栏
+   撑高；栏加 dock-glass 后 display:grid，各层 grid-area:1/1 叠在同一格居中。
+   另按本站去投影口径清掉它自带的投影。 */
+.dock-glass {
+  display: grid;
+}
+.dock-glass > * {
+  grid-area: 1 / 1;
+}
+.dock-glass .glass {
+  box-shadow: none !important;
+}
+/* 该包根容器自带 translate(-50%,-50%) 居中变换（按 fixed/absolute 用法设计），
+   在 grid 格里会把它推出格子；且 grid 默认拉伸会让它量出格子宽、卡在 270 默认
+   尺寸不动。清掉变换并按内容尺寸贴格子左上角，量尺寸才能跟上真实内容。 */
+.dock-glass > .dock-glass-root {
+  transform: none !important;
+  justify-self: start;
+  align-self: start;
+}
+.dock-glass .mix-blend-overlay {
+  mix-blend-mode: overlay;
+}

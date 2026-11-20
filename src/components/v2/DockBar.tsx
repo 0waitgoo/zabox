@@ -340,104 +340,120 @@ export default function DockBar({ store }: { store: LocalStore }) {
     store.removeDockSite(item.entryGroupId, item.entrySiteId, item.entryUrl);
   };
 
+  // 栏内内容（图标/空态/分隔线/设置钮）：玻璃态与减透明态共用同一份，
+  // 只换外壳——图标必须在 LiquiGlass 的 content 层里（见下注释），不能放外壳外。
+  const barInner = (
+    <>
+    {dockHide !== 'hide' && ordered.length === 0 && (
+      <p data-dock-empty className="px-3 py-1.5 text-xs text-white/55 whitespace-nowrap">
+        {t('dock.empty')}
+      </p>
+    )}
+    {dockHide !== 'hide' &&
+      ordered.map((item) => {
+        const isDragged = drag?.key === item.key;
+        return (
+          <div
+            key={item.key}
+            // 跨组拖拽源标记：Dock 图标是按住拖拽源，长按菜单钩子不对它 500ms 冻结位移，
+            // 否则按住稍久再拖时后续 pointermove 会被冻结、Dock 拖拽起不来
+            data-cross-source
+            ref={(el) => {
+              if (el) itemEls.current.set(item.key, el);
+              else itemEls.current.delete(item.key);
+            }}
+            className="shrink-0"
+            style={isDragged ? { opacity: 0 } : undefined}
+          >
+            <button
+              type="button"
+              data-dock-item={item.site.id ?? item.entrySiteId}
+              data-site-drag-id={item.key}
+              title={item.site.name}
+              aria-label={item.site.name}
+              draggable={false}
+              onDragStart={(e) => e.preventDefault()}
+              onPointerDown={(e) => startDrag(e, item)}
+              onContextMenu={(e) => openMenu(e, item)}
+              onClick={() => {
+                if (suppressClickRef.current === item.key) {
+                  suppressClickRef.current = null;
+                  return;
+                }
+                window.open(item.site.url, '_blank');
+              }}
+              className={`flex ${size.btnClass} items-center justify-center rounded-2xl p-1 transition-colors hover:bg-white/8 touch-none cursor-grab active:cursor-grabbing`}
+            >
+              <SiteLogo
+                logo={siteIconSrc(item.site)}
+                name={item.site.name}
+                url={item.site.url}
+                size={size.icon}
+                grayscale={!!item.site.dead}
+              />
+            </button>
+          </div>
+        );
+      })}
+    {dockHide !== 'hide' && ordered.length > 0 && (
+      <div aria-hidden className="mx-0.5 h-6 w-px shrink-0 bg-white/15" />
+    )}
+    <button
+      ref={settingsBtnRef}
+      type="button"
+      data-dock-settings
+      title={t('dock.settings')}
+      aria-label={t('dock.settings')}
+      onClick={() => {
+        setMenu(null);
+        setSettingsOpen((v) => !v);
+      }}
+      className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-white/65 transition-colors hover:bg-white/10 hover:text-white"
+    >
+      <MoreHorizontal size={18} />
+    </button>
+    </>
+  );
+
   return (
     <>
-      <div
-        ref={barRef}
-        data-dock-bar
-        onMouseEnter={clearAutoHideTimer}
-        onMouseLeave={scheduleAutoHide}
-        // 液态玻璃试用（2026-11-20 用户令，只试 Dock 栏）：@liqui-design/glass 的
-        // LiquiGlass 作栏底绝对层（inset-0、pointer-events-none，不挡图标拖拽/点击），
-        // 栏本身只留定位与圆角，原 bg/backdrop-blur/border 由玻璃面接管；
-        // material 默认 auto：Chromium 走真折射，Safari/Firefox 自动落磨砂＋烤制边缘；
-        // 减透明偏好时不渲染玻璃、回到原纯 CSS 磨砂底。
-        className={`fixed bottom-3 sm:bottom-5 left-1/2 z-50 -translate-x-1/2 flex items-center gap-1 sm:gap-1.5 rounded-[28px] ${
-          reduceTransparency ? 'border border-white/10 bg-[#14141a]/70 backdrop-blur-md' : ''
-        } ${size.padClass} max-w-[calc(100vw-20px)] overflow-x-auto select-none transition-all duration-300 ${
-          dockHide === 'auto' && !barShown ? 'translate-y-[140%] opacity-0 pointer-events-none' : ''
-        }`}
-      >
-        {!reduceTransparency && (
-          <LiquiGlass
-            aria-hidden
-            radius={28}
-            bezel={14}
-            frost={0.5}
-            elevated
-            className="pointer-events-none absolute inset-0"
-          />
-        )}
-        {dockHide !== 'hide' && ordered.length === 0 && (
-          <p data-dock-empty className="px-3 py-1.5 text-xs text-white/55 whitespace-nowrap">
-            {t('dock.empty')}
-          </p>
-        )}
-        {dockHide !== 'hide' &&
-          ordered.map((item) => {
-            const isDragged = drag?.key === item.key;
-            return (
-              <div
-                key={item.key}
-                // 跨组拖拽源标记：Dock 图标是按住拖拽源，长按菜单钩子不对它 500ms 冻结位移，
-                // 否则按住稍久再拖时后续 pointermove 会被冻结、Dock 拖拽起不来
-                data-cross-source
-                ref={(el) => {
-                  if (el) itemEls.current.set(item.key, el);
-                  else itemEls.current.delete(item.key);
-                }}
-                className="shrink-0"
-                style={isDragged ? { opacity: 0 } : undefined}
-              >
-                <button
-                  type="button"
-                  data-dock-item={item.site.id ?? item.entrySiteId}
-                  data-site-drag-id={item.key}
-                  title={item.site.name}
-                  aria-label={item.site.name}
-                  draggable={false}
-                  onDragStart={(e) => e.preventDefault()}
-                  onPointerDown={(e) => startDrag(e, item)}
-                  onContextMenu={(e) => openMenu(e, item)}
-                  onClick={() => {
-                    if (suppressClickRef.current === item.key) {
-                      suppressClickRef.current = null;
-                      return;
-                    }
-                    window.open(item.site.url, '_blank');
-                  }}
-                  className={`flex ${size.btnClass} items-center justify-center rounded-2xl p-1 transition-colors hover:bg-white/8 touch-none cursor-grab active:cursor-grabbing`}
-                >
-                  <SiteLogo
-                    logo={siteIconSrc(item.site)}
-                    name={item.site.name}
-                    url={item.site.url}
-                    size={size.icon}
-                    grayscale={!!item.site.dead}
-                  />
-                </button>
-              </div>
-            );
-          })}
-        {dockHide !== 'hide' && ordered.length > 0 && (
-          <div aria-hidden className="mx-0.5 h-6 w-px shrink-0 bg-white/15" />
-        )}
-        <button
-          ref={settingsBtnRef}
-          type="button"
-          data-dock-settings
-          title={t('dock.settings')}
-          aria-label={t('dock.settings')}
-          onClick={() => {
-            setMenu(null);
-            setSettingsOpen((v) => !v);
-          }}
-          className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-white/65 transition-colors hover:bg-white/10 hover:text-white"
+      {/* 液态玻璃试用（2026-11-20 用户令，只试 Dock 栏）：
+        第一版把 LiquiGlass 作绝对背景层放在栏里是错的——图标是栏的静态子节点，
+        绘制顺序在定位的玻璃层之下，玻璃的磨砂＋着色层盖在图标上面，图标全糊成色块
+        （2026-11-20 用户截图实证）。正确接法是 LiquiGlass 作栏根、图标当它的 children
+        进 .liqui-glass__content（z-index 3，在各玻璃层之上），图标才清晰、折射只折背后。
+        material 默认 auto：Chromium 走真折射，Safari/Firefox 自动落磨砂＋烤制边缘；
+        减透明偏好时不用玻璃、回到原纯 CSS 磨砂底。 */}
+      {reduceTransparency ? (
+        <div
+          ref={barRef}
+          data-dock-bar
+          onMouseEnter={clearAutoHideTimer}
+          onMouseLeave={scheduleAutoHide}
+          className={`fixed bottom-3 sm:bottom-5 left-1/2 z-50 -translate-x-1/2 flex items-center gap-1 sm:gap-1.5 rounded-[28px] border border-white/10 bg-[#14141a]/70 ${size.padClass} backdrop-blur-md max-w-[calc(100vw-20px)] overflow-x-auto select-none transition-all duration-300 ${
+            dockHide === 'auto' && !barShown ? 'translate-y-[140%] opacity-0 pointer-events-none' : ''
+          }`}
         >
-          <MoreHorizontal size={18} />
-        </button>
-      </div>
-
+          {barInner}
+        </div>
+      ) : (
+        <LiquiGlass
+          ref={barRef}
+          data-dock-bar
+          onMouseEnter={clearAutoHideTimer}
+          onMouseLeave={scheduleAutoHide}
+          radius={28}
+          bezel={14}
+          frost={0.5}
+          elevated
+          className={`fixed bottom-3 sm:bottom-5 left-1/2 z-50 -translate-x-1/2 rounded-[28px] max-w-[calc(100vw-20px)] overflow-x-auto select-none transition-all duration-300 ${
+            dockHide === 'auto' && !barShown ? 'translate-y-[140%] opacity-0 pointer-events-none' : ''
+          }`}
+          contentClassName={`flex items-center gap-1 sm:gap-1.5 ${size.padClass}`}
+        >
+          {barInner}
+        </LiquiGlass>
+      )}
       {drag && draggedItem &&
         createPortal(
           <div

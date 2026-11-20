@@ -76,7 +76,11 @@ export default function SiteContextMenu({
  className="fixed z-[90] w-[180px] rounded-2xl bg-[#1e1e26] border border-white/15 p-1.5"
       style={{ left: state.x, top: state.y }}
       onClick={(e) => e.stopPropagation()}
-      onContextMenu={(e) => e.preventDefault()}
+      onContextMenu={(e) => {
+        // 菜单上再右键不另开菜单（2026-11-20）
+        e.preventDefault();
+        e.stopPropagation();
+      }}
     >
       {!confirming ? (
         <>

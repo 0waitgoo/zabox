@@ -75,6 +75,26 @@ body {
   --fade-rgb: 250 250 252;
 }
 
+/* 液态玻璃档是暗夜底：@liqui-design/glass 的 tokens.css 只给 [data-theme='dark']/.dark
+   写了暗色值，liquid 档须显式复用同一套（照抄该包 dark 块），否则玻璃 tint 会落到
+   浅色默认值上。只影响 Dock 栏这一处试用的玻璃面。 */
+[data-theme="liquid"] {
+  --lq-text: rgba(255, 255, 255, 0.85);
+  --lq-text-dim: rgba(255, 255, 255, 0.55);
+  --lq-tint: rgba(30, 32, 46, 0.62);
+  --lq-tint-deep: rgba(18, 20, 32, 0.4);
+  --lq-rim-hi: rgba(255, 255, 255, 0.5);
+  --lq-rim-lo: rgba(255, 255, 255, 0.12);
+  --lq-shadow: 0 24px 60px rgba(0, 0, 5, 0.55), 0 4px 14px rgba(0, 0, 5, 0.35);
+  --lq-highlight: rgba(255, 255, 255, 0.18);
+  --lq-control: rgba(126, 128, 146, 0.3);
+  --lq-control-rim: rgba(255, 255, 255, 0.22);
+  --lq-accent: #0091ff;
+  --lq-danger: #ff4245;
+  --lq-danger-text: #ff6467;
+  --lq-scrim: rgba(0, 0, 6, 0.48);
+}
+
 /* 编组卡（B/C/组合卡）底框：磨砂底 + 描边，alpha 走变量（背景面板滑杆实时控制）。
    B 卡根节点用 .group-card-panel（类自带底色）；C/组合卡卡身用内联同数值底色，
    只挂 .group-card-scope 作主题作用域标记（不带任何样式）。 */

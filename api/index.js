@@ -318,7 +318,17 @@ export default async function handler(req, res) {
         lastUpdate
       });
     }
-    
+
+    if (type === 'ip') {
+      // 本机公网 IP（时间小组件，2026-11-21）：取请求头第一跳，不存、不记日志
+      const forwarded = req.headers['x-forwarded-for'];
+      const ip = (typeof forwarded === 'string' ? forwarded.split(',')[0].trim() : '')
+        || req.headers['x-real-ip']
+        || req.socket?.remoteAddress
+        || '';
+      return res.status(200).json({ success: true, ip });
+    }
+
     if (type === 'sync') {
       const result = await syncNews();
       await refreshTrends();

@@ -1,16 +1,21 @@
 import React, { useEffect, useState } from 'react';
 import { motion } from 'motion/react';
-import { Clock, MapPin } from 'lucide-react';
+import { Globe } from 'lucide-react';
 import { useLang } from '../../i18n/useLang';
+import { fetchIp } from '../../services/api';
 import type { WidgetLayout } from '../../store/localStore';
 
 /**
- * 时间小组件（2026-11-21 晚重做：按分享版时间小工具的海报设计，字体一致）：
+ * 时间小组件（2026-11-21 晚，按分享版海报设计重做后用户再改）：
  * 纯黑海报 + 系统无衬线粗体大字（分享版同款：无网络字体，Arial/Helvetica 风格粗体），
  * 四种版式按尺寸走：1x1 紧凑 / 2x1 横排 / 1x2 大字 / 2x2 双日；星期用带圈字；秒数点分隔。
- * 定位只在设备上取经纬度（不联网反查，与分享版一致），显示经纬度 + 地图链接，
- * 点按复制时间＋经纬度＋地图链接。海报就是纯黑，不挂底色层（故不接 tint）。
- * 经纬度与提醒句是组件自有数据，存独立 key（ainav-widget-time-data），不进主仓、不参与同步。
+ * 无标题栏（纯海报）；提醒输入无下划线。
+ * 字阶（平面设计口径）：眉标 10px/宽距/中粗 → 主数字 900 → 时间 800 → 次级 700 → 正文 400，
+ * 数字特粗、字距紧，标签字距宽，形成黑白灰三档层次。
+ * IP 行：只显示本机公网 IP（走自家 /api?type=ip，网站与扩展同路，不直连第三方），
+ * 不显示地址/经纬度/地图链接；点按复制时间＋IP。IP 每次打开现取，不存。
+ * 提醒句是组件自有数据，存独立 key（ainav-widget-time-data），不进主仓、不参与同步。
+ * 海报就是纯黑，不挂底色层（故不接 tint）。
  */
 
 /** 海报字体：与分享版一致——系统无衬线（Arial/Helvetica 风格），无网络字体 */
@@ -20,8 +25,6 @@ const POSTER_FONT = '"Arial", "Helvetica Neue", Helvetica, system-ui, -apple-sys
 const DATA_KEY = 'ainav-widget-time-data';
 
 interface TimeWidgetData {
-  coords?: string;
-  mapUrl?: string;
   note?: string;
 }
 
@@ -83,7 +86,8 @@ export default function TimeWidget({
   const { t } = useLang();
   const [now, setNow] = useState(() => new Date());
   const [data, setData] = useState<TimeWidgetData>(loadData);
-  const [locState, setLocState] = useState<'idle' | 'loading' | 'denied' | 'error'>('idle');
+  const [ip, setIp] = useState<string | null>(null);
+  const [ipState, setIpState] = useState<'loading' | 'ok' | 'error'>('loading');
   const [copied, setCopied] = useState(false);
 
   useEffect(() => {
@@ -98,6 +102,22 @@ export default function TimeWidget({
       /* 本地存不下也不影响显示 */
     }
   }, [data]);
+
+  /** IP：每次打开现取（走自家 /api，不直连第三方），失败可点重试 */
+  const loadIp = async () => {
+    setIpState('loading');
+    const v = await fetchIp();
+    if (v) {
+      setIp(v);
+      setIpState('ok');
+    } else {
+      setIpState('error');
+    }
+  };
+  useEffect(() => {
+    loadIp();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   const cols = phone ? 1 : layout.colSpan;
   const tall = layout.heightUnits === 2;
@@ -116,30 +136,10 @@ export default function TimeWidget({
   /** 上下午标记（横排/双日右栏，呼应海报的 PM） */
   const ampm = now.getHours() < 12 ? 'AM' : 'PM';
 
-  /** 定位：只在设备上取经纬度，不联网反查（与分享版一致） */
-  const locate = () => {
-    if (!('geolocation' in navigator)) {
-      setLocState('error');
-      return;
-    }
-    setLocState('loading');
-    navigator.geolocation.getCurrentPosition(
-      (pos) => {
-        const { latitude, longitude } = pos.coords;
-        const coords = `${latitude.toFixed(4)}, ${longitude.toFixed(4)}`;
-        const mapUrl = `https://www.google.com/maps?q=${latitude.toFixed(4)},${longitude.toFixed(4)}`;
-        setData((d) => ({ ...d, coords, mapUrl }));
-        setLocState('idle');
-      },
-      () => setLocState('denied'),
-      { timeout: 10000 },
-    );
-  };
-
-  /** 复制：时间＋经纬度＋地图链接（含农历与提醒，与分享版一致） */
-  const copyLocation = async () => {
-    if (!data.coords || !data.mapUrl) return;
-    const text = `${dateNum} ${weekdayText} ${timeText} ${lunar} ${data.coords} ${data.mapUrl}${data.note ? ` ${data.note}` : ''}`;
+  /** 复制：时间＋IP（含农历与提醒） */
+  const copyIp = async () => {
+    if (!ip) return;
+    const text = `${dateNum} ${weekdayText} ${timeText} ${lunar} IP ${ip}${data.note ? ` ${data.note}` : ''}`;
     try {
       await navigator.clipboard.writeText(text);
       setCopied(true);
@@ -149,43 +149,31 @@ export default function TimeWidget({
     }
   };
 
-  /* 定位行（2x1/1x2/2x2 共用）：未定位点按获取；已定位点按复制经纬度，另附地图链接 */
-  const locationRow = data.coords ? (
+  /* IP 行（四种尺寸共用）：已取到点按复制；未取到点按重试 */
+  const ipRow = ipState === 'ok' && ip ? (
     <div className="flex items-center gap-1.5 min-w-0">
       <button
-        onClick={copyLocation}
+        onClick={copyIp}
         className="flex items-center gap-1.5 text-left text-[13px] text-[#A3A3A3] hover:text-white transition-colors min-w-0"
-        title={copied ? t('widget.timeCopied') : data.coords}
+        title={copied ? t('widget.timeCopied') : ip}
       >
-        <MapPin size={13} className="shrink-0" />
-        <span className="flex-1 min-w-0 truncate tabular-nums">{data.coords}</span>
+        <Globe size={13} className="shrink-0" />
+        <span className="tabular-nums">IP {ip}</span>
         <span className="shrink-0 text-[11px] text-white/35">{copied ? t('widget.timeCopied') : t('widget.timeTapCopy')}</span>
       </button>
-      <a
-        href={data.mapUrl}
-        target="_blank"
-        rel="noreferrer"
-        className="shrink-0 text-[12px] text-white underline underline-offset-2 decoration-white/40 hover:decoration-white"
-      >
-        {t('widget.timeViewMap')}
-      </a>
     </div>
   ) : (
     <button
-      onClick={locate}
-      disabled={locState === 'loading'}
+      onClick={loadIp}
+      disabled={ipState === 'loading'}
       className="flex items-center gap-1.5 text-[13px] text-[#6B6B6B] hover:text-white transition-colors disabled:opacity-60"
     >
-      <MapPin size={13} className="shrink-0" />
-      {locState === 'loading'
-        ? t('widget.timeLocating')
-        : locState === 'denied' || locState === 'error'
-          ? t('widget.timeLocDenied')
-          : t('widget.timeLocPlaceholder')}
+      <Globe size={13} className="shrink-0" />
+      {ipState === 'loading' ? t('widget.timeIpLoading') : t('widget.timeIpError')}
     </button>
   );
 
-  /* 一句话提醒行（高卡共用） */
+  /* 一句话提醒行（高卡共用）：无下划线，纯文字 */
   const noteRow = (
     <div className="flex items-center gap-2">
       <span className="shrink-0 text-[11px] px-1.5 py-0.5 rounded-md bg-white/10 text-white/60">{t('widget.timeNote')}</span>
@@ -194,7 +182,7 @@ export default function TimeWidget({
         maxLength={40}
         onChange={(e) => setData((d) => ({ ...d, note: e.target.value }))}
         placeholder={t('widget.timeNotePlaceholder')}
-        className="flex-1 min-w-0 bg-transparent text-[13px] text-white placeholder:text-white/30 outline-none border-b border-white/15 focus:border-white/40 py-0.5"
+        className="flex-1 min-w-0 bg-transparent text-[13px] text-white placeholder:text-white/30 outline-none py-0.5"
       />
     </div>
   );
@@ -210,75 +198,63 @@ export default function TimeWidget({
       onClick={(e) => e.stopPropagation()}
     >
       <div className="relative flex flex-col flex-1 min-h-0">
-        <div className="flex items-center justify-between gap-2 shrink-0">
-          <div className="flex items-center gap-2 min-w-0">
-            <div className="w-7 h-7 rounded-full bg-white text-black flex items-center justify-center shrink-0">
-              <Clock size={14} />
-            </div>
-            <h3 className="font-semibold text-base sm:text-lg tracking-tight truncate">{t('widget.nameTime')}</h3>
-          </div>
-          <span className="flex items-center gap-1.5 text-[11px] text-white/40 shrink-0">
-            <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
-            {t('widget.live')}
-          </span>
-        </div>
-
-        {/* 1x1 紧凑：TIME 年份 + 大日期 + 时间 PM 星期 + 农历 */}
+        {/* 1x1 紧凑：TIME 年份 + 大日期 + 时间 PM 星期 + IP + 农历 */}
         {!wide && !tall && (
           <div className="flex-1 min-h-0 flex flex-col justify-center">
-            <div className="text-[11px] tracking-[0.3em] text-[#A3A3A3]">TIME {now.getFullYear()}</div>
-            <div className="mt-1 font-black tabular-nums leading-none tracking-tight text-[44px]">{dateNum}</div>
-            <div className="mt-1.5 text-[15px] font-bold tabular-nums">
+            <div className="text-[10px] tracking-[0.35em] font-medium text-[#A3A3A3]">TIME {now.getFullYear()}</div>
+            <div className="mt-1 font-black tabular-nums leading-none tracking-tight text-[46px]">{dateNum}</div>
+            <div className="mt-1.5 text-[14px] font-bold tabular-nums">
               {fullTime} <span className="text-[#A3A3A3] font-medium text-[13px]">{ampm} {weekdayText}</span>
             </div>
-            {lunar ? <div className="mt-1.5 text-[12px] text-white/90">农历 {lunar}</div> : null}
+            <div className="mt-1.5">{ipRow}</div>
+            {lunar ? <div className="mt-1 text-[12px] text-white">农历 {lunar}</div> : null}
           </div>
         )}
 
-        {/* 2x1 横排：左 TIME/年份｜中大日期｜右 PM+带圈星期/全时间；下方定位 + 农历 */}
+        {/* 2x1 横排：左 TIME/年份｜中大日期｜右 PM+带圈星期/全时间；下方 IP + 农历 */}
         {wide && !tall && (
           <>
             <div className="flex-1 min-h-0 flex items-center gap-4">
               <div className="shrink-0">
-                <div className="text-[11px] tracking-[0.25em] text-[#A3A3A3]">TIME</div>
-                <div className="font-black tabular-nums leading-none text-[22px]">{now.getFullYear()}</div>
+                <div className="text-[10px] tracking-[0.3em] font-medium text-[#A3A3A3]">TIME</div>
+                <div className="font-bold tabular-nums leading-none text-[20px]">{now.getFullYear()}</div>
               </div>
               <div className="flex-1 min-w-0 text-center font-black tabular-nums leading-none tracking-tight text-[56px]">{dateNum}</div>
               <div className="shrink-0 flex flex-col items-end">
                 <div className="flex items-center gap-1.5">
-                  <span className="text-[13px] text-[#A3A3A3]">{ampm}</span>
+                  <span className="text-[13px] font-medium text-[#A3A3A3]">{ampm}</span>
                   <CircledWeekday ch={WEEKDAYS[now.getDay()]} className="w-5 h-5 text-[12px]" />
                 </div>
-                <div className="mt-1 font-black tabular-nums leading-none text-[24px]">{fullTime}</div>
+                <div className="mt-1 font-extrabold tabular-nums leading-none text-[22px]">{fullTime}</div>
               </div>
             </div>
-            <div className="shrink-0 mt-1 flex flex-col gap-1">
-              {locationRow}
-              {lunar ? <div className="text-[12px] text-white/90">农历 {lunar}</div> : null}
+            <div className="shrink-0 mt-2 flex flex-col gap-1">
+              {ipRow}
+              {lunar ? <div className="text-[12px] text-white">农历 {lunar}</div> : null}
             </div>
           </>
         )}
 
-        {/* 1x2 大字：竖排年份 + 超大日期 + 带圈星期；大时间 + 灰秒；农历；定位 + 提醒 */}
+        {/* 1x2 大字：竖排年份 + 超大日期 + 带圈星期；大时间 + 灰秒；农历；IP + 提醒 */}
         {!wide && tall && (
           <>
             <div className="flex-1 min-h-0 flex flex-col justify-center">
               <div className="flex items-center gap-3">
-                <div className="flex flex-col font-black tabular-nums leading-none text-[28px] shrink-0">
+                <div className="flex flex-col font-bold tabular-nums leading-[0.95] text-[24px] shrink-0">
                   <span>{String(now.getFullYear()).slice(0, 2)}</span>
                   <span>{String(now.getFullYear()).slice(2)}</span>
                 </div>
-                <div className="flex-1 min-w-0 font-black tabular-nums leading-none tracking-tight text-[60px]">{dateNum}</div>
+                <div className="flex-1 min-w-0 font-black tabular-nums leading-none tracking-tight text-[62px]">{dateNum}</div>
                 <CircledWeekday ch={WEEKDAYS[now.getDay()]} className="w-7 h-7 text-[15px]" />
               </div>
-              <div className="mt-2 font-black tabular-nums leading-none tracking-tight text-[44px]">
+              <div className="mt-2.5 font-extrabold tabular-nums leading-none tracking-tight text-[40px]">
                 {timeText}
-                <span className="text-[#A3A3A3] text-[0.45em] align-top">{secondsText}</span>
+                <span className="text-[#A3A3A3] font-medium text-[0.45em] align-top">{secondsText}</span>
               </div>
-              {lunar ? <div className="mt-2 text-[14px] text-white/90">农历 {lunar}</div> : null}
+              {lunar ? <div className="mt-3 text-[14px] text-white">农历 {lunar}</div> : null}
             </div>
-            <div className="shrink-0 flex flex-col gap-2 mt-1" data-nodrag>
-              {locationRow}
+            <div className="shrink-0 flex flex-col gap-2.5 mt-1" data-nodrag>
+              {ipRow}
               {noteRow}
             </div>
           </>
@@ -289,21 +265,21 @@ export default function TimeWidget({
           <>
             <div className="flex-1 min-h-0 flex gap-4">
               <div className="flex-1 min-w-0 flex flex-col justify-center">
-                <div className="text-[11px] tracking-[0.25em] text-[#A3A3A3]">{t('widget.timeToday')}</div>
+                <div className="text-[10px] tracking-[0.35em] font-medium text-[#A3A3A3]">{t('widget.timeToday')}</div>
                 <div className="mt-1 font-black tabular-nums leading-none tracking-tight text-[52px]">{dateNum}</div>
-                <div className="mt-2 font-black tabular-nums leading-none tracking-tight text-[28px]">
+                <div className="mt-2 font-extrabold tabular-nums leading-none tracking-tight text-[26px]">
                   {timeText}
-                  <span className="text-[#A3A3A3] text-[0.5em] align-top">{secondsText}</span>
+                  <span className="text-[#A3A3A3] font-medium text-[0.5em] align-top">{secondsText}</span>
                 </div>
-                <div className="mt-2 min-w-0">{locationRow}</div>
-                {lunar ? <div className="mt-1.5 text-[13px] text-white/90 truncate">农历 {lunar}</div> : null}
+                <div className="mt-2.5 min-w-0">{ipRow}</div>
+                {lunar ? <div className="mt-1.5 text-[13px] text-white truncate">农历 {lunar}</div> : null}
               </div>
               <div className="w-px self-stretch my-2 bg-white/15 shrink-0" />
               <div className="flex-1 min-w-0 flex flex-col justify-center">
-                <div className="text-[11px] tracking-[0.25em] text-[#A3A3A3]">{t('widget.timeTomorrow')}</div>
+                <div className="text-[10px] tracking-[0.35em] font-medium text-[#A3A3A3]">{t('widget.timeTomorrow')}</div>
                 <div className="mt-1 font-black tabular-nums leading-none tracking-tight text-[52px]">{tomorrowDateNum}</div>
-                <div className="mt-2 text-[26px] font-bold">
-                  <span className="text-[#A3A3A3]">{ampm} </span>
+                <div className="mt-2 text-[24px] font-bold">
+                  <span className="text-[#A3A3A3] font-medium">{ampm} </span>
                   {tomorrowWeekdayText}
                 </div>
               </div>

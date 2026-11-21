@@ -1551,7 +1551,9 @@ export default function HomePage({ onNavigate, store }: { onNavigate: (page: str
 
   return (
     <div
-      className="flex flex-col pt-6 sm:pt-10 lg:pt-14"
+      // 2026-11-22 用户令：内容到顶和底、无需遮盖——顶 padding（原 pt-6/sm:pt-10/lg:pt-14）
+      // 撤掉，顶栏贴视口顶；App 容器纵向 padding 同轮已撤。
+      className="flex flex-col"
       onContextMenu={handleBlankContextMenu}
     >
       {/* 顶栏（一行对齐）：与下方卡片网格同款 4 栏 grid——左半 2 栏放页面导航图标组（靠左），
@@ -1559,7 +1561,7 @@ export default function HomePage({ onNavigate, store }: { onNavigate: (page: str
           随卡片一起上下滚动（顶部毛玻璃遮挡带同轮删除）；relative 保留定位上下文，
           z-40 让菜单面板盖过卡片、仍在弹窗/拖影之下。移动端为 2 栏 grid，左右各半，仍保持一行不换行。 */}
       {/* 栏底全透明：各控件自带实色底，直接浮在页面背景之上 */}
-      <div data-topbar className="relative z-40 -mt-1 pt-1 pb-2">
+      <div data-topbar className="relative z-40 pt-1 pb-2">
         {/* 遮挡带（第五十九轮）第六十三轮起改由 App 在容器层统一渲染（fixed 全幅），不在栏内挂 */}
         {/* 移动端列宽（第六十四轮实测修正）：左组加 LOGO 后内容约 207px，grid-cols-2 的半屏
             （390px 时 177px）装不下、工具钮会被搜索框盖住一半无法点。移动端改左列按内容宽、

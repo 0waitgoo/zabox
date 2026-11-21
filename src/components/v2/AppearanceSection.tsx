@@ -5,19 +5,19 @@ import { deleteBgImage, saveBgImage } from '../../store/bgImageDb';
 import { OCEAN_DEFAULT_COLOR, setDisplayPrefs, useDisplayPrefs } from '../../store/displayPrefs';
 import { useLang } from '../../i18n/useLang';
 
-/** 「深海蓝」纯色版的快捷色板（第九十二轮）：首个即默认深海蓝原色，其余为同气质的深色 */
+/** 「纯色」预设的快捷色板（第九十二轮）：首个即默认深海蓝原色，其余为同气质的深色 */
 const OCEAN_SWATCHES = [OCEAN_DEFAULT_COLOR, '#13294b', '#0b2e2a', '#2a1030', '#30151a', '#1a1a20'];
 
 /**
  * 「外观」节（第一百一十一轮）：原顶栏背景按钮的面板正文整体并入预设面板——
- * 背景三项、深海蓝选色、明暗两档、两根透明度滑杆、背景模糊、本地图片，一项不丢。
+ * 背景三项、纯色选色、明暗两档、两根透明度滑杆、背景模糊、本地图片，一项不丢。
  * 本节只负责渲染，触发与点外关闭由外层预设面板自理；背景改动走 store.setBackground
  * （经 update()，触发自动保存），偏好改动走 setDisplayPrefs（经订阅桥接，同样触发）。
  * 本地图片本体只存本机 IndexedDB，绝不上传；本地图片背景本身不进预设快照。
  */
 export default function AppearanceSection({ store }: { store: LocalStore }) {
   const { t } = useLang();
-  // 「深海蓝」选色器展开态（第九十二轮）：点深海蓝条目时展开，选其他预设收起
+  // 「纯色」选色器展开态（第九十二轮）：点深海蓝条目时展开，选其他预设收起
   const [oceanPickerOpen, setOceanPickerOpen] = useState(false);
   const [message, setMessage] = useState<{ ok: boolean; text: string } | null>(null);
   const fileRef = useRef<HTMLInputElement>(null);
@@ -98,7 +98,7 @@ export default function AppearanceSection({ store }: { store: LocalStore }) {
           );
         })}
       </div>
-      {/* 「深海蓝」选色（第九十二轮）：纯色版点开即选——色板快捷色 + 系统取色器自定义，
+      {/* 「纯色」选色（第九十二轮）：纯色版点开即选——色板快捷色 + 系统取色器自定义，
           选完即时生效并存本机显示偏好（ainav-display-prefs-v1），下次打开保持 */}
       {oceanPickerOpen && !usingLocal && background.presetId === 'ocean' && (
         <div data-ocean-picker className="mt-1 mx-3 rounded-xl border border-white/10 bg-white/[0.03] p-2">

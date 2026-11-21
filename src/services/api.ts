@@ -69,6 +69,17 @@ export async function fetchTrends(): Promise<TrendsResult> {
   }
 }
 
+/** 本机公网 IP（时间小组件，2026-11-21）：走自家 /api?type=ip，不直连第三方，网站与扩展同路 */
+export async function fetchIp(): Promise<string | null> {
+  try {
+    const data = await requestJson(`${API_BASE}/api?type=ip`);
+    if (data.success && typeof data.ip === 'string' && data.ip) return data.ip;
+    return null;
+  } catch {
+    return null;
+  }
+}
+
 // 共用正在进行的请求，避免 StrictMode 和同屏组件重复取数；完成后即可重试。
 const pending = new Map<string, Promise<any>>();
 

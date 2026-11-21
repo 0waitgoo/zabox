@@ -17,6 +17,7 @@ const WidgetStorePage = React.lazy(() => import('./components/pages/WidgetStoreP
 const PlanPage = React.lazy(() => import('./components/pages/PlanPage'));
 const DarkVeil = React.lazy(() => import('./components/DarkVeil'));
 const DappledLight = React.lazy(() => import('./components/backgrounds/DappledLight'));
+const HazeglowBackground = React.lazy(() => import('./components/backgrounds/HazeglowBackground'));
 
 export default function App() {
   const [currentPage, setCurrentPage] = useState('home');
@@ -152,6 +153,13 @@ export default function App() {
         {background.kind === 'preset' && preset.dynamic === 'dappled' && (
           <div className="absolute inset-0 z-1">
             <Suspense fallback={null}><DappledLight className="absolute inset-0" /></Suspense>
+          </div>
+        )}
+        {/* 2026-11-22 开源动态背景「雾光」（hazeglow，WebGL2）：与 DarkVeil/DappledLight 同位；
+            无 WebGL2 时组件自行撤下 Canvas，透出本层 preset.css 兜底底色 */}
+        {background.kind === 'preset' && preset.dynamic === 'hazeglow' && (
+          <div className="absolute inset-0 z-1">
+            <Suspense fallback={null}><HazeglowBackground className="absolute inset-0" /></Suspense>
           </div>
         )}
       </div>

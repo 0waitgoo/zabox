@@ -1,20 +1,21 @@
 import React, { useEffect, useState } from 'react';
 import { motion } from 'motion/react';
-import { Globe } from 'lucide-react';
+import { MapPin } from 'lucide-react';
 import { useLang } from '../../i18n/useLang';
 import { fetchIp } from '../../services/api';
+import type { IpGeo } from '../../services/api';
 import type { WidgetLayout } from '../../store/localStore';
 
 /**
- * 时间小组件（2026-11-21 晚八改：气泡加轻微浮动循环动画）：
+ * 时间小组件（2026-11-22 位置行：IP 归属地＋经纬度＋城市名）：
  * 两种风格（右上角按钮切换，存独立 key，随提醒句一起持久化；日程/线框已按用户令删除）：
  * - 海报：分享版同款纯黑海报，系统无衬线粗体大字，无网络字体；日期 900 号字再加 3px 白描边（描边在外，不吃字腔），是全卡最粗的字；日期字距放宽到 0.04em，不再黏在一起；2x2 左今日日期、右具体时间（冒号分隔），明日只留左栏小字一行；时间全站改冒号（22:44:24，海报＋气泡同路）；2x2 右栏：居中对齐、时间 64px 整行（秒与时分同大，不再小字右上角）、左右顶对齐（两栏包在居中块里、内容从同顶开始）。
  * - 气泡：白气泡（日期）＋蓝气泡（时间），参考用户发的气泡海报（白底黑字「日期」＋蓝底白字「时间」），蓝白配色用户喜欢故保留；灵动版：气泡只贴内容宽、白左蓝右错开、微倾斜，右上角不再被挡；2 栏加满：2x2 日期 64/时间 52 大字＋第三只白气泡装明日（18px），2x1 日期 44/时间 36、蓝气泡内收 40px 不挡右上角、IP＋农历同一行、气泡行上垫 16px 避开开关；浮动循环动画：白蓝气泡轻微上下浮动 4px、3 秒一圈无限循环，白蓝错半拍、明日错 1/4 拍（index.css 的 time-bubble-float，减弱动效偏好下停掉）。
  * 四种版式（1x1 紧凑 / 2x1 横排 / 1x2 大字 / 2x2 双栏）× 两种风格共 8 种组合。
  * 无标题栏（纯海报）；提醒输入无下划线。
  * 字阶（平面设计口径）：眉标 10px/宽距/中粗 → 主数字 900 → 时间 800 → 次级 700 → 正文 400，黑白灰三档。
- * IP 行：只显示本机公网 IP（走自家 /api?type=ip，网站与扩展同路，不直连第三方），
- * 不显示地址/经纬度/地图链接；点按复制时间＋IP。IP 每次打开现取，不存。
+ * 位置行（2026-11-22 用户令）：IP 归属地（服务端 /api?type=ip 调 ip-api.com 查，失败回落只显示 IP），
+ * 显示为图钉 ICON＋英文缩写经纬度（1 位小数＋°，如 N 1.3° E 103.9°）＋城市名；点按复制时间＋位置。每次打开现取，不存。
  * 提醒句与风格是组件自有数据，存独立 key（ainav-widget-time-data），不进主仓、不参与同步。
  * 海报就是纯黑，不挂底色层（故不接 tint）。
  */
@@ -382,7 +383,7 @@ export default function TimeWidget({
   const { t } = useLang();
   const [now, setNow] = useState(() => new Date());
   const [data, setData] = useState<TimeWidgetData>(loadData);
-  const [ip, setIp] = useState<string | null>(null);
+  const [geo, setGeo] = useState<IpGeo | null>(null);
   const [ipState, setIpState] = useState<'loading' | 'ok' | 'error'>('loading');
   const [copied, setCopied] = useState(false);
   const style = data.style ?? 'poster';
@@ -400,12 +401,12 @@ export default function TimeWidget({
     }
   }, [data]);
 
-  /** IP：每次打开现取（走自家 /api，不直连第三方），失败可点重试 */
+  /** 位置：每次打开现取（走自家 /api，不直连第三方），失败可点重试 */
   const loadIp = async () => {
     setIpState('loading');
     const v = await fetchIp();
     if (v) {
-      setIp(v);
+      setGeo(v);
       setIpState('ok');
     } else {
       setIpState('error');
@@ -433,10 +434,18 @@ export default function TimeWidget({
   /** 上下午标记（横排/双日右栏，呼应海报的 PM） */
   const ampm = now.getHours() < 12 ? 'AM' : 'PM';
 
-  /** 复制：时间＋IP（含农历与提醒） */
+  /** 经纬度：英文缩写＋1 位小数＋°（N/S、E/W），如 N 1.3° E 103.9° */
+  const formatLatLon = (lat: number, lon: number) =>
+    `${lat >= 0 ? 'N' : 'S'} ${Math.abs(lat).toFixed(1)}° ${lon >= 0 ? 'E' : 'W'} ${Math.abs(lon).toFixed(1)}°`;
+  /** 位置行文案：经纬度＋城市名；无归属地时回落到 IP */
+  const locText = geo && typeof geo.lat === 'number' && typeof geo.lon === 'number'
+    ? `${formatLatLon(geo.lat, geo.lon)}${geo.city ? ` · ${geo.city}` : ''}`
+    : geo ? `IP ${geo.ip}` : '';
+
+  /** 复制：时间＋位置（含农历与提醒） */
   const copyIp = async () => {
-    if (!ip) return;
-    const text = `${dateNum} ${weekdayText} ${timeText} ${lunar} IP ${ip}${data.note ? ` ${data.note}` : ''}`;
+    if (!geo) return;
+    const text = `${dateNum} ${weekdayText} ${timeText} ${lunar} ${locText}${data.note ? ` ${data.note}` : ''}`;
     try {
       await navigator.clipboard.writeText(text);
       setCopied(true);
@@ -446,16 +455,16 @@ export default function TimeWidget({
     }
   };
 
-  /* IP 行（四种尺寸、四种风格共用）：已取到点按复制；未取到点按重试 */
-  const ipRow = ipState === 'ok' && ip ? (
+  /* 位置行（四种尺寸、四种风格共用）：归属地＋城市名，点按复制；无归属地时回落到 IP；未取到点按重试 */
+  const ipRow = ipState === 'ok' && geo ? (
     <div className="flex items-center gap-1.5 min-w-0">
       <button
         onClick={copyIp}
         className="flex items-center gap-1.5 text-left text-[13px] text-[#A3A3A3] hover:text-white transition-colors min-w-0"
-        title={copied ? t('widget.timeCopied') : ip}
+        title={copied ? t('widget.timeCopied') : locText}
       >
-        <Globe size={13} className="shrink-0" />
-        <span className="tabular-nums">IP {ip}</span>
+        <MapPin size={13} className="shrink-0" />
+        <span className="tabular-nums">{locText}</span>
         <span className="shrink-0 text-[11px] text-white/35">{copied ? t('widget.timeCopied') : t('widget.timeTapCopy')}</span>
       </button>
     </div>
@@ -465,7 +474,7 @@ export default function TimeWidget({
       disabled={ipState === 'loading'}
       className="flex items-center gap-1.5 text-[13px] text-[#6B6B6B] hover:text-white transition-colors disabled:opacity-60"
     >
-      <Globe size={13} className="shrink-0" />
+      <MapPin size={13} className="shrink-0" />
       {ipState === 'loading' ? t('widget.timeIpLoading') : t('widget.timeIpError')}
     </button>
   );

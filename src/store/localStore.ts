@@ -42,7 +42,7 @@ export const DEFAULT_WIDGET_LAYOUTS: Record<WidgetId, WidgetLayout> = {
   tools: { colSpan: 2, heightUnits: 1 },
   /** 中式色卡（第一百零七轮）：默认 2 栏 × 1x，当日配色色带横排（设计稿注册定版） */
   colors: { colSpan: 2, heightUnits: 1 },
-  /** 时间（2026-11-21）：默认 2 栏 × 2x，海报式大字时钟 + 日期/农历/定位/提醒才摆得下 */
+  /** 时间（2026-11-21）：默认 2 栏 × 2x，海报双日版式才摆得下 */
   time: { colSpan: 2, heightUnits: 2 },
 };
 

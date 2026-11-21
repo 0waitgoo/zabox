@@ -133,8 +133,13 @@ body {
   -webkit-backdrop-filter: none !important;
   backdrop-filter: none !important;
 }
+/* 组合卡 tab 选中态（2026-11-21 用户令：选中时玻璃高亮要常驻，鼠标离开也不掉；
+   选右边则高亮跟到右边）：此前这里把选中 tab 的底色钉成透明，高亮只在 :hover 时
+   由下条规则给，鼠标一离开选中态就和未选中一样、看不出选了谁。现把悬停那套玻璃渐变
+   直接钉在选中态上常驻（与悬停同值，悬停在选中态上不再变化）；未选中 tab 仍只靠悬停短暂提亮。 */
 [data-theme="liquid"] [data-combo-tab-active="true"] {
   background-color: transparent;
+  background-image: linear-gradient(125deg, rgb(255 255 255 / .15), rgb(255 255 255 / .025) 55%, rgb(255 255 255 / .07));
 }
 [data-theme="liquid"] :is(.group-card-panel, .widget-panel, [data-stack-body], .card-glass-surface, .store-panel) :is(button, [data-nav-site]):is(:hover, :focus-visible) {
   background-image: linear-gradient(125deg, rgb(255 255 255 / .15), rgb(255 255 255 / .025) 55%, rgb(255 255 255 / .07));

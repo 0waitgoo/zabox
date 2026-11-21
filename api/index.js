@@ -320,13 +320,29 @@ export default async function handler(req, res) {
     }
 
     if (type === 'ip') {
-      // 本机公网 IP（时间小组件，2026-11-21）：取请求头第一跳，不存、不记日志
+      // 本机公网 IP＋IP 归属地（时间小组件，2026-11-21 IP、2026-11-22 归属地）：
+      // 取请求头第一跳，不存、不记日志；归属地走 ip-api.com（免费、无 Key），失败只回 IP
       const forwarded = req.headers['x-forwarded-for'];
       const ip = (typeof forwarded === 'string' ? forwarded.split(',')[0].trim() : '')
         || req.headers['x-real-ip']
         || req.socket?.remoteAddress
         || '';
-      return res.status(200).json({ success: true, ip });
+      let geo = null;
+      if (ip && !ip.startsWith('127.') && ip !== '::1' && !ip.startsWith('10.') && !ip.startsWith('192.168.')) {
+        try {
+          const controller = new AbortController();
+          const timer = setTimeout(() => controller.abort(), 3000);
+          const r = await fetch(`http://ip-api.com/json/${encodeURIComponent(ip)}?fields=status,city,lat,lon`, { signal: controller.signal });
+          clearTimeout(timer);
+          const g = await r.json();
+          if (g && g.status === 'success' && typeof g.lat === 'number' && typeof g.lon === 'number') {
+            geo = { lat: g.lat, lon: g.lon, city: typeof g.city === 'string' ? g.city : '' };
+          }
+        } catch {
+          /* 归属地查不到只回 IP，不影响显示 */
+        }
+      }
+      return res.status(200).json({ success: true, ip, ...(geo ? { lat: geo.lat, lon: geo.lon, city: geo.city } : {}) });
     }
 
     if (type === 'sync') {

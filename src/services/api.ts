@@ -69,11 +69,19 @@ export async function fetchTrends(): Promise<TrendsResult> {
   }
 }
 
-/** 本机公网 IP（时间小组件，2026-11-21）：走自家 /api?type=ip，不直连第三方，网站与扩展同路 */
-export async function fetchIp(): Promise<string | null> {
+/** 本机公网 IP＋IP 归属地（时间小组件，2026-11-21 IP、2026-11-22 归属地）：走自家 /api?type=ip，不直连第三方，网站与扩展同路 */
+export interface IpGeo { ip: string; lat?: number; lon?: number; city?: string }
+export async function fetchIp(): Promise<IpGeo | null> {
   try {
     const data = await requestJson(`${API_BASE}/api?type=ip`);
-    if (data.success && typeof data.ip === 'string' && data.ip) return data.ip;
+    if (data.success && typeof data.ip === 'string' && data.ip) {
+      return {
+        ip: data.ip,
+        lat: typeof data.lat === 'number' ? data.lat : undefined,
+        lon: typeof data.lon === 'number' ? data.lon : undefined,
+        city: typeof data.city === 'string' && data.city ? data.city : undefined,
+      };
+    }
     return null;
   } catch {
     return null;

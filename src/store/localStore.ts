@@ -1065,7 +1065,7 @@ export const ALL_WIDGETS: { id: WidgetId; name: string; desc: string }[] = [
   { id: 'trending', name: '热门话题', desc: '社区热门话题帖子数' },
   { id: 'tools', name: '文件工具', desc: 'PDF 转图片/长图、图片转 PDF、合并与拆分' },
   { id: 'colors', name: '中式色卡', desc: '158 种中国传统色：色墙浏览、传统配色、一键复制色值' },
-  { id: 'time', name: '时间', desc: '实时时间、日期、农历与定位' },
+  { id: 'time', name: '时间', desc: '实时时间、日期、农历与 IP' },
 ];
 
 const STORAGE_KEY = 'ainav-store-v1';

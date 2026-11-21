@@ -54,6 +54,7 @@ export default function AppearanceSection({ store }: { store: LocalStore }) {
     violet: t('preset.bg.violet'),
     dappled: t('preset.bg.dappled'),
     ocean: t('preset.bg.ocean'),
+    hazeglow: t('preset.bg.hazeglow'),
   };
 
   return (

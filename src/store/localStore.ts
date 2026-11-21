@@ -1152,31 +1152,37 @@ export const DEFAULT_PRESET_GROUP_LAYOUTS: Record<string, WidgetLayout> = {
   'wstack:ws-mvm8czz1m8o8n': { colSpan: 1, heightUnits: 2 },
 };
 
-/** 默认主页的卡片顺序（用户 live 布局） */
+/** 默认主页的卡片顺序（用户 live 布局；2026-11-21 晚：时钟 2×2 放中间——
+ *  紧跟计划之后、组合之前，锚定第 1 栏（跨 1–2 栏）；其余卡按栏位重排，
+ *  让 4 栏 6 行恰好排满、无空洞：上行 AI 对话/计划，中行时间居中，
+ *  下行热门话题/文件工具收尾） */
 export const DEFAULT_PRESET_CARD_ORDER: string[] = [
   'group:ai-chat',
   'widget:task',
-  'wstack:ws-mvm8czz1m8o8n',
+  'widget:time',
   'combo:c-mvm8celnynhjv',
   'group:writing',
   'group:audio',
   'group:office',
+  'wstack:ws-mvm8czz1m8o8n',
   'widget:trending',
-  'widget:tools',
   'group:code',
+  'widget:tools',
 ];
 
-/** 默认主页的栏锚点（用户 live 布局） */
+/** 默认主页的栏锚点（用户 live 布局；2026-11-21 晚：时间锚第 1 栏居中；
+ *  写作/音频/办公随重排改锚：写作→3 栏、音频→0 栏、办公→3 栏） */
 export const DEFAULT_PRESET_CARD_COLS: Record<string, number> = {
   'group:ai-chat': 0,
   'widget:task': 2,
+  'widget:time': 1,
   'group:image': 3,
   'widget:news': 2,
   'group:video': 0,
-  'group:writing': 1,
+  'group:writing': 3,
   'group:code': 3,
-  'group:audio': 3,
-  'group:office': 2,
+  'group:audio': 0,
+  'group:office': 3,
   'widget:trending': 0,
   'widget:tools': 0,
   'combo:c-mvm8celnynhjv': 0,

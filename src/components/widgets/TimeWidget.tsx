@@ -6,11 +6,11 @@ import { fetchIp } from '../../services/api';
 import type { WidgetLayout } from '../../store/localStore';
 
 /**
- * 时间小组件（2026-11-21 晚四改：删日程/线框、气泡重做灵动版、日期字距放宽）：
+ * 时间小组件（2026-11-21 晚五改：气泡 2 栏加满＋海报 2x2 左日期右时间、时间改冒号）：
  * 两种风格（右上角按钮切换，存独立 key，随提醒句一起持久化；日程/线框已按用户令删除）：
- * - 海报：分享版同款纯黑海报，系统无衬线粗体大字，无网络字体；日期 900 号字再加 3px 白描边（描边在外，不吃字腔），是全卡最粗的字；日期字距放宽到 0.04em，不再黏在一起。
- * - 气泡：白气泡（日期）＋蓝气泡（时间），参考用户发的气泡海报（白底黑字「日期」＋蓝底白字「时间」），蓝白配色用户喜欢故保留；灵动版：气泡只贴内容宽、白左蓝右错开、微倾斜，右上角不再被挡。
- * 四种版式（1x1 紧凑 / 2x1 横排 / 1x2 大字 / 2x2 双日）× 两种风格共 8 种组合。
+ * - 海报：分享版同款纯黑海报，系统无衬线粗体大字，无网络字体；日期 900 号字再加 3px 白描边（描边在外，不吃字腔），是全卡最粗的字；日期字距放宽到 0.04em，不再黏在一起；2x2 左今日日期、右具体时间（冒号分隔），明日只留左栏小字一行；时间全站改冒号（22:44:24，海报＋气泡同路）。
+ * - 气泡：白气泡（日期）＋蓝气泡（时间），参考用户发的气泡海报（白底黑字「日期」＋蓝底白字「时间」），蓝白配色用户喜欢故保留；灵动版：气泡只贴内容宽、白左蓝右错开、微倾斜，右上角不再被挡；2 栏加满：2x2 日期 56/时间 44 大字＋第三只白气泡装明日，2x1 日期 38/时间 30。
+ * 四种版式（1x1 紧凑 / 2x1 横排 / 1x2 大字 / 2x2 双栏）× 两种风格共 8 种组合。
  * 无标题栏（纯海报）；提醒输入无下划线。
  * 字阶（平面设计口径）：眉标 10px/宽距/中粗 → 主数字 900 → 时间 800 → 次级 700 → 正文 400，黑白灰三档。
  * IP 行：只显示本机公网 IP（走自家 /api?type=ip，网站与扩展同路，不直连第三方），
@@ -173,27 +173,27 @@ function PosterStyle(p: StyleShared) {
         </>
       )}
 
-      {/* 2x2 双日：今日｜明日 */}
+      {/* 2x2 双栏：左=今日日期＋IP/农历/明日小字，右=具体时间（冒号分隔） */}
       {wide && tall && (
         <>
           <div className="flex-1 min-h-0 flex gap-4">
             <div className="flex-1 min-w-0 flex flex-col justify-center">
               <div className="text-[10px] tracking-[0.35em] font-medium text-[#A3A3A3]">{todayLabel}</div>
               <div className="mt-1 font-black tabular-nums leading-none tracking-[0.04em] text-[52px]" style={DATE_BLACK}>{dateNum}</div>
-              <div className="mt-2 font-extrabold tabular-nums leading-none tracking-tight text-[26px]">
-                {timeText}
-                <span className="text-[#A3A3A3] font-medium text-[0.5em] align-top">{secondsText}</span>
-              </div>
               <div className="mt-2.5 min-w-0">{ipRow}</div>
               {lunar ? <div className="mt-1.5 text-[13px] text-white truncate">农历 {lunar}</div> : null}
+              <div className="mt-1.5 text-[13px] text-[#A3A3A3] truncate">{tomorrowLabel} {tomorrowDateNum} {tomorrowWeekdayText}</div>
             </div>
             <div className="w-px self-stretch my-2 bg-white/15 shrink-0" />
             <div className="flex-1 min-w-0 flex flex-col justify-center">
-              <div className="text-[10px] tracking-[0.35em] font-medium text-[#A3A3A3]">{tomorrowLabel}</div>
-              <div className="mt-1 font-black tabular-nums leading-none tracking-[0.04em] text-[52px]" style={DATE_BLACK}>{tomorrowDateNum}</div>
+              <div className="text-[10px] tracking-[0.35em] font-medium text-[#A3A3A3]">时间</div>
+              <div className="mt-1 font-extrabold tabular-nums leading-none tracking-tight text-[52px]">
+                {timeText}
+                <span className="text-[#A3A3A3] font-medium text-[0.5em] align-top">{secondsText}</span>
+              </div>
               <div className="mt-2 text-[24px] font-bold">
                 <span className="text-[#A3A3A3] font-medium">{ampm} </span>
-                {tomorrowWeekdayText}
+                {weekdayText}
               </div>
             </div>
           </div>
@@ -261,7 +261,7 @@ function BubbleStyle(p: StyleShared) {
             <div className="w-fit max-w-[55%] -rotate-2">
               <WhiteBubble>
                 <div className="flex items-end justify-between gap-2">
-                  <div className="font-black tabular-nums leading-none tracking-[0.04em] text-[34px]">{dateNum}</div>
+                  <div className="font-black tabular-nums leading-none tracking-[0.04em] text-[38px]">{dateNum}</div>
                   <div className="text-right shrink-0 pb-0.5">
                     <div className="text-[9px] tracking-[0.25em] font-medium text-black/50">TIME</div>
                     <div className="text-[13px] font-bold text-[#2563EB]">日期</div>
@@ -272,7 +272,7 @@ function BubbleStyle(p: StyleShared) {
             <div className="w-fit max-w-[55%] rotate-[1.5deg]">
               <BlueBubble>
                 <div className="flex items-end justify-between gap-2">
-                  <div className="font-black tabular-nums leading-none text-[26px]">{fullTime}</div>
+                  <div className="font-black tabular-nums leading-none text-[30px]">{fullTime}</div>
                   <div className="text-right shrink-0 pb-0.5">
                     <div className="text-[9px] tracking-[0.25em] font-medium text-white/70">{ampm}</div>
                     <div className="text-[13px] font-bold">时间</div>
@@ -324,14 +324,14 @@ function BubbleStyle(p: StyleShared) {
         </>
       )}
 
-      {/* 2x2：白气泡日期（左，微倾）＋蓝气泡时间（右，微倾）＋明日/IP/农历/提醒 */}
+      {/* 2x2：白气泡日期（左，微倾）＋蓝气泡时间（右，微倾）＋白气泡明日（左）＋IP/农历/提醒——2 栏加满 */}
       {wide && tall && (
         <>
-          <div className="flex-1 min-h-0 flex flex-col justify-center gap-3">
+          <div className="flex-1 min-h-0 flex flex-col justify-center gap-4">
             <div className="w-fit max-w-full -rotate-2">
               <WhiteBubble>
                 <div className="flex items-end justify-between gap-3">
-                  <div className="font-black tabular-nums leading-none tracking-[0.04em] text-[44px]">{dateNum}</div>
+                  <div className="font-black tabular-nums leading-none tracking-[0.04em] text-[56px]">{dateNum}</div>
                   <div className="text-right shrink-0 pb-0.5">
                     <div className="text-[10px] tracking-[0.25em] font-medium text-black/50">TIME</div>
                     <div className="text-[15px] font-bold text-[#2563EB]">日期</div>
@@ -342,7 +342,7 @@ function BubbleStyle(p: StyleShared) {
             <div className="w-fit max-w-full ml-auto rotate-[1.5deg]">
               <BlueBubble>
                 <div className="flex items-end justify-between gap-3">
-                  <div className="font-black tabular-nums leading-none text-[36px]">{fullTime}</div>
+                  <div className="font-black tabular-nums leading-none text-[44px]">{fullTime}</div>
                   <div className="text-right shrink-0 pb-0.5">
                     <div className="text-[10px] tracking-[0.25em] font-medium text-white/70">{ampm}</div>
                     <div className="text-[15px] font-bold">时间</div>
@@ -350,9 +350,15 @@ function BubbleStyle(p: StyleShared) {
                 </div>
               </BlueBubble>
             </div>
+            <div className="w-fit max-w-full -rotate-1">
+              <WhiteBubble>
+                <div className="flex items-center gap-2">
+                  <div className="text-[16px] font-bold tabular-nums">{tomorrowLabel} {tomorrowDateNum} {tomorrowWeekdayText}</div>
+                </div>
+              </WhiteBubble>
+            </div>
           </div>
           <div className="shrink-0 mt-2 flex flex-col gap-1">
-            <div className="text-[13px] text-[#A3A3A3]">{tomorrowLabel} {tomorrowDateNum} {tomorrowWeekdayText}</div>
             {ipRow}
             {lunar ? <div className="text-[13px] text-white">农历 {lunar}</div> : null}
           </div>
@@ -418,8 +424,8 @@ export default function TimeWidget({
   const tomorrow = new Date(now.getTime() + 24 * 60 * 60 * 1000);
 
   const pad = (n: number) => String(n).padStart(2, '0');
-  const timeText = `${pad(now.getHours())}.${pad(now.getMinutes())}`;
-  const secondsText = `.${pad(now.getSeconds())}`;
+  const timeText = `${pad(now.getHours())}:${pad(now.getMinutes())}`;
+  const secondsText = `:${pad(now.getSeconds())}`;
   const fullTime = `${timeText}${secondsText}`;
   const dateNum = `${now.getMonth() + 1}/${now.getDate()}`;
   const weekdayText = `周${WEEKDAYS[now.getDay()]}`;

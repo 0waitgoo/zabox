@@ -235,16 +235,19 @@ export const WIDGET_DEFINITIONS: WidgetDefinition[] = [
     id: 'time',
     name: '时间',
     nameKey: 'widget.nameTime',
-    desc: '实时时间、日期、农历与定位',
+    desc: '实时时间、日期、农历与 IP',
     descKey: 'widget.descTime',
     category: 'tools',
     icon: Clock,
     watermark: '🕐',
     supportedSizes: ALL_SIZES,
     defaultLayout: DEFAULT_WIDGET_LAYOUTS.time,
-    // 定位只在设备上取经纬度、不联网反查（与分享版时间小工具一致），故无 network 声明；
-    // 经纬度与提醒句是组件自有数据，与站点数据无关，独立迭代更稳妥
-    storage: { own: 'ainav-widget-time-data', reason: '定位经纬度与提醒句是组件自有数据，与站点数据无关，独立迭代更稳妥', reasonKey: 'widget.storageTimeReason' },
+    // 只显示本机公网 IP：走自家 /api?type=ip（网站与扩展同路），不直连第三方、不显示地址/经纬度
+    network: [
+      { endpoint: '/api?type=ip', purpose: '取本机公网 IP 显示（走自家 /api，不直连第三方）', purposeKey: 'widget.netIp' },
+    ],
+    // 提醒句是组件自有数据，与站点数据无关，独立迭代更稳妥
+    storage: { own: 'ainav-widget-time-data', reason: '提醒句是组件自有数据，与站点数据无关，独立迭代更稳妥', reasonKey: 'widget.storageTimeReason' },
     component: TimeWidgetAdapter,
   },
 ];

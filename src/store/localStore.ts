@@ -87,10 +87,10 @@ export const BACKGROUND_PRESETS: BackgroundPreset[] = [
     css: 'radial-gradient(900px 620px at 10% -12%, rgba(153, 191, 255, 0.38), transparent 55%), linear-gradient(165deg, #101014 0%, #0a0a0a 60%, #060607 100%)',
   },
   {
-    // 第九十二轮：「深海蓝」改纯色自选——渲染色取 displayPrefs.oceanColor（默认即下面
+    // 第九十二轮：该预设改纯色自选——渲染色取 displayPrefs.oceanColor（默认即下面
     // 渐变的首色 #0d2140），此 css 只作面板/兜底参考，不再直接上屏
     id: 'ocean',
-    name: '深海蓝',
+    name: '纯色',
     css: 'radial-gradient(1100px 750px at 80% -10%, rgba(37, 99, 235, 0.38), transparent 60%), linear-gradient(160deg, #0d2140 0%, #081426 52%, #05070d 100%)',
   },
   {
@@ -103,7 +103,7 @@ export const BACKGROUND_PRESETS: BackgroundPreset[] = [
   },
 ];
 
-export const DEFAULT_BACKGROUND: BackgroundSetting = { kind: 'preset', presetId: 'violet' };
+export const DEFAULT_BACKGROUND: BackgroundSetting = { kind: 'preset', presetId: 'hazeglow' };
 
 /** 按 id 取预设：未知 id 回落默认预设（老数据/导入数据兼容） */
 export function backgroundPresetOf(presetId: string): BackgroundPreset {
@@ -112,12 +112,12 @@ export function backgroundPresetOf(presetId: string): BackgroundPreset {
 
 /** 已下架的背景预设 id（显式名单，不靠「不在预设表」兜底碰运气）：
  *  'space'（深空灰）/'forest'（墨绿）第九十二轮下架；'tide'（等高潮汐）第一百零一轮按用户要求删除。
- *  选中这些 id 的老存档在归一化时一律回落默认预设 'violet'（星云紫），其余设置不受影响。 */
+ *  选中这些 id 的老存档在归一化时一律回落默认预设 'hazeglow'（雾光），其余设置不受影响。 */
 const RETIRED_BACKGROUND_PRESET_IDS: readonly string[] = ['space', 'forest', 'tide'];
 
 /** 归一化背景设置：老数据无此字段时回落默认预设；presetId 必须是已知预设。
  *  迁移：已下架预设（见 RETIRED_BACKGROUND_PRESET_IDS）自动回落 'violet'；
- *  'ocean'（深海蓝）保留 id、渲染为纯色版。 */
+ *  'ocean'（纯色）保留 id、渲染为纯色版。 */
 function normalizeBackground(raw: unknown): BackgroundSetting {
   if (raw && typeof raw === 'object') {
     const b = raw as { kind?: unknown; presetId?: unknown; localStamp?: unknown };
@@ -149,10 +149,10 @@ export interface PresetAppearance {
   bgBlur: number;
 }
 
-/** 四套内置预设共用的外观（第一百一十一轮）：星云紫 + 液态玻璃 + 默认透明度，可预测、不玩花样
- *  （2026-11-21 用户令新用户默认星云紫＋液态玻璃：背景本来就是星云紫，主题由暗夜改液态玻璃） */
+/** 四套内置预设共用的外观：雾光 + 液态玻璃 + 默认透明度，可预测、不玩花样
+ *  （2026-11-22 用户令默认风格改为雾光＋液态玻璃；此前为星云紫＋液态玻璃） */
 export const DEFAULT_PRESET_APPEARANCE: PresetAppearance = {
-  background: { presetId: 'violet', oceanColor: OCEAN_DEFAULT_COLOR },
+  background: { presetId: 'hazeglow', oceanColor: OCEAN_DEFAULT_COLOR },
   theme: 'liquid',
   groupCardAlpha: DEFAULT_DISPLAY_PREFS.groupCardAlpha,
   widgetAlpha: DEFAULT_DISPLAY_PREFS.widgetAlpha,
@@ -3301,7 +3301,7 @@ export function useLocalStore() {
     setOverwriteConfirmOpen(false);
     pushUndoSnapshot(dataRef.current);
     setData(seedData());
-    // 恢复默认回到星云紫 + 当前偏好：基线同步跟上，否则下一次偏好比对会拿旧外观作基准
+    // 恢复默认回到雾光 + 当前偏好：基线同步跟上，否则下一次偏好比对会拿旧外观作基准
     const prefs = getDisplayPrefs();
     lastAppearance = {
       background: { presetId: DEFAULT_BACKGROUND.presetId, oceanColor: prefs.oceanColor },

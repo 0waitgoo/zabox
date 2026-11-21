@@ -26,7 +26,7 @@ import {
  * - 同步层（GitHub 仓库 / 云端）以后只替换这一层的读写后端，组件不感知
  */
 
-export type WidgetId = 'task' | 'news' | 'trending' | 'tools' | 'colors';
+export type WidgetId = 'task' | 'news' | 'trending' | 'tools' | 'colors' | 'time';
 
 /** A 型原生组件在网格中的占位：宽度跨栏数（最多 2 栏） + 高度单位（1X / 2X） */
 export interface WidgetLayout {
@@ -42,6 +42,8 @@ export const DEFAULT_WIDGET_LAYOUTS: Record<WidgetId, WidgetLayout> = {
   tools: { colSpan: 2, heightUnits: 1 },
   /** 中式色卡（第一百零七轮）：默认 2 栏 × 1x，当日配色色带横排（设计稿注册定版） */
   colors: { colSpan: 2, heightUnits: 1 },
+  /** 时间（2026-11-21）：默认 2 栏 × 2x，海报式大字时钟 + 日期/农历/定位/提醒才摆得下 */
+  time: { colSpan: 2, heightUnits: 2 },
 };
 
 /** B 型编组卡收起态的默认占位：2 栏 × 2x（与组件共用 WidgetLayout 形状，右键菜单可改） */
@@ -1063,6 +1065,7 @@ export const ALL_WIDGETS: { id: WidgetId; name: string; desc: string }[] = [
   { id: 'trending', name: '热门话题', desc: '社区热门话题帖子数' },
   { id: 'tools', name: '文件工具', desc: 'PDF 转图片/长图、图片转 PDF、合并与拆分' },
   { id: 'colors', name: '中式色卡', desc: '158 种中国传统色：色墙浏览、传统配色、一键复制色值' },
+  { id: 'time', name: '时间', desc: '实时时间、日期、农历与定位' },
 ];
 
 const STORAGE_KEY = 'ainav-store-v1';
@@ -1139,6 +1142,7 @@ export const DEFAULT_PRESET_WIDGET_LAYOUTS: Record<WidgetId, WidgetLayout> = {
   trending: { colSpan: 2, heightUnits: 1 },
   tools: { colSpan: 2, heightUnits: 1 },
   colors: { colSpan: 2, heightUnits: 1 },
+  time: { colSpan: 2, heightUnits: 2 },
 };
 
 /** 默认主页的编组/组合/摞尺寸（用户 live 布局：编程工具 1×2、组合 1×1、摞 1×2） */

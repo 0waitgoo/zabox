@@ -2,7 +2,8 @@ import React, { useState } from 'react';
 import { Hazeglow, type GradientConfig } from 'hazeglow';
 
 /**
- * HazeglowBackground —— 背景预设「雾光」（2026-11-22 用户在 hazeglow.dev/generator 挑好的参数）。
+ * HazeglowBackground —— 背景预设「雾光」（2026-11-22 用户在 hazeglow.dev/generator 挑好的参数；
+ * 02:28 修过一次：2 个网格点改色移位——[0.857, 0.244, '#65989f']、[0.602, 0.472, '#63a15e']，其余不变）。
  *
  * 开源库 hazeglow（MIT，WebGL2、零依赖、约 13kb）：一个 JSON config 进去，一个 Canvas
  * 出来——网格渐变＋颗粒＋缓慢流动＋悬停拉扯＋玻璃质感。用户挑的这套是 mesh 形状、
@@ -33,10 +34,10 @@ export const HAZEGLOW_CONFIG: GradientConfig = {
     [0.964, 0.029, '#16232f'],
     [0.469, 0.075, '#6c8796'],
     [0.031, 0.125, '#112529'],
-    [0.844, 0.175, '#f9fdfd'],
+    [0.857, 0.244, '#65989f'],
     [0.031, 0.275, '#b0d6b5'],
     [0.469, 0.425, '#264844'],
-    [0.594, 0.475, '#abb7d5'],
+    [0.602, 0.472, '#63a15e'],
     [0.969, 0.725, '#377377'],
     [0.031, 0.825, '#43686d'],
     [0.406, 0.875, '#57c66a'],

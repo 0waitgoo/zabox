@@ -174,13 +174,15 @@ export default function App() {
           （子页面顶栏 div、页面内容列 div），列宽/列内几何与改前逐像素一致；
           滚动区因此横贯全视口，鼠标在任意横位置滚轮都能滚。纵向 py 不动；
           原容器 gap（栏与 main 的间距）改由子页面内容列的 pt 在滚动区内复刻。 */}
-      <div className="relative z-10 flex flex-col h-dvh w-full py-3 sm:py-4 md:py-6">
+      <div className="relative z-10 flex flex-col h-dvh w-full">
         {/* 2026-11-04 用户令：顶部毛玻璃遮挡带（TopBarShade）已删除，顶栏随内容滚动、不再置顶 */}
         <main className="flex-1 flex flex-col min-h-0">
           {/* 滚动区横贯全视口（第六十五轮）：页面内容在区内再套一层居中列
               （max-w+横向 padding 复刻原容器列宽），列宽与改前一致；
-              居中列 overflow 可见，主页拖拽的 findScrollAncestor 向上仍命中本滚动区 */}
-          <div className="flex-1 overflow-y-auto pb-20 sm:pb-6">
+              居中列 overflow 可见，主页拖拽的 findScrollAncestor 向上仍命中本滚动区
+              2026-11-22 用户令：内容到顶和底、无需遮盖——容器纵向 padding（原 py-3/sm:py-4/md:py-6）
+              与滚动区底 padding（原 pb-20/sm:pb-6）全部撤掉，上下不再留“蒙版”空带 */}
+          <div className="flex-1 overflow-y-auto">
             {/* 子页面顶栏与主页栏同款渲染（第四十三轮修漂移）：同样的 4 栏 grid 左半——
                 LOGO + 背景按钮 + 导航图标组（第六十四轮：左组全去底色、白色图标，LOGO 两页同位），
                 位置/间距/高亮与主页完全一致，不再用旧的居中导航行；

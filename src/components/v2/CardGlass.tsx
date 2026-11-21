@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { LiquidGlass } from 'quick-liquid/react';
 
 /** 卡片玻璃（2026-11-21 用户令：把 Dock 的 quickLiquid 效果推广到 B 卡与组合卡）。
@@ -22,6 +22,10 @@ const CARD_GLASS_BASE = {
   quality: 'medium' as const,
 };
 
+/** 视口余量（px）：卡片进入视口上下各 400px 即挂玻璃引擎——滚到可见前已就绪，
+ * 不闪磨砂；滚出该范围即卸载引擎。位移图按尺寸缓存，重复挂载只查缓存不重算。 */
+const VIEW_MARGIN_PX = 400;
+
 export default function CardGlass({
   radius,
   className,
@@ -35,10 +39,38 @@ export default function CardGlass({
   enabled?: boolean;
   children: React.ReactNode;
 }) {
+  const wrapRef = useRef<HTMLDivElement>(null);
+  const [inView, setInView] = useState(false);
+
+  // 首屏判定（useLayoutEffect 在绘制前跑：首屏卡直接挂玻璃、不闪磨砂；
+  // 屏外卡保持关闭，等滚近了再由观察器打开）
+  useLayoutEffect(() => {
+    const el = wrapRef.current;
+    if (!el) return;
+    const r = el.getBoundingClientRect();
+    if (r.bottom > -VIEW_MARGIN_PX && r.top < window.innerHeight + VIEW_MARGIN_PX) setInView(true);
+  }, []);
+
+  useEffect(() => {
+    const el = wrapRef.current;
+    if (!el) return;
+    const io = new IntersectionObserver(([entry]) => setInView(entry.isIntersecting), {
+      rootMargin: `${VIEW_MARGIN_PX}px`,
+    });
+    io.observe(el);
+    return () => io.disconnect();
+  }, []);
+
   if (!enabled) return <>{children}</>;
   return (
-    <LiquidGlass config={{ ...CARD_GLASS_BASE, borderRadius: radius }} className={className}>
-      {children}
-    </LiquidGlass>
+    <div ref={wrapRef} className="h-full w-full">
+      <LiquidGlass
+        config={{ ...CARD_GLASS_BASE, borderRadius: radius }}
+        className={inView ? className : `${className ?? ''} card-glass-surface`.trim()}
+        active={inView}
+      >
+        {children}
+      </LiquidGlass>
+    </div>
   );
 }

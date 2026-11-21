@@ -6,15 +6,18 @@ import { fetchIp } from '../../services/api';
 import type { WidgetLayout } from '../../store/localStore';
 
 /**
- * 时间小组件（2026-11-21 晚，按分享版海报设计重做后用户再改）：
- * 纯黑海报 + 系统无衬线粗体大字（分享版同款：无网络字体，Arial/Helvetica 风格粗体），
- * 四种版式按尺寸走：1x1 紧凑 / 2x1 横排 / 1x2 大字 / 2x2 双日；星期用带圈字；秒数点分隔。
+ * 时间小组件（2026-11-21 晚三改：用户令做 4 种风格＋日期最粗）：
+ * 四种风格（右上角按钮切换，存独立 key，随提醒句一起持久化）：
+ * - 海报：分享版同款纯黑海报，系统无衬线粗体大字，无网络字体；日期 900 号字再加 3px 白描边（描边在外，不吃字腔），是全卡最粗的字。
+ * - 气泡：白气泡（日期）＋蓝气泡（时间），参考用户发的气泡海报（白底黑字「日期」＋蓝底白字「时间」）。
+ * - 日程：斜体特粗时刻表，细线分隔三行（今日/明日/农历＋IP），参考用户发的时刻表海报。
+ * - 线框：点分隔日期＋小钟表＋PM，细线 3D 线框盒里装大时间＋星期气泡，参考用户发的线框海报。
+ * 四种版式（1x1 紧凑 / 2x1 横排 / 1x2 大字 / 2x2 双日）× 四种风格共 16 种组合。
  * 无标题栏（纯海报）；提醒输入无下划线。
- * 字阶（平面设计口径）：眉标 10px/宽距/中粗 → 主数字 900 → 时间 800 → 次级 700 → 正文 400，
- * 数字特粗、字距紧，标签字距宽，形成黑白灰三档层次。
+ * 字阶（平面设计口径）：眉标 10px/宽距/中粗 → 主数字 900 → 时间 800 → 次级 700 → 正文 400，黑白灰三档。
  * IP 行：只显示本机公网 IP（走自家 /api?type=ip，网站与扩展同路，不直连第三方），
  * 不显示地址/经纬度/地图链接；点按复制时间＋IP。IP 每次打开现取，不存。
- * 提醒句是组件自有数据，存独立 key（ainav-widget-time-data），不进主仓、不参与同步。
+ * 提醒句与风格是组件自有数据，存独立 key（ainav-widget-time-data），不进主仓、不参与同步。
  * 海报就是纯黑，不挂底色层（故不接 tint）。
  */
 
@@ -24,8 +27,18 @@ const POSTER_FONT = '"Arial", "Helvetica Neue", Helvetica, system-ui, -apple-sys
 /** 组件自有数据 key（注册表 storage 声明登记） */
 const DATA_KEY = 'ainav-widget-time-data';
 
+type TimeStyle = 'poster' | 'bubble' | 'schedule' | 'wireframe';
+const STYLE_IDS: TimeStyle[] = ['poster', 'bubble', 'schedule', 'wireframe'];
+const STYLE_LABEL_KEYS: Record<TimeStyle, string> = {
+  poster: 'widget.stylePoster',
+  bubble: 'widget.styleBubble',
+  schedule: 'widget.styleSchedule',
+  wireframe: 'widget.styleWireframe',
+};
+
 interface TimeWidgetData {
   note?: string;
+  style?: TimeStyle;
 }
 
 const DAY_NAMES = [
@@ -64,12 +77,517 @@ function CircledWeekday({ ch, className = '' }: { ch: string; className?: string
   );
 }
 
+/** 小钟表图标（线框风格顶行，呼应参考海报的表盘） */
+function ClockIcon({ className = '' }: { className?: string }) {
+  return (
+    <svg viewBox="0 0 24 24" className={className} fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
+      <circle cx="12" cy="12" r="9" />
+      <path d="M12 7v5l3.5 2" />
+    </svg>
+  );
+}
+
 function loadData(): TimeWidgetData {
   try {
-    return JSON.parse(localStorage.getItem(DATA_KEY) ?? '{}') as TimeWidgetData;
+    const d = JSON.parse(localStorage.getItem(DATA_KEY) ?? '{}') as TimeWidgetData;
+    if (d.style && !STYLE_IDS.includes(d.style)) delete d.style;
+    return d;
   } catch {
     return {};
   }
+}
+
+/** 日期最粗：900 号字再加 3px 白描边（描边在外，不吃字腔） */
+const DATE_BLACK: React.CSSProperties = { WebkitTextStroke: '3px #ffffff', paintOrder: 'stroke fill' };
+
+/** 各风格渲染共用的数据与行 */
+interface StyleShared {
+  now: Date;
+  lunar: string;
+  dateNum: string;
+  timeText: string;
+  secondsText: string;
+  fullTime: string;
+  weekdayText: string;
+  tomorrowDateNum: string;
+  tomorrowWeekdayText: string;
+  dotDateFull: string;
+  dotDateShort: string;
+  ampm: string;
+  todayLabel: string;
+  tomorrowLabel: string;
+  wide: boolean;
+  tall: boolean;
+  ipRow: React.ReactNode;
+  noteRow: React.ReactNode;
+}
+
+/* ---------------- 风格一：海报（分享版同款） ---------------- */
+function PosterStyle(p: StyleShared) {
+  const { wide, tall, lunar, dateNum, timeText, secondsText, fullTime, weekdayText, tomorrowDateNum, tomorrowWeekdayText, ampm, todayLabel, tomorrowLabel, ipRow, noteRow } = p;
+  return (
+    <>
+      {/* 1x1 紧凑：TIME 年份 + 大日期 + 时间 PM 星期 + IP + 农历 */}
+      {!wide && !tall && (
+        <div className="flex-1 min-h-0 flex flex-col justify-center">
+          <div className="text-[10px] tracking-[0.35em] font-medium text-[#A3A3A3]">TIME {p.now.getFullYear()}</div>
+          <div className="mt-1 font-black tabular-nums leading-none tracking-tight text-[46px]" style={DATE_BLACK}>{dateNum}</div>
+          <div className="mt-1.5 text-[14px] font-bold tabular-nums">
+            {fullTime} <span className="text-[#A3A3A3] font-medium text-[13px]">{ampm} {weekdayText}</span>
+          </div>
+          <div className="mt-1.5">{ipRow}</div>
+          {lunar ? <div className="mt-1 text-[12px] text-white">农历 {lunar}</div> : null}
+        </div>
+      )}
+
+      {/* 2x1 横排：左 TIME/年份｜中大日期｜右 PM+带圈星期/全时间；下方 IP + 农历 */}
+      {wide && !tall && (
+        <>
+          <div className="flex-1 min-h-0 flex items-center gap-4">
+            <div className="shrink-0">
+              <div className="text-[10px] tracking-[0.3em] font-medium text-[#A3A3A3]">TIME</div>
+              <div className="font-bold tabular-nums leading-none text-[20px]">{p.now.getFullYear()}</div>
+            </div>
+            <div className="flex-1 min-w-0 text-center font-black tabular-nums leading-none tracking-tight text-[56px]" style={DATE_BLACK}>{dateNum}</div>
+            <div className="shrink-0 flex flex-col items-end">
+              <div className="flex items-center gap-1.5">
+                <span className="text-[13px] font-medium text-[#A3A3A3]">{ampm}</span>
+                <CircledWeekday ch={WEEKDAYS[p.now.getDay()]} className="w-5 h-5 text-[12px]" />
+              </div>
+              <div className="mt-1 font-extrabold tabular-nums leading-none text-[22px]">{fullTime}</div>
+            </div>
+          </div>
+          <div className="shrink-0 mt-2 flex flex-col gap-1">
+            {ipRow}
+            {lunar ? <div className="text-[12px] text-white">农历 {lunar}</div> : null}
+          </div>
+        </>
+      )}
+
+      {/* 1x2 大字：竖排年份 + 超大日期 + 带圈星期；大时间 + 灰秒；农历；IP + 提醒 */}
+      {!wide && tall && (
+        <>
+          <div className="flex-1 min-h-0 flex flex-col justify-center">
+            <div className="flex items-center gap-3">
+              <div className="flex flex-col font-bold tabular-nums leading-[0.95] text-[24px] shrink-0">
+                <span>{String(p.now.getFullYear()).slice(0, 2)}</span>
+                <span>{String(p.now.getFullYear()).slice(2)}</span>
+              </div>
+              <div className="flex-1 min-w-0 font-black tabular-nums leading-none tracking-tight text-[62px]" style={DATE_BLACK}>{dateNum}</div>
+              <CircledWeekday ch={WEEKDAYS[p.now.getDay()]} className="w-7 h-7 text-[15px]" />
+            </div>
+            <div className="mt-2.5 font-extrabold tabular-nums leading-none tracking-tight text-[40px]">
+              {timeText}
+              <span className="text-[#A3A3A3] font-medium text-[0.45em] align-top">{secondsText}</span>
+            </div>
+            {lunar ? <div className="mt-3 text-[14px] text-white">农历 {lunar}</div> : null}
+          </div>
+          <div className="shrink-0 flex flex-col gap-2.5 mt-1" data-nodrag>
+            {ipRow}
+            {noteRow}
+          </div>
+        </>
+      )}
+
+      {/* 2x2 双日：今日｜明日 */}
+      {wide && tall && (
+        <>
+          <div className="flex-1 min-h-0 flex gap-4">
+            <div className="flex-1 min-w-0 flex flex-col justify-center">
+              <div className="text-[10px] tracking-[0.35em] font-medium text-[#A3A3A3]">{todayLabel}</div>
+              <div className="mt-1 font-black tabular-nums leading-none tracking-tight text-[52px]" style={DATE_BLACK}>{dateNum}</div>
+              <div className="mt-2 font-extrabold tabular-nums leading-none tracking-tight text-[26px]">
+                {timeText}
+                <span className="text-[#A3A3A3] font-medium text-[0.5em] align-top">{secondsText}</span>
+              </div>
+              <div className="mt-2.5 min-w-0">{ipRow}</div>
+              {lunar ? <div className="mt-1.5 text-[13px] text-white truncate">农历 {lunar}</div> : null}
+            </div>
+            <div className="w-px self-stretch my-2 bg-white/15 shrink-0" />
+            <div className="flex-1 min-w-0 flex flex-col justify-center">
+              <div className="text-[10px] tracking-[0.35em] font-medium text-[#A3A3A3]">{tomorrowLabel}</div>
+              <div className="mt-1 font-black tabular-nums leading-none tracking-tight text-[52px]" style={DATE_BLACK}>{tomorrowDateNum}</div>
+              <div className="mt-2 text-[24px] font-bold">
+                <span className="text-[#A3A3A3] font-medium">{ampm} </span>
+                {tomorrowWeekdayText}
+              </div>
+            </div>
+          </div>
+          <div className="shrink-0 mt-1" data-nodrag>
+            {noteRow}
+          </div>
+        </>
+      )}
+    </>
+  );
+}
+
+/* ---------------- 风格二：气泡（白气泡日期＋蓝气泡时间） ---------------- */
+function WhiteBubble({ children }: { children: React.ReactNode }) {
+  return (
+    <div className="relative rounded-[22px] bg-white text-black px-4 py-2.5">
+      {children}
+      <div className="absolute -bottom-[5px] left-6 w-3 h-3 bg-white rotate-45" />
+    </div>
+  );
+}
+function BlueBubble({ children }: { children: React.ReactNode }) {
+  return (
+    <div className="relative rounded-[22px] bg-[#2563EB] text-white px-4 py-2.5">
+      {children}
+      <div className="absolute -bottom-[5px] right-6 w-3 h-3 bg-[#2563EB] rotate-45" />
+    </div>
+  );
+}
+function BubbleStyle(p: StyleShared) {
+  const { wide, tall, lunar, dateNum, fullTime, weekdayText, tomorrowDateNum, tomorrowWeekdayText, ampm, tomorrowLabel, ipRow, noteRow } = p;
+  return (
+    <>
+      {/* 1x1：白气泡日期＋时间行＋IP＋农历 */}
+      {!wide && !tall && (
+        <div className="flex-1 min-h-0 flex flex-col justify-center gap-2">
+          <WhiteBubble>
+            <div className="flex items-end justify-between gap-3">
+              <div className="font-black tabular-nums leading-none tracking-tight text-[32px]">{dateNum}</div>
+              <div className="text-right shrink-0 pb-0.5">
+                <div className="text-[9px] tracking-[0.25em] font-medium text-black/50">TIME</div>
+                <div className="text-[13px] font-bold text-[#2563EB]">日期</div>
+              </div>
+            </div>
+          </WhiteBubble>
+          <div className="text-[14px] font-bold tabular-nums">
+            {fullTime} <span className="text-[#A3A3A3] font-medium text-[13px]">{ampm} {weekdayText}</span>
+          </div>
+          {ipRow}
+          {lunar ? <div className="text-[12px] text-white">农历 {lunar}</div> : null}
+        </div>
+      )}
+
+      {/* 2x1：白气泡日期｜蓝气泡时间；下方 IP＋农历 */}
+      {wide && !tall && (
+        <>
+          <div className="flex-1 min-h-0 flex items-center gap-3">
+            <div className="flex-1 min-w-0">
+              <WhiteBubble>
+                <div className="flex items-end justify-between gap-2">
+                  <div className="font-black tabular-nums leading-none tracking-tight text-[34px]">{dateNum}</div>
+                  <div className="text-right shrink-0 pb-0.5">
+                    <div className="text-[9px] tracking-[0.25em] font-medium text-black/50">TIME</div>
+                    <div className="text-[13px] font-bold text-[#2563EB]">日期</div>
+                  </div>
+                </div>
+              </WhiteBubble>
+            </div>
+            <div className="flex-1 min-w-0">
+              <BlueBubble>
+                <div className="flex items-end justify-between gap-2">
+                  <div className="font-black tabular-nums leading-none tracking-tight text-[26px]">{fullTime}</div>
+                  <div className="text-right shrink-0 pb-0.5">
+                    <div className="text-[9px] tracking-[0.25em] font-medium text-white/70">{ampm}</div>
+                    <div className="text-[13px] font-bold">时间</div>
+                  </div>
+                </div>
+              </BlueBubble>
+            </div>
+          </div>
+          <div className="shrink-0 mt-2 flex flex-col gap-1">
+            {ipRow}
+            {lunar ? <div className="text-[12px] text-white">农历 {lunar}</div> : null}
+          </div>
+        </>
+      )}
+
+      {/* 1x2：白气泡日期＋蓝气泡时间＋明日/IP/农历/提醒 */}
+      {!wide && tall && (
+        <>
+          <div className="flex-1 min-h-0 flex flex-col justify-center gap-3">
+            <WhiteBubble>
+              <div className="flex items-end justify-between gap-3">
+                <div className="font-black tabular-nums leading-none tracking-tight text-[36px]">{dateNum}</div>
+                <div className="text-right shrink-0 pb-0.5">
+                  <div className="text-[10px] tracking-[0.25em] font-medium text-black/50">TIME</div>
+                  <div className="text-[14px] font-bold text-[#2563EB]">日期</div>
+                </div>
+              </div>
+            </WhiteBubble>
+            <BlueBubble>
+              <div className="flex items-end justify-between gap-3">
+                <div className="font-black tabular-nums leading-none tracking-tight text-[30px]">{fullTime}</div>
+                <div className="text-right shrink-0 pb-0.5">
+                  <div className="text-[10px] tracking-[0.25em] font-medium text-white/70">{ampm}</div>
+                  <div className="text-[14px] font-bold">时间</div>
+                </div>
+              </div>
+            </BlueBubble>
+          </div>
+          <div className="shrink-0 mt-2 flex flex-col gap-1">
+            <div className="text-[13px] text-[#A3A3A3]">{tomorrowLabel} {tomorrowDateNum} {tomorrowWeekdayText}</div>
+            {ipRow}
+            {lunar ? <div className="text-[13px] text-white">农历 {lunar}</div> : null}
+          </div>
+          <div className="shrink-0 mt-1" data-nodrag>{noteRow}</div>
+        </>
+      )}
+
+      {/* 2x2：白气泡日期＋蓝气泡时间＋明日/IP/农历/提醒 */}
+      {wide && tall && (
+        <>
+          <div className="flex-1 min-h-0 flex flex-col justify-center gap-3">
+            <WhiteBubble>
+              <div className="flex items-end justify-between gap-3">
+                <div className="font-black tabular-nums leading-none tracking-tight text-[44px]">{dateNum}</div>
+                <div className="text-right shrink-0 pb-0.5">
+                  <div className="text-[10px] tracking-[0.25em] font-medium text-black/50">TIME</div>
+                  <div className="text-[15px] font-bold text-[#2563EB]">日期</div>
+                </div>
+              </div>
+            </WhiteBubble>
+            <BlueBubble>
+              <div className="flex items-end justify-between gap-3">
+                <div className="font-black tabular-nums leading-none tracking-tight text-[36px]">{fullTime}</div>
+                <div className="text-right shrink-0 pb-0.5">
+                  <div className="text-[10px] tracking-[0.25em] font-medium text-white/70">{ampm}</div>
+                  <div className="text-[15px] font-bold">时间</div>
+                </div>
+              </div>
+            </BlueBubble>
+          </div>
+          <div className="shrink-0 mt-2 flex flex-col gap-1">
+            <div className="text-[13px] text-[#A3A3A3]">{tomorrowLabel} {tomorrowDateNum} {tomorrowWeekdayText}</div>
+            {ipRow}
+            {lunar ? <div className="text-[13px] text-white">农历 {lunar}</div> : null}
+          </div>
+          <div className="shrink-0 mt-1" data-nodrag>{noteRow}</div>
+        </>
+      )}
+    </>
+  );
+}
+
+/* ---------------- 风格三：日程（斜体特粗时刻表，细线分行） ---------------- */
+function ScheduleStyle(p: StyleShared) {
+  const { wide, tall, lunar, dateNum, timeText, fullTime, weekdayText, tomorrowDateNum, tomorrowWeekdayText, ipRow, noteRow } = p;
+  return (
+    <>
+      {/* 1x1：时刻＋日期/星期＋细线＋IP＋农历 */}
+      {!wide && !tall && (
+        <div className="flex-1 min-h-0 flex flex-col justify-center">
+          <div className="font-black italic leading-none tracking-tighter tabular-nums text-[34px]">{fullTime}</div>
+          <div className="mt-1.5 flex items-center justify-between">
+            <span className="font-bold text-[16px] tabular-nums">{dateNum}</span>
+            <span className="text-[11px] text-[#A3A3A3]">{weekdayText} · TODAY</span>
+          </div>
+          <div className="border-t border-white/15 my-2" />
+          {ipRow}
+          {lunar ? <div className="mt-1 text-[12px] text-white">农历 {lunar}</div> : null}
+        </div>
+      )}
+
+      {/* 2x1：左今日｜右明日，竖线分隔；下方 IP＋农历 */}
+      {wide && !tall && (
+        <>
+          <div className="flex-1 min-h-0 flex gap-4 items-center">
+            <div className="flex-1 min-w-0">
+              <div className="font-black italic leading-none tracking-tighter tabular-nums text-[32px]">{timeText}</div>
+              <div className="mt-1 flex items-center justify-between gap-2">
+                <span className="font-bold text-[16px] tabular-nums">{dateNum}</span>
+                <span className="text-[10px] tracking-[0.25em] text-[#A3A3A3]">TODAY {weekdayText}</span>
+              </div>
+            </div>
+            <div className="w-px self-stretch my-1 bg-white/15 shrink-0" />
+            <div className="flex-1 min-w-0">
+              <div className="font-black italic leading-none tracking-tighter tabular-nums text-[28px]">{tomorrowDateNum}</div>
+              <div className="mt-1 flex items-center justify-between gap-2">
+                <span className="font-bold text-[14px]">{tomorrowWeekdayText}</span>
+                <span className="text-[10px] tracking-[0.25em] text-[#A3A3A3]">TOMORROW</span>
+              </div>
+            </div>
+          </div>
+          <div className="shrink-0 mt-1 flex flex-col gap-1">
+            {ipRow}
+            {lunar ? <div className="text-[12px] text-white">农历 {lunar}</div> : null}
+          </div>
+        </>
+      )}
+
+      {/* 1x2：今日行｜明日行｜农历＋IP＋提醒 */}
+      {!wide && tall && (
+        <>
+          <div className="flex-1 min-h-0 flex flex-col justify-center">
+            <div className="flex items-end justify-between gap-3">
+              <div>
+                <div className="font-black italic leading-none tracking-tighter tabular-nums text-[36px]">{timeText}</div>
+                <div className="mt-1.5 font-bold tabular-nums text-[17px] text-white/85">{dateNum}</div>
+              </div>
+              <div className="text-right shrink-0 pb-0.5">
+                <div className="text-[10px] tracking-[0.3em] font-medium text-[#A3A3A3]">TODAY</div>
+                <div className="mt-0.5 text-[13px] text-white/85">{weekdayText}</div>
+              </div>
+            </div>
+            <div className="border-t border-white/15 my-3" />
+            <div className="flex items-end justify-between gap-3">
+              <div className="font-black italic leading-none tracking-tighter tabular-nums text-[28px]">{tomorrowDateNum}</div>
+              <div className="text-right shrink-0 pb-0.5">
+                <div className="text-[10px] tracking-[0.3em] font-medium text-[#A3A3A3]">TOMORROW</div>
+                <div className="mt-0.5 text-[13px] text-white/85">{tomorrowWeekdayText}</div>
+              </div>
+            </div>
+            <div className="border-t border-white/15 my-3" />
+            <div className="flex flex-col gap-1">
+              {lunar ? <div className="text-[13px] text-white">农历 {lunar}</div> : null}
+              {ipRow}
+            </div>
+          </div>
+          <div className="shrink-0 mt-1" data-nodrag>{noteRow}</div>
+        </>
+      )}
+
+      {/* 2x2：今日行｜明日行｜农历＋IP＋提醒 */}
+      {wide && tall && (
+        <>
+          <div className="flex-1 min-h-0 flex flex-col justify-center">
+            <div className="flex items-end justify-between gap-3">
+              <div>
+                <div className="font-black italic leading-none tracking-tighter tabular-nums text-[40px]">{timeText}</div>
+                <div className="mt-1.5 font-bold tabular-nums text-[18px] text-white/85">{dateNum}</div>
+              </div>
+              <div className="text-right shrink-0 pb-0.5">
+                <div className="text-[10px] tracking-[0.3em] font-medium text-[#A3A3A3]">TODAY</div>
+                <div className="mt-0.5 text-[13px] text-white/85">{weekdayText}</div>
+              </div>
+            </div>
+            <div className="border-t border-white/15 my-3" />
+            <div className="flex items-end justify-between gap-3">
+              <div className="font-black italic leading-none tracking-tighter tabular-nums text-[32px]">{tomorrowDateNum}</div>
+              <div className="text-right shrink-0 pb-0.5">
+                <div className="text-[10px] tracking-[0.3em] font-medium text-[#A3A3A3]">TOMORROW</div>
+                <div className="mt-0.5 text-[13px] text-white/85">{tomorrowWeekdayText}</div>
+              </div>
+            </div>
+            <div className="border-t border-white/15 my-3" />
+            <div className="flex flex-col gap-1">
+              {lunar ? <div className="text-[13px] text-white">农历 {lunar}</div> : null}
+              {ipRow}
+            </div>
+          </div>
+          <div className="shrink-0 mt-1" data-nodrag>{noteRow}</div>
+        </>
+      )}
+    </>
+  );
+}
+
+/* ---------------- 风格四：线框（点分隔日期＋小钟表，3D 线框盒装时间） ---------------- */
+function WireBox({ height, children }: { height: string; children: React.ReactNode }) {
+  return (
+    <div className="relative shrink-0 mx-auto" style={{ height, aspectRatio: '260 / 106' }} data-time-wirebox>
+      <svg viewBox="0 0 260 106" className="h-full w-full" fill="none" stroke="white" strokeWidth="1.5">
+        <rect x="28" y="12" width="220" height="68" />
+        <rect x="12" y="26" width="220" height="68" />
+        <line x1="12" y1="26" x2="28" y2="12" />
+        <line x1="232" y1="26" x2="248" y2="12" />
+        <line x1="12" y1="94" x2="28" y2="80" />
+        <line x1="232" y1="94" x2="248" y2="80" />
+      </svg>
+      <div className="absolute inset-0 flex flex-col items-center justify-center">{children}</div>
+    </div>
+  );
+}
+function WireframeStyle(p: StyleShared) {
+  const { wide, tall, lunar, timeText, weekdayText, tomorrowDateNum, tomorrowWeekdayText, dotDateFull, dotDateShort, ampm, tomorrowLabel, ipRow, noteRow } = p;
+  return (
+    <>
+      {/* 1x1：点日期＋钟表＋PM；线框盒装时间＋星期气泡＋农历；IP */}
+      {!wide && !tall && (
+        <div className="flex-1 min-h-0 flex flex-col justify-center gap-1.5">
+          <div className="flex items-center gap-2">
+            <span className="font-black tabular-nums leading-none tracking-tight text-[26px]">{dotDateShort}</span>
+            <ClockIcon className="w-[18px] h-[18px] shrink-0" />
+            <span className="font-bold text-[16px]">{ampm}</span>
+          </div>
+          <WireBox height="72px">
+            <div className="flex items-start gap-1.5">
+              <span className="font-black tabular-nums leading-none tracking-tight text-[22px]">{timeText}</span>
+              <span className="rounded-full bg-white text-black text-[10px] font-bold px-1.5 py-px mt-0.5">{weekdayText}</span>
+            </div>
+            {lunar ? <div className="mt-0.5 text-[11px] text-white/85">农历 {lunar}</div> : null}
+          </WireBox>
+          {ipRow}
+        </div>
+      )}
+
+      {/* 2x1：左线框盒｜右点日期＋钟表＋PM＋农历＋IP */}
+      {wide && !tall && (
+        <div className="flex-1 min-h-0 flex items-center gap-4">
+          <WireBox height="104px">
+            <div className="flex items-start gap-2">
+              <span className="font-black tabular-nums leading-none tracking-tight text-[26px]">{timeText}</span>
+              <span className="rounded-full bg-white text-black text-[11px] font-bold px-2 py-0.5 mt-0.5">{weekdayText}</span>
+            </div>
+          </WireBox>
+          <div className="flex-1 min-w-0 flex flex-col justify-center">
+            <div className="flex items-center gap-2">
+              <span className="font-black tabular-nums leading-none tracking-tight text-[26px]">{dotDateFull}</span>
+              <ClockIcon className="w-5 h-5 shrink-0" />
+              <span className="font-bold text-[18px]">{ampm}</span>
+            </div>
+            {lunar ? <div className="mt-1 text-[13px] text-white">农历 {lunar}</div> : null}
+            <div className="mt-1">{ipRow}</div>
+          </div>
+        </div>
+      )}
+
+      {/* 1x2：点日期＋钟表＋PM；线框盒装时间＋星期气泡＋农历；明日/IP/提醒 */}
+      {!wide && tall && (
+        <>
+          <div className="flex-1 min-h-0 flex flex-col justify-center gap-3">
+            <div className="flex items-center gap-2">
+              <span className="font-black tabular-nums leading-none tracking-tight text-[36px]">{dotDateShort}</span>
+              <ClockIcon className="w-6 h-6 shrink-0" />
+              <span className="font-bold text-[20px]">{ampm}</span>
+            </div>
+            <WireBox height="120px">
+              <div className="flex items-start gap-2">
+                <span className="font-black tabular-nums leading-none tracking-tight text-[32px]">{timeText}</span>
+                <span className="rounded-full bg-white text-black text-[12px] font-bold px-2 py-0.5 mt-0.5">{weekdayText}</span>
+              </div>
+              {lunar ? <div className="mt-1.5 text-[12px] text-white/85">农历 {lunar}</div> : null}
+            </WireBox>
+          </div>
+          <div className="shrink-0 mt-2 flex flex-col gap-1">
+            <div className="text-[13px] text-[#A3A3A3]">{tomorrowLabel} {tomorrowDateNum} {tomorrowWeekdayText}</div>
+            {ipRow}
+          </div>
+          <div className="shrink-0 mt-1" data-nodrag>{noteRow}</div>
+        </>
+      )}
+
+      {/* 2x2：点日期＋钟表＋PM；线框盒装时间＋星期气泡＋农历；明日/IP/提醒 */}
+      {wide && tall && (
+        <>
+          <div className="flex-1 min-h-0 flex flex-col justify-center gap-3">
+            <div className="flex items-center gap-2.5">
+              <span className="font-black tabular-nums leading-none tracking-tight text-[40px]">{dotDateFull}</span>
+              <ClockIcon className="w-7 h-7 shrink-0" />
+              <span className="font-bold text-[24px]">{ampm}</span>
+            </div>
+            <WireBox height="150px">
+              <div className="flex items-start gap-2">
+                <span className="font-black tabular-nums leading-none tracking-tight text-[40px]">{timeText}</span>
+                <span className="rounded-full bg-white text-black text-[12px] font-bold px-2 py-0.5 mt-1">{weekdayText}</span>
+              </div>
+              {lunar ? <div className="mt-1.5 text-[13px] text-white/85">农历 {lunar}</div> : null}
+            </WireBox>
+          </div>
+          <div className="shrink-0 mt-2 flex flex-col gap-1">
+            <div className="text-[13px] text-[#A3A3A3]">{tomorrowLabel} {tomorrowDateNum} {tomorrowWeekdayText}</div>
+            {ipRow}
+          </div>
+          <div className="shrink-0 mt-1" data-nodrag>{noteRow}</div>
+        </>
+      )}
+    </>
+  );
 }
 
 export default function TimeWidget({
@@ -89,6 +607,7 @@ export default function TimeWidget({
   const [ip, setIp] = useState<string | null>(null);
   const [ipState, setIpState] = useState<'loading' | 'ok' | 'error'>('loading');
   const [copied, setCopied] = useState(false);
+  const style = data.style ?? 'poster';
 
   useEffect(() => {
     const id = window.setInterval(() => setNow(new Date()), 1000);
@@ -133,6 +652,8 @@ export default function TimeWidget({
   const weekdayText = `周${WEEKDAYS[now.getDay()]}`;
   const tomorrowDateNum = `${tomorrow.getMonth() + 1}/${tomorrow.getDate()}`;
   const tomorrowWeekdayText = `周${WEEKDAYS[tomorrow.getDay()]}`;
+  const dotDateFull = `${now.getFullYear()}.${now.getMonth() + 1}.${now.getDate()}`;
+  const dotDateShort = `${now.getMonth() + 1}.${now.getDate()}`;
   /** 上下午标记（横排/双日右栏，呼应海报的 PM） */
   const ampm = now.getHours() < 12 ? 'AM' : 'PM';
 
@@ -149,7 +670,7 @@ export default function TimeWidget({
     }
   };
 
-  /* IP 行（四种尺寸共用）：已取到点按复制；未取到点按重试 */
+  /* IP 行（四种尺寸、四种风格共用）：已取到点按复制；未取到点按重试 */
   const ipRow = ipState === 'ok' && ip ? (
     <div className="flex items-center gap-1.5 min-w-0">
       <button
@@ -187,108 +708,60 @@ export default function TimeWidget({
     </div>
   );
 
+  const shared: StyleShared = {
+    now,
+    lunar,
+    dateNum,
+    timeText,
+    secondsText,
+    fullTime,
+    weekdayText,
+    tomorrowDateNum,
+    tomorrowWeekdayText,
+    dotDateFull,
+    dotDateShort,
+    ampm,
+    todayLabel: t('widget.timeToday'),
+    tomorrowLabel: t('widget.timeTomorrow'),
+    wide,
+    tall,
+    ipRow,
+    noteRow,
+  };
+
   return (
     <motion.div
       initial={{ opacity: 0, y: 20 }}
       animate={{ opacity: 1, y: 0 }}
       transition={{ delay }}
       data-time-widget
+      data-time-style={style}
       style={{ fontFamily: POSTER_FONT }}
       className="group-card-scope widget-panel relative rounded-[32px] h-full p-4 sm:p-5 flex flex-col overflow-hidden bg-black text-white"
       onClick={(e) => e.stopPropagation()}
     >
       <div className="relative flex flex-col flex-1 min-h-0">
-        {/* 1x1 紧凑：TIME 年份 + 大日期 + 时间 PM 星期 + IP + 农历 */}
-        {!wide && !tall && (
-          <div className="flex-1 min-h-0 flex flex-col justify-center">
-            <div className="text-[10px] tracking-[0.35em] font-medium text-[#A3A3A3]">TIME {now.getFullYear()}</div>
-            <div className="mt-1 font-black tabular-nums leading-none tracking-tight text-[46px]">{dateNum}</div>
-            <div className="mt-1.5 text-[14px] font-bold tabular-nums">
-              {fullTime} <span className="text-[#A3A3A3] font-medium text-[13px]">{ampm} {weekdayText}</span>
-            </div>
-            <div className="mt-1.5">{ipRow}</div>
-            {lunar ? <div className="mt-1 text-[12px] text-white">农历 {lunar}</div> : null}
-          </div>
-        )}
+        {/* 风格切换：右上角 4 个按钮（点按即换，存独立 key） */}
+        <div className="absolute top-0 right-0 z-10 flex gap-1" data-nodrag>
+          {STYLE_IDS.map((id) => (
+            <button
+              key={id}
+              onClick={() => setData((d) => ({ ...d, style: id }))}
+              className={
+                style === id
+                  ? 'text-[10px] leading-none font-bold px-2 py-1 rounded-full bg-white text-black'
+                  : 'text-[10px] leading-none px-2 py-1 rounded-full bg-white/10 text-white/60 hover:text-white'
+              }
+            >
+              {t(STYLE_LABEL_KEYS[id])}
+            </button>
+          ))}
+        </div>
 
-        {/* 2x1 横排：左 TIME/年份｜中大日期｜右 PM+带圈星期/全时间；下方 IP + 农历 */}
-        {wide && !tall && (
-          <>
-            <div className="flex-1 min-h-0 flex items-center gap-4">
-              <div className="shrink-0">
-                <div className="text-[10px] tracking-[0.3em] font-medium text-[#A3A3A3]">TIME</div>
-                <div className="font-bold tabular-nums leading-none text-[20px]">{now.getFullYear()}</div>
-              </div>
-              <div className="flex-1 min-w-0 text-center font-black tabular-nums leading-none tracking-tight text-[56px]">{dateNum}</div>
-              <div className="shrink-0 flex flex-col items-end">
-                <div className="flex items-center gap-1.5">
-                  <span className="text-[13px] font-medium text-[#A3A3A3]">{ampm}</span>
-                  <CircledWeekday ch={WEEKDAYS[now.getDay()]} className="w-5 h-5 text-[12px]" />
-                </div>
-                <div className="mt-1 font-extrabold tabular-nums leading-none text-[22px]">{fullTime}</div>
-              </div>
-            </div>
-            <div className="shrink-0 mt-2 flex flex-col gap-1">
-              {ipRow}
-              {lunar ? <div className="text-[12px] text-white">农历 {lunar}</div> : null}
-            </div>
-          </>
-        )}
-
-        {/* 1x2 大字：竖排年份 + 超大日期 + 带圈星期；大时间 + 灰秒；农历；IP + 提醒 */}
-        {!wide && tall && (
-          <>
-            <div className="flex-1 min-h-0 flex flex-col justify-center">
-              <div className="flex items-center gap-3">
-                <div className="flex flex-col font-bold tabular-nums leading-[0.95] text-[24px] shrink-0">
-                  <span>{String(now.getFullYear()).slice(0, 2)}</span>
-                  <span>{String(now.getFullYear()).slice(2)}</span>
-                </div>
-                <div className="flex-1 min-w-0 font-black tabular-nums leading-none tracking-tight text-[62px]">{dateNum}</div>
-                <CircledWeekday ch={WEEKDAYS[now.getDay()]} className="w-7 h-7 text-[15px]" />
-              </div>
-              <div className="mt-2.5 font-extrabold tabular-nums leading-none tracking-tight text-[40px]">
-                {timeText}
-                <span className="text-[#A3A3A3] font-medium text-[0.45em] align-top">{secondsText}</span>
-              </div>
-              {lunar ? <div className="mt-3 text-[14px] text-white">农历 {lunar}</div> : null}
-            </div>
-            <div className="shrink-0 flex flex-col gap-2.5 mt-1" data-nodrag>
-              {ipRow}
-              {noteRow}
-            </div>
-          </>
-        )}
-
-        {/* 2x2 双日：今日｜明日 */}
-        {wide && tall && (
-          <>
-            <div className="flex-1 min-h-0 flex gap-4">
-              <div className="flex-1 min-w-0 flex flex-col justify-center">
-                <div className="text-[10px] tracking-[0.35em] font-medium text-[#A3A3A3]">{t('widget.timeToday')}</div>
-                <div className="mt-1 font-black tabular-nums leading-none tracking-tight text-[52px]">{dateNum}</div>
-                <div className="mt-2 font-extrabold tabular-nums leading-none tracking-tight text-[26px]">
-                  {timeText}
-                  <span className="text-[#A3A3A3] font-medium text-[0.5em] align-top">{secondsText}</span>
-                </div>
-                <div className="mt-2.5 min-w-0">{ipRow}</div>
-                {lunar ? <div className="mt-1.5 text-[13px] text-white truncate">农历 {lunar}</div> : null}
-              </div>
-              <div className="w-px self-stretch my-2 bg-white/15 shrink-0" />
-              <div className="flex-1 min-w-0 flex flex-col justify-center">
-                <div className="text-[10px] tracking-[0.35em] font-medium text-[#A3A3A3]">{t('widget.timeTomorrow')}</div>
-                <div className="mt-1 font-black tabular-nums leading-none tracking-tight text-[52px]">{tomorrowDateNum}</div>
-                <div className="mt-2 text-[24px] font-bold">
-                  <span className="text-[#A3A3A3] font-medium">{ampm} </span>
-                  {tomorrowWeekdayText}
-                </div>
-              </div>
-            </div>
-            <div className="shrink-0 mt-1" data-nodrag>
-              {noteRow}
-            </div>
-          </>
-        )}
+        {style === 'poster' && <PosterStyle {...shared} />}
+        {style === 'bubble' && <BubbleStyle {...shared} />}
+        {style === 'schedule' && <ScheduleStyle {...shared} />}
+        {style === 'wireframe' && <WireframeStyle {...shared} />}
       </div>
     </motion.div>
   );

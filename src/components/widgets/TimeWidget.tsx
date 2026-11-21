@@ -171,7 +171,30 @@ export default function TimeWidget({
     }
   };
 
-  const tintLayer = tint ? <WidgetTintLayer tint={tint} emoji="🕐" /> : null;
+  /* 钟表水印是本组件的设计本体（商店预览恒有底色、故恒有钟表；主页无底色时底色层不渲染，
+   * 钟表会丢，预览与主页长得不一样。无底色时由组件自己补一枚同款水印，有底色时仍走底色层，
+   * 两路互斥、同一时间只有一枚钟表 */
+  const tintLayer = tint ? (
+    <WidgetTintLayer tint={tint} emoji="🕐" />
+  ) : (
+    <div aria-hidden className="absolute inset-0 overflow-hidden rounded-[inherit] pointer-events-none">
+      <div className="absolute inset-0 flex items-center justify-center">
+        <span
+          data-widget-watermark="🕐"
+          className="select-none"
+          style={{
+            fontSize: 'clamp(96px, 28cqw, 168px)',
+            lineHeight: 1,
+            opacity: 0.16,
+            transform: 'rotate(-8deg)',
+            fontFamily: '"Apple Color Emoji", "Segoe UI Emoji", "Noto Color Emoji", sans-serif',
+          }}
+        >
+          🕐
+        </span>
+      </div>
+    </div>
+  );
 
   return (
     <motion.div

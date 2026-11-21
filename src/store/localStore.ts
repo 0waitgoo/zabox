@@ -67,8 +67,9 @@ export interface BackgroundPreset {
   /** 完整的 CSS background 值（渐变/纯色），不引用任何图片资源；
    *  动态预设下作面板缩略与画布挂载前的兜底底色 */
   css: string;
-  /** 动态背景（第九十二轮）：挂载对应的自研 Canvas 组件（components/backgrounds/） */
-  dynamic?: 'dappled';
+  /** 动态背景（第九十二轮）：挂载对应的自研 Canvas 组件（components/backgrounds/）；
+   *  2026-11-22 起另有开源库 hazeglow（WebGL2）驱动的「雾光」预设 */
+  dynamic?: 'dappled' | 'hazeglow';
 }
 
 /** 内置背景预设：全部纯 CSS 实现 */
@@ -91,6 +92,14 @@ export const BACKGROUND_PRESETS: BackgroundPreset[] = [
     id: 'ocean',
     name: '深海蓝',
     css: 'radial-gradient(1100px 750px at 80% -10%, rgba(37, 99, 235, 0.38), transparent 60%), linear-gradient(160deg, #0d2140 0%, #081426 52%, #05070d 100%)',
+  },
+  {
+    // 2026-11-22：用户在 hazeglow.dev/generator 挑好的开源 mesh 渐变预设（深绿/青蓝、黑底、
+    // 颗粒＋流动＋玻璃质感），挂 HazeglowBackground（WebGL2）；此 css 只作面板缩略与无 WebGL2 时的兜底底色
+    id: 'hazeglow',
+    name: '雾光',
+    dynamic: 'hazeglow',
+    css: 'radial-gradient(1000px 700px at 80% 8%, rgba(87, 198, 106, 0.26), transparent 55%), radial-gradient(900px 650px at 8% 92%, rgba(55, 115, 119, 0.34), transparent 55%), linear-gradient(160deg, #0d1a16 0%, #060a09 55%, #000000 100%)',
   },
 ];
 

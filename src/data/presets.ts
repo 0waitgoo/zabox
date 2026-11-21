@@ -41,7 +41,7 @@ export const BUILTIN_PRESET_META: PresetMeta[] = [
 ];
 
 /** 种子默认主页的组件集（默认预设与种子逐点一致用；与 store 的 DEFAULT_WIDGETS 同序） */
-const ALL_WIDGET_IDS: CompositionSnapshot['widgets'] = ['task', 'news', 'trending', 'tools'];
+const ALL_WIDGET_IDS: CompositionSnapshot['widgets'] = ['task', 'news', 'trending', 'tools', 'time'];
 
 /** 全部 A 型组件（工具预设 = 全组件布局，第一百零七轮起含中式色卡） */
 const EVERY_WIDGET_IDS: CompositionSnapshot['widgets'] = [...ALL_WIDGET_IDS, 'colors'];

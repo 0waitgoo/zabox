@@ -225,7 +225,8 @@ export function buildDesignerPreset(): CompositionSnapshot {
     "news": {"colSpan": 2, "heightUnits": 2},
     "trending": {"colSpan": 2, "heightUnits": 1},
     "tools": {"colSpan": 2, "heightUnits": 1},
-    "colors": {"colSpan": 1, "heightUnits": 1}
+    "colors": {"colSpan": 1, "heightUnits": 1},
+    "time": {"colSpan": 2, "heightUnits": 2}
   },
     groupLayouts: {
     "design-assets": {"colSpan": 2, "heightUnits": 2},
@@ -343,7 +344,8 @@ export function buildDeveloperPreset(): CompositionSnapshot {
     "news": {"colSpan": 1, "heightUnits": 1},
     "trending": {"colSpan": 2, "heightUnits": 1},
     "tools": {"colSpan": 1, "heightUnits": 1},
-    "colors": {"colSpan": 2, "heightUnits": 1}
+    "colors": {"colSpan": 2, "heightUnits": 1},
+    "time": {"colSpan": 2, "heightUnits": 2}
   },
     groupLayouts: {
     "code": {"colSpan": 2, "heightUnits": 2},
@@ -508,7 +510,8 @@ export function buildEntertainmentPreset(): CompositionSnapshot {
     "news": {"colSpan": 2, "heightUnits": 2},
     "trending": {"colSpan": 2, "heightUnits": 1},
     "tools": {"colSpan": 2, "heightUnits": 1},
-    "colors": {"colSpan": 2, "heightUnits": 1}
+    "colors": {"colSpan": 2, "heightUnits": 1},
+    "time": {"colSpan": 2, "heightUnits": 2}
   },
     groupLayouts: {
     "ent-video": {"colSpan": 2, "heightUnits": 2},

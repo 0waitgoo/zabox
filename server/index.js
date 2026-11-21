@@ -281,7 +281,14 @@ app.get('/api', async (req, res) => {
       lastUpdate
     });
   }
-  
+
+  if (type === 'ip') {
+    // 本机公网 IP（时间小组件，2026-11-21）：取请求头第一跳，不存、不记日志
+    const forwarded = req.headers['x-forwarded-for'];
+    const ip = (typeof forwarded === 'string' ? forwarded.split(',')[0].trim() : '') || req.ip || '';
+    return res.status(200).json({ success: true, ip });
+  }
+
   if (type === 'sync') {
     syncNews().then(async (result) => {
       await refreshTrends();
@@ -405,6 +412,7 @@ syncNews().then(() => {
     console.log(`  - GET  /api?type=news   - Get news list`);
     console.log(`  - GET  /api?type=trends  - Get trends`);
     console.log(`  - GET  /api?type=health  - Health check`);
+    console.log(`  - GET  /api?type=ip      - Get client IP`);
     console.log(`  - GET  /api?type=sync    - Force sync news`);
     console.log(`  - POST /api (action=ai-chat) - AI 整理中转`);
     console.log(`  - POST /api (action=ai-models) - 获取模型列表中转`);

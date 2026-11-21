@@ -6,6 +6,7 @@ import PresetMenu from './components/v2/PresetMenu';
 import LeftRail, { useWideRail } from './components/v2/LeftRail';
 import FloatingTabGroup from './components/v2/FloatingTabGroup';
 import LiquidGlassFilter from './components/v2/LiquidGlassFilter';
+import { Analytics } from '@vercel/analytics/react';
 import { backgroundPresetOf, useLocalStore } from './store/localStore';
 import { loadBgImage } from './store/bgImageDb';
 import { applyDisplayPrefs, bgBlurPx, useDisplayPrefs } from './store/displayPrefs';
@@ -220,6 +221,9 @@ export default function App() {
       )}
       {/* 左侧悬浮组（宽屏单实例：tab 组有站点时显示，空组隐藏；窄屏组卡照常显示） */}
       {wideRail && <FloatingTabGroup store={store} />}
+      {/* Vercel Analytics（2026-11-21 用户令接上统计）：只在 http(s) 网站上挂——
+          Edge 扩展的新标签页是 chrome-extension://，没有 /_vercel 统计端点，挂了也发不出去 */}
+      {window.location.protocol.startsWith('http') && <Analytics />}
     </div>
   );
 }

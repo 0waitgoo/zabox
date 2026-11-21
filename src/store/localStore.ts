@@ -1075,7 +1075,7 @@ const STORAGE_KEY = 'ainav-store-v1';
 const PREV_SNAPSHOT_KEY = 'ainav-store-prev-v1';
 /** 本地存储 key（扩展 popup 与主应用共用同一份数据，见 src/popup/addSite.ts） */
 export const STORE_STORAGE_KEY = STORAGE_KEY;
-const DEFAULT_WIDGETS: WidgetId[] = ['task', 'news', 'trending', 'tools'];
+const DEFAULT_WIDGETS: WidgetId[] = ['task', 'news', 'trending', 'tools', 'time'];
 
 const genId = (prefix: string) => `${prefix}-${Date.now().toString(36)}${Math.random().toString(36).slice(2, 7)}`;
 

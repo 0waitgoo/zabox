@@ -6,9 +6,14 @@ import type { WidgetLayout, WidgetTint } from '../../store/localStore';
 import WidgetTintLayer from '../v2/WidgetTint';
 
 /**
- * 时间小组件（2026-11-21，用户令：把时间小工具加进杂盒小组件，尺寸匹配）：
- * 黑底白字海报风（与独立版时间小工具同款），实时走字时钟 + 日期/星期 + 农历 + 定位地址 + 一句话提醒。
- * 尺寸感知：1x1 只放时间与日期；2x1 加农历；高卡（2x）再加定位与提醒输入。
+ * 时间小组件（2026-11-21，用户令：把时间小工具加进杂盒小组件，尺寸匹配；
+ * 2026-11-21 晚重排版：按独立版时间小工具的四种版式，适配组件四种尺寸）：
+ * 黑底白字海报风，实时走字时钟 + 日期/星期 + 农历 + 定位地址 + 一句话提醒。
+ * 版式按尺寸走（与独立版四版式同源）：
+ *  1x1 紧凑：大时间 + 日期；
+ *  2x1 横排：左日期块｜右时间块，中间竖线分隔；
+ *  1x2 大字：竖版海报，TIME 年份眉标 + 大日期 + 时间 + 星期农历 + 定位 + 提醒；
+ *  2x2 双日：今日｜明日双栏，今日含时间/农历/定位，明日含日期/星期/农历，底下提醒。
  * 定位地址与提醒句是组件自有数据，存独立 key（ainav-widget-time-data），不进主仓、不参与同步。
  */
 
@@ -131,13 +136,18 @@ export default function TimeWidget({
   const tall = layout.heightUnits === 2;
   const wide = cols === 2;
   const lunar = lunarText(now);
+  const tomorrow = new Date(now.getTime() + 24 * 60 * 60 * 1000);
+  const tomorrowLunar = lunarText(tomorrow);
 
   const pad = (n: number) => String(n).padStart(2, '0');
   const timeText = `${pad(now.getHours())}.${pad(now.getMinutes())}`;
   const secondsText = `:${pad(now.getSeconds())}`;
-  const dateText = `${now.getMonth() + 1}/${now.getDate()} 周${WEEKDAYS[now.getDay()]}`;
-  /** 大字尺寸随格子走：2x2 海报最大，1x1 最小，与卡格尺寸匹配、不溢出 */
-  const timeSize = cols === 2 && tall ? 'text-[64px] sm:text-[76px]' : wide ? 'text-[52px]' : tall ? 'text-[48px]' : 'text-[40px]';
+  const dateNum = `${now.getMonth() + 1}/${now.getDate()}`;
+  const weekdayText = `周${WEEKDAYS[now.getDay()]}`;
+  const tomorrowDateNum = `${tomorrow.getMonth() + 1}/${tomorrow.getDate()}`;
+  const tomorrowWeekdayText = `周${WEEKDAYS[tomorrow.getDay()]}`;
+  /** 上下午标记（横排版式右栏小字，呼应参考海报的 PM 14.00） */
+  const ampm = now.getHours() < 12 ? 'AM' : 'PM';
 
   const locate = () => {
     if (!('geolocation' in navigator)) {
@@ -196,6 +206,46 @@ export default function TimeWidget({
     </div>
   );
 
+  /* 定位行（高卡共用）：有地址点按复制，无地址点按获取 */
+  const locationRow = data.address ? (
+    <button
+      onClick={copyAddress}
+      className="flex items-center gap-1.5 text-left text-[13px] text-white/75 hover:text-white transition-colors min-w-0"
+      title={copied ? '已复制' : data.address}
+    >
+      <MapPin size={13} className="shrink-0 text-white/40" />
+      <span className="flex-1 min-w-0 truncate">{data.address}</span>
+      <span className="shrink-0 text-[11px] text-white/35">{copied ? '已复制' : '点按复制'}</span>
+    </button>
+  ) : (
+    <button
+      onClick={locate}
+      disabled={locState === 'loading'}
+      className="flex items-center gap-1.5 text-[13px] text-white/60 hover:text-white transition-colors disabled:opacity-60"
+    >
+      <MapPin size={13} className="shrink-0" />
+      {locState === 'loading'
+        ? t('widget.timeLocating')
+        : locState === 'denied' || locState === 'error'
+          ? t('widget.timeLocDenied')
+          : t('widget.timeGetLocation')}
+    </button>
+  );
+
+  /* 一句话提醒行（高卡共用） */
+  const noteRow = (
+    <div className="flex items-center gap-2">
+      <span className="shrink-0 text-[11px] px-1.5 py-0.5 rounded-md bg-white/10 text-white/60">{t('widget.timeNote')}</span>
+      <input
+        value={data.note ?? ''}
+        maxLength={40}
+        onChange={(e) => setData((d) => ({ ...d, note: e.target.value }))}
+        placeholder={t('widget.timeNotePlaceholder')}
+        className="flex-1 min-w-0 bg-transparent text-[13px] text-white placeholder:text-white/30 outline-none border-b border-white/15 focus:border-white/40 py-0.5"
+      />
+    </div>
+  );
+
   return (
     <motion.div
       initial={{ opacity: 0, y: 20 }}
@@ -220,55 +270,92 @@ export default function TimeWidget({
           </span>
         </div>
 
-        <div className="flex-1 min-h-0 flex flex-col justify-center">
-          <div className={`font-black tabular-nums tracking-tight leading-none ${timeSize}`}>
-            {timeText}
-            <span className="text-white/35 text-[0.45em] align-top">{secondsText}</span>
-          </div>
-          <div className="mt-2 text-sm sm:text-base text-white/75 font-medium">
-            {dateText}
-            {(wide || tall) && lunar ? <span className="text-white/40"> · {lunar}</span> : null}
-          </div>
-        </div>
-
-        {tall ? (
-          <div className="shrink-0 flex flex-col gap-2 mt-1" data-nodrag>
-            {data.address ? (
-              <button
-                onClick={copyAddress}
-                className="flex items-center gap-1.5 text-left text-[13px] text-white/75 hover:text-white transition-colors min-w-0"
-                title={copied ? '已复制' : data.address}
-              >
-                <MapPin size={13} className="shrink-0 text-white/40" />
-                <span className="flex-1 min-w-0 truncate">{data.address}</span>
-                <span className="shrink-0 text-[11px] text-white/35">{copied ? '已复制' : '点按复制'}</span>
-              </button>
-            ) : (
-              <button
-                onClick={locate}
-                disabled={locState === 'loading'}
-                className="flex items-center gap-1.5 text-[13px] text-white/60 hover:text-white transition-colors disabled:opacity-60"
-              >
-                <MapPin size={13} className="shrink-0" />
-                {locState === 'loading'
-                  ? t('widget.timeLocating')
-                  : locState === 'denied' || locState === 'error'
-                    ? t('widget.timeLocDenied')
-                    : t('widget.timeGetLocation')}
-              </button>
-            )}
-            <div className="flex items-center gap-2">
-              <span className="shrink-0 text-[11px] px-1.5 py-0.5 rounded-md bg-white/10 text-white/60">{t('widget.timeNote')}</span>
-              <input
-                value={data.note ?? ''}
-                maxLength={40}
-                onChange={(e) => setData((d) => ({ ...d, note: e.target.value }))}
-                placeholder={t('widget.timeNotePlaceholder')}
-                className="flex-1 min-w-0 bg-transparent text-[13px] text-white placeholder:text-white/30 outline-none border-b border-white/15 focus:border-white/40 py-0.5"
-              />
+        {/* 1x1 紧凑：大时间 + 日期 */}
+        {!wide && !tall && (
+          <div className="flex-1 min-h-0 flex flex-col justify-center">
+            <div className="font-black tabular-nums tracking-tight leading-none text-[40px]">
+              {timeText}
+              <span className="text-white/35 text-[0.45em] align-top">{secondsText}</span>
+            </div>
+            <div className="mt-2 text-sm text-white/75 font-medium">
+              {dateNum} {weekdayText}
             </div>
           </div>
-        ) : null}
+        )}
+
+        {/* 2x1 横排：左日期块｜右时间块 */}
+        {wide && !tall && (
+          <div className="flex-1 min-h-0 flex items-center gap-4">
+            <div className="flex-1 min-w-0">
+              <div className="font-black tabular-nums leading-none text-[44px]">{dateNum}</div>
+              <div className="mt-1.5 text-[13px] text-white/60 truncate">
+                {weekdayText}
+                {lunar ? <span className="text-white/40"> · {lunar}</span> : null}
+              </div>
+            </div>
+            <div className="w-px self-stretch my-1 bg-white/15 shrink-0" />
+            <div className="flex-1 min-w-0 text-right">
+              <div className="font-black tabular-nums leading-none text-[44px]">
+                {timeText}
+                <span className="text-white/35 text-[0.45em] align-top">{secondsText}</span>
+              </div>
+              <div className="mt-1.5 text-[13px] text-white/40">{ampm}</div>
+            </div>
+          </div>
+        )}
+
+        {/* 1x2 大字：竖版海报 */}
+        {!wide && tall && (
+          <>
+            <div className="flex-1 min-h-0 flex flex-col justify-center">
+              <div className="text-[11px] tracking-[0.35em] text-white/40 font-medium">TIME {now.getFullYear()}</div>
+              <div className="mt-1 font-black tabular-nums leading-none text-[64px]">{dateNum}</div>
+              <div className="mt-2 font-black tabular-nums leading-none text-[40px]">
+                {timeText}
+                <span className="text-white/35 text-[0.45em] align-top">{secondsText}</span>
+              </div>
+              <div className="mt-2 text-sm text-white/75 font-medium">
+                {weekdayText}
+                {lunar ? <span className="text-white/40"> · {lunar}</span> : null}
+              </div>
+            </div>
+            <div className="shrink-0 flex flex-col gap-2 mt-1" data-nodrag>
+              {locationRow}
+              {noteRow}
+            </div>
+          </>
+        )}
+
+        {/* 2x2 双日：今日｜明日 */}
+        {wide && tall && (
+          <>
+            <div className="flex-1 min-h-0 flex gap-4">
+              <div className="flex-1 min-w-0 flex flex-col justify-center">
+                <div className="text-[11px] tracking-[0.25em] text-white/40">{t('widget.timeToday')}</div>
+                <div className="mt-1 font-black tabular-nums leading-none text-[56px]">{dateNum}</div>
+                <div className="mt-2 font-black tabular-nums leading-none text-[30px]">
+                  {timeText}
+                  <span className="text-white/35 text-[0.5em] align-top">{secondsText}</span>
+                </div>
+                <div className="mt-2 text-[13px] text-white/60 truncate">
+                  {weekdayText}
+                  {lunar ? <span className="text-white/40"> · {lunar}</span> : null}
+                </div>
+                <div className="mt-2 min-w-0">{locationRow}</div>
+              </div>
+              <div className="w-px self-stretch my-2 bg-white/15 shrink-0" />
+              <div className="flex-1 min-w-0 flex flex-col justify-center">
+                <div className="text-[11px] tracking-[0.25em] text-white/40">{t('widget.timeTomorrow')}</div>
+                <div className="mt-1 font-black tabular-nums leading-none text-[56px]">{tomorrowDateNum}</div>
+                <div className="mt-2 text-[28px] font-bold text-white/85">{tomorrowWeekdayText}</div>
+                {tomorrowLunar ? <div className="mt-1.5 text-[13px] text-white/40 truncate">{tomorrowLunar}</div> : null}
+              </div>
+            </div>
+            <div className="shrink-0 mt-1" data-nodrag>
+              {noteRow}
+            </div>
+          </>
+        )}
       </div>
     </motion.div>
   );

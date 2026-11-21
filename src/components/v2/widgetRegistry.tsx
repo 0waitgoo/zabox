@@ -148,8 +148,9 @@ const ColorsWidget: React.ComponentType<WidgetRenderProps> = ({ tint, layout, de
   />
 );
 
-const TimeWidgetAdapter: React.ComponentType<WidgetRenderProps> = ({ tint, layout, delay = 0, phone }) => (
-  <TimeWidget tint={tint} layout={layout} delay={delay} phone={phone} />
+/* 海报纯黑，不挂底色层（分享版设计即纯黑），故适配层不传 tint */
+const TimeWidgetAdapter: React.ComponentType<WidgetRenderProps> = ({ layout, delay = 0, phone }) => (
+  <TimeWidget layout={layout} delay={delay} phone={phone} />
 );
 
 /* ---------- 注册表本体（顺序与 localStore 的 ALL_WIDGETS 一致） ---------- */
@@ -241,13 +242,9 @@ export const WIDGET_DEFINITIONS: WidgetDefinition[] = [
     watermark: '🕐',
     supportedSizes: ALL_SIZES,
     defaultLayout: DEFAULT_WIDGET_LAYOUTS.time,
-    // 定位成功后把经纬度反查成地址（只读公共逆地理编码）；拉不到时走 BigDataCloud 同类接口兜底
-    network: [
-      { endpoint: 'https://nominatim.openstreetmap.org/reverse', purpose: '定位后把经纬度反查成地址（只读公共逆地理编码）', purposeKey: 'widget.netTime' },
-      { endpoint: 'https://api.bigdatacloud.net/data/reverse-geocode-client', purpose: 'Nominatim 拉不到时，把经纬度反查成地址的兜底接口', purposeKey: 'widget.netTimeFallback' },
-    ],
-    // 定位地址与提醒句是组件自有数据，与站点数据无关，独立迭代更稳妥
-    storage: { own: 'ainav-widget-time-data', reason: '定位地址与提醒句是组件自有数据，与站点数据无关，独立迭代更稳妥', reasonKey: 'widget.storageTimeReason' },
+    // 定位只在设备上取经纬度、不联网反查（与分享版时间小工具一致），故无 network 声明；
+    // 经纬度与提醒句是组件自有数据，与站点数据无关，独立迭代更稳妥
+    storage: { own: 'ainav-widget-time-data', reason: '定位经纬度与提醒句是组件自有数据，与站点数据无关，独立迭代更稳妥', reasonKey: 'widget.storageTimeReason' },
     component: TimeWidgetAdapter,
   },
 ];

@@ -142,7 +142,7 @@ export default function App() {
         {background.kind === 'preset' && background.presetId === 'violet' && (
           <div className="absolute inset-0 z-1">
             <Suspense fallback={null}>
-              <DarkVeil hueShift={0} noiseIntensity={0} scanlineIntensity={0} speed={1} scanlineFrequency={0} warpAmount={2} resolutionScale={0.6} />
+              <DarkVeil hueShift={0} noiseIntensity={0} scanlineIntensity={0} speed={1} scanlineFrequency={0} warpAmount={2} resolutionScale={0.5} />
             </Suspense>
           </div>
         )}

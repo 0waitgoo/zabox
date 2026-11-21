@@ -164,6 +164,29 @@ body {
   height: 100%;
   min-height: 0;
 }
+/* 时间小组件气泡浮动（2026-11-21 晚八改，用户令“稍微浮动一下的循环动画”）：
+   轻微上下浮动 4px、3 秒一圈、无限循环；白气泡与蓝气泡错半拍（-1.5s），
+   明日小白气泡错 1/4 拍（-0.75s），像聊天一样轮流浮动。
+   只动 transform（translateY），与 Tailwind 的 rotate 属性（倾斜）叠加生效、
+   互不覆盖。减弱动效偏好下停掉动画。 */
+@keyframes time-bubble-float {
+  0%, 100% { transform: translateY(0); }
+  50% { transform: translateY(-4px); }
+}
+.time-bubble-float {
+  animation: time-bubble-float 3s ease-in-out infinite;
+}
+.time-bubble-float-delay {
+  animation: time-bubble-float 3s ease-in-out -1.5s infinite;
+}
+.time-bubble-float-delay-2 {
+  animation: time-bubble-float 3s ease-in-out -0.75s infinite;
+}
+@media (prefers-reduced-motion: reduce) {
+  .time-bubble-float, .time-bubble-float-delay, .time-bubble-float-delay-2 {
+    animation: none;
+  }
+}
 /* 白天钉回暗夜值（第五十八轮）：--group-card-rgb 在白天翻白，故搜索/数据面直接写死暗夜 rgb，
    只让 alpha 随滑杆——与暗夜下计算值逐字一致；文字/图标本就用白色系类，与深底相配 */
 [data-theme="light"] .card-glass-surface {

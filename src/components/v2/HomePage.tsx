@@ -560,6 +560,7 @@ export default function HomePage({ onNavigate, store }: { onNavigate: (page: str
     if (hasWidget('trending')) order.push(widgetCardKey('trending'));
     if (hasWidget('tools')) order.push(widgetCardKey('tools'));
     if (hasWidget('colors')) order.push(widgetCardKey('colors'));
+    if (hasWidget('time')) order.push(widgetCardKey('time'));
     /* 组件摞（第七十二轮）：成员 key 全部摘掉，摞 key 落在成员中最靠前的位置。
      * 这只是 cardOrder 为空/对齐时的回落位——合并/拆分动作都会把摞的真实位置写进 cardOrder */
     let result = order;

@@ -1,5 +1,5 @@
 import React from 'react';
-import { ListTodo, Newspaper, Palette, TrendingUp, Wrench, type LucideIcon } from 'lucide-react';
+import { Clock, ListTodo, Newspaper, Palette, TrendingUp, Wrench, type LucideIcon } from 'lucide-react';
 import {
   DEFAULT_WIDGET_LAYOUTS,
   type LocalStore,
@@ -12,6 +12,7 @@ import NewsCard from './NewsCard';
 import FileToolsCard from './FileToolsCard';
 import ColorsCard from './ColorsCard';
 import TrendingWidget from '../widgets/TrendingWidget';
+import TimeWidget from '../widgets/TimeWidget';
 
 /**
  * A 型小组件统一注册表（第七十四轮，组件规范 5.2 落地）：
@@ -147,6 +148,10 @@ const ColorsWidget: React.ComponentType<WidgetRenderProps> = ({ tint, layout, de
   />
 );
 
+const TimeWidgetAdapter: React.ComponentType<WidgetRenderProps> = ({ tint, layout, delay = 0, phone }) => (
+  <TimeWidget tint={tint} layout={layout} delay={delay} phone={phone} />
+);
+
 /* ---------- 注册表本体（顺序与 localStore 的 ALL_WIDGETS 一致） ---------- */
 
 export const WIDGET_DEFINITIONS: WidgetDefinition[] = [
@@ -224,6 +229,26 @@ export const WIDGET_DEFINITIONS: WidgetDefinition[] = [
     // 收藏/自存配色走独立 key（规范 4.1），同步/导出/导入按 store/widgetStorage.ts 的登记一并处理
     storage: { own: 'ainav-widget-colors-data', reason: '收藏与自存配色是组件自有数据，与站点数据无关，独立迭代/整表清理更稳妥', reasonKey: 'widget.storageColorsReason' },
     component: ColorsWidget,
+  },
+  {
+    id: 'time',
+    name: '时间',
+    nameKey: 'widget.nameTime',
+    desc: '实时时间、日期、农历与定位',
+    descKey: 'widget.descTime',
+    category: 'tools',
+    icon: Clock,
+    watermark: '🕐',
+    supportedSizes: ALL_SIZES,
+    defaultLayout: DEFAULT_WIDGET_LAYOUTS.time,
+    // 定位成功后把经纬度反查成地址（只读公共逆地理编码）；拉不到时走 BigDataCloud 同类接口兜底
+    network: [
+      { endpoint: 'https://nominatim.openstreetmap.org/reverse', purpose: '定位后把经纬度反查成地址（只读公共逆地理编码）', purposeKey: 'widget.netTime' },
+      { endpoint: 'https://api.bigdatacloud.net/data/reverse-geocode-client', purpose: 'Nominatim 拉不到时，把经纬度反查成地址的兜底接口', purposeKey: 'widget.netTimeFallback' },
+    ],
+    // 定位地址与提醒句是组件自有数据，与站点数据无关，独立迭代更稳妥
+    storage: { own: 'ainav-widget-time-data', reason: '定位地址与提醒句是组件自有数据，与站点数据无关，独立迭代更稳妥', reasonKey: 'widget.storageTimeReason' },
+    component: TimeWidgetAdapter,
   },
 ];
 

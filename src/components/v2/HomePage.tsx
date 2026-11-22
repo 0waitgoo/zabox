@@ -1551,9 +1551,11 @@ export default function HomePage({ onNavigate, store }: { onNavigate: (page: str
 
   return (
     <div
-      // 2026-11-22 用户令：内容到顶和底、无需遮盖——顶 padding（原 pt-6/sm:pt-10/lg:pt-14）
-      // 撤掉，顶栏贴视口顶；App 容器纵向 padding 同轮已撤。
-      className="flex flex-col"
+      // 2026-11-23 用户令：上方太拥挤，整体下移、顶部留空——顶 padding 改视口比例
+      // （手机 30vh / 平板 33vh / 桌面 36vh），搜索框落到约 1/3 屏高处，绿框区只剩背景。
+      // 注：2026-11-22「到顶到底」撤掉的小 pt（pt-6/sm:pt-10/lg:pt-14）已被本大留白取代，
+      // 不是回到旧值；滚动后内容仍可贴底。
+      className="flex flex-col pt-[30vh] sm:pt-[33vh] lg:pt-[36vh]"
       onContextMenu={handleBlankContextMenu}
     >
       {/* 顶栏（一行对齐）：与下方卡片网格同款 4 栏 grid——左半 2 栏放页面导航图标组（靠左），

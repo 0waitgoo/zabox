@@ -92,6 +92,8 @@ interface StyleShared {
   now: Date;
   lunar: string;
   dateNum: string;
+  monthNum: string;
+  dayNum: string;
   timeText: string;
   secondsText: string;
   fullTime: string;
@@ -109,16 +111,16 @@ interface StyleShared {
 
 /* ---------------- 风格一：海报（分享版同款） ---------------- */
 function PosterStyle(p: StyleShared) {
-  const { wide, tall, lunar, dateNum, timeText, secondsText, fullTime, weekdayText, tomorrowDateNum, tomorrowWeekdayText, ampm, todayLabel, tomorrowLabel, ipRow, noteRow } = p;
+  const { wide, tall, lunar, dateNum, monthNum, dayNum, timeText, secondsText, fullTime, weekdayText, tomorrowDateNum, tomorrowWeekdayText, ampm, todayLabel, tomorrowLabel, ipRow, noteRow } = p;
   return (
     <>
       {/* 1x1 紧凑：TIME 年份 + 大日期 + 时间 PM 星期 + IP + 农历 */}
       {!wide && !tall && (
         <div className="flex-1 min-h-0 flex flex-col justify-center">
           <div className="text-[10px] tracking-[0.35em] font-medium text-[#A3A3A3]">TIME {p.now.getFullYear()}</div>
-          <div className="mt-1 font-black tabular-nums leading-none tracking-[0.04em] text-[46px]" style={DATE_BLACK}>{dateNum}</div>
+          <div className="mt-1 font-black tabular-nums leading-none tracking-[0.04em] text-[46px]" style={DATE_BLACK}><span className="opacity-60">{monthNum}</span>/{dayNum}</div>
           <div className="mt-1.5 text-[14px] font-bold tabular-nums">
-            {fullTime} <span className="text-[#A3A3A3] font-medium text-[13px]">{ampm} {weekdayText}</span>
+            {timeText}<span className="opacity-60">{secondsText}</span> <span className="text-[#A3A3A3] font-medium text-[13px]">{ampm} {weekdayText}</span>
           </div>
           <div className="mt-1.5">{ipRow}</div>
           {lunar ? <div className="mt-1 text-[12px] text-white">农历 {lunar}</div> : null}
@@ -133,13 +135,13 @@ function PosterStyle(p: StyleShared) {
               <div className="text-[10px] tracking-[0.3em] font-medium text-[#A3A3A3]">TIME</div>
               <div className="font-bold tabular-nums leading-none text-[20px]">{p.now.getFullYear()}</div>
             </div>
-            <div className="flex-1 min-w-0 text-center font-black tabular-nums leading-none tracking-[0.04em] text-[56px]" style={DATE_BLACK}>{dateNum}</div>
+            <div className="flex-1 min-w-0 text-center font-black tabular-nums leading-none tracking-[0.04em] text-[56px]" style={DATE_BLACK}><span className="opacity-60">{monthNum}</span>/{dayNum}</div>
             <div className="shrink-0 flex flex-col items-end">
               <div className="flex items-center gap-1.5">
                 <span className="text-[13px] font-medium text-[#A3A3A3]">{ampm}</span>
                 <CircledWeekday ch={WEEKDAYS[p.now.getDay()]} className="w-5 h-5 text-[12px]" />
               </div>
-              <div className="mt-1 font-extrabold tabular-nums leading-none text-[22px]">{fullTime}</div>
+              <div className="mt-1 font-extrabold tabular-nums leading-none text-[22px]">{timeText}<span className="opacity-60">{secondsText}</span></div>
             </div>
           </div>
           <div className="shrink-0 mt-2 flex flex-col gap-1">
@@ -158,12 +160,12 @@ function PosterStyle(p: StyleShared) {
                 <span>{String(p.now.getFullYear()).slice(0, 2)}</span>
                 <span>{String(p.now.getFullYear()).slice(2)}</span>
               </div>
-              <div className="flex-1 min-w-0 font-black tabular-nums leading-none tracking-[0.04em] text-[62px]" style={DATE_BLACK}>{dateNum}</div>
+              <div className="flex-1 min-w-0 font-black tabular-nums leading-none tracking-[0.04em] text-[62px]" style={DATE_BLACK}><span className="opacity-60">{monthNum}</span>/{dayNum}</div>
               <CircledWeekday ch={WEEKDAYS[p.now.getDay()]} className="w-7 h-7 text-[15px]" />
             </div>
             <div className="mt-2.5 font-extrabold tabular-nums leading-none tracking-tight text-[40px]">
               {timeText}
-              <span className="text-[#A3A3A3] font-medium text-[0.45em] align-top">{secondsText}</span>
+              <span className="text-[#A3A3A3] font-medium text-[0.45em] align-top opacity-60">{secondsText}</span>
             </div>
             {lunar ? <div className="mt-3 text-[14px] text-white">农历 {lunar}</div> : null}
           </div>
@@ -181,7 +183,7 @@ function PosterStyle(p: StyleShared) {
             <div className="flex gap-4">
               <div className="flex-1 min-w-0 flex flex-col">
                 <div className="text-[10px] tracking-[0.35em] font-medium text-[#A3A3A3]">{todayLabel}</div>
-                <div className="mt-1 font-black tabular-nums leading-none tracking-[0.04em] text-[52px]" style={DATE_BLACK}>{dateNum}</div>
+                <div className="mt-1 font-black tabular-nums leading-none tracking-[0.04em] text-[52px]" style={DATE_BLACK}><span className="opacity-60">{monthNum}</span>/{dayNum}</div>
                 <div className="mt-2.5 min-w-0">{ipRow}</div>
                 {lunar ? <div className="mt-1.5 text-[13px] text-white truncate">农历 {lunar}</div> : null}
                 <div className="mt-1.5 text-[13px] text-[#A3A3A3] truncate">{tomorrowLabel} {tomorrowDateNum} {tomorrowWeekdayText}</div>
@@ -189,7 +191,7 @@ function PosterStyle(p: StyleShared) {
               <div className="w-px self-stretch my-2 bg-white/15 shrink-0" />
               <div className="flex-1 min-w-0 flex flex-col items-center text-center">
                 <div className="text-[10px] tracking-[0.35em] font-medium text-[#A3A3A3]">时间</div>
-                <div className="mt-1 font-extrabold tabular-nums leading-none tracking-tight text-[64px] whitespace-nowrap">{fullTime}</div>
+                <div className="mt-1 font-extrabold tabular-nums leading-none tracking-tight text-[64px] whitespace-nowrap">{timeText}<span className="opacity-60">{secondsText}</span></div>
                 <div className="mt-2 text-[24px] font-bold">
                   <span className="text-[#A3A3A3] font-medium">{ampm} </span>
                   {weekdayText}
@@ -224,7 +226,7 @@ function BlueBubble({ children }: { children: React.ReactNode }) {
   );
 }
 function BubbleStyle(p: StyleShared) {
-  const { wide, tall, lunar, dateNum, fullTime, weekdayText, tomorrowDateNum, tomorrowWeekdayText, ampm, tomorrowLabel, ipRow, noteRow } = p;
+  const { wide, tall, lunar, dateNum, monthNum, dayNum, timeText, secondsText, fullTime, weekdayText, tomorrowDateNum, tomorrowWeekdayText, ampm, tomorrowLabel, ipRow, noteRow } = p;
   return (
     <>
       {/* 1x1：白气泡日期（左，微倾）＋蓝气泡时间（右，微倾）＋IP＋农历 */}
@@ -233,7 +235,7 @@ function BubbleStyle(p: StyleShared) {
           <div className="w-fit max-w-full -rotate-2 time-bubble-float">
             <WhiteBubble>
               <div className="flex items-end justify-between gap-3">
-                <div className="font-black tabular-nums leading-none tracking-[0.04em] text-[32px]">{dateNum}</div>
+                <div className="font-black tabular-nums leading-none tracking-[0.04em] text-[32px]"><span className="opacity-60">{monthNum}</span>/{dayNum}</div>
                 <div className="text-right shrink-0 pb-0.5">
                   <div className="text-[9px] tracking-[0.25em] font-medium text-black/50">TIME</div>
                   <div className="text-[13px] font-bold text-[#2563EB]">日期</div>
@@ -244,7 +246,7 @@ function BubbleStyle(p: StyleShared) {
           <div className="w-fit max-w-full ml-auto rotate-[1.5deg] time-bubble-float-delay">
             <BlueBubble>
               <div className="flex items-center gap-2">
-                <div className="font-black tabular-nums leading-none text-[14px]">{fullTime}</div>
+                <div className="font-black tabular-nums leading-none text-[14px]">{timeText}<span className="opacity-60">{secondsText}</span></div>
                 <div className="text-[12px] font-bold">时间</div>
               </div>
             </BlueBubble>
@@ -261,7 +263,7 @@ function BubbleStyle(p: StyleShared) {
             <div className="w-fit max-w-[55%] -rotate-2 time-bubble-float">
               <WhiteBubble>
                 <div className="flex items-end justify-between gap-2">
-                  <div className="font-black tabular-nums leading-none tracking-[0.04em] text-[44px]">{dateNum}</div>
+                  <div className="font-black tabular-nums leading-none tracking-[0.04em] text-[44px]"><span className="opacity-60">{monthNum}</span>/{dayNum}</div>
                   <div className="text-right shrink-0 pb-0.5">
                     <div className="text-[9px] tracking-[0.25em] font-medium text-black/50">TIME</div>
                     <div className="text-[13px] font-bold text-[#2563EB]">日期</div>
@@ -272,7 +274,7 @@ function BubbleStyle(p: StyleShared) {
             <div className="w-fit max-w-[55%] mr-10 rotate-[1.5deg] time-bubble-float-delay">
               <BlueBubble>
                 <div className="flex items-end justify-between gap-2">
-                  <div className="font-black tabular-nums leading-none text-[36px]">{fullTime}</div>
+                  <div className="font-black tabular-nums leading-none text-[36px]">{timeText}<span className="opacity-60">{secondsText}</span></div>
                   <div className="text-right shrink-0 pb-0.5">
                     <div className="text-[9px] tracking-[0.25em] font-medium text-white/70">{ampm}</div>
                     <div className="text-[13px] font-bold">时间</div>
@@ -295,7 +297,7 @@ function BubbleStyle(p: StyleShared) {
             <div className="w-fit max-w-full -rotate-2 time-bubble-float">
               <WhiteBubble>
                 <div className="flex items-end justify-between gap-3">
-                  <div className="font-black tabular-nums leading-none tracking-[0.04em] text-[36px]">{dateNum}</div>
+                  <div className="font-black tabular-nums leading-none tracking-[0.04em] text-[36px]"><span className="opacity-60">{monthNum}</span>/{dayNum}</div>
                   <div className="text-right shrink-0 pb-0.5">
                     <div className="text-[10px] tracking-[0.25em] font-medium text-black/50">TIME</div>
                     <div className="text-[14px] font-bold text-[#2563EB]">日期</div>
@@ -306,7 +308,7 @@ function BubbleStyle(p: StyleShared) {
             <div className="w-fit max-w-full ml-auto rotate-[1.5deg] time-bubble-float-delay">
               <BlueBubble>
                 <div className="flex items-end justify-between gap-3">
-                  <div className="font-black tabular-nums leading-none text-[30px]">{fullTime}</div>
+                  <div className="font-black tabular-nums leading-none text-[30px]">{timeText}<span className="opacity-60">{secondsText}</span></div>
                   <div className="text-right shrink-0 pb-0.5">
                     <div className="text-[10px] tracking-[0.25em] font-medium text-white/70">{ampm}</div>
                     <div className="text-[14px] font-bold">时间</div>
@@ -331,7 +333,7 @@ function BubbleStyle(p: StyleShared) {
             <div className="w-fit max-w-full -rotate-2 time-bubble-float">
               <WhiteBubble>
                 <div className="flex items-end justify-between gap-3">
-                  <div className="font-black tabular-nums leading-none tracking-[0.04em] text-[64px]">{dateNum}</div>
+                  <div className="font-black tabular-nums leading-none tracking-[0.04em] text-[64px]"><span className="opacity-60">{monthNum}</span>/{dayNum}</div>
                   <div className="text-right shrink-0 pb-0.5">
                     <div className="text-[10px] tracking-[0.25em] font-medium text-black/50">TIME</div>
                     <div className="text-[15px] font-bold text-[#2563EB]">日期</div>
@@ -342,7 +344,7 @@ function BubbleStyle(p: StyleShared) {
             <div className="w-fit max-w-full ml-auto rotate-[1.5deg] time-bubble-float-delay">
               <BlueBubble>
                 <div className="flex items-end justify-between gap-3">
-                  <div className="font-black tabular-nums leading-none text-[52px]">{fullTime}</div>
+                  <div className="font-black tabular-nums leading-none text-[52px]">{timeText}<span className="opacity-60">{secondsText}</span></div>
                   <div className="text-right shrink-0 pb-0.5">
                     <div className="text-[10px] tracking-[0.25em] font-medium text-white/70">{ampm}</div>
                     <div className="text-[15px] font-bold">时间</div>
@@ -428,6 +430,8 @@ export default function TimeWidget({
   const secondsText = `:${pad(now.getSeconds())}`;
   const fullTime = `${timeText}${secondsText}`;
   const dateNum = `${now.getMonth() + 1}/${now.getDate()}`;
+  const monthNum = String(now.getMonth() + 1);
+  const dayNum = String(now.getDate());
   const weekdayText = `周${WEEKDAYS[now.getDay()]}`;
   const tomorrowDateNum = `${tomorrow.getMonth() + 1}/${tomorrow.getDate()}`;
   const tomorrowWeekdayText = `周${WEEKDAYS[tomorrow.getDay()]}`;
@@ -497,6 +501,8 @@ export default function TimeWidget({
     now,
     lunar,
     dateNum,
+    monthNum,
+    dayNum,
     timeText,
     secondsText,
     fullTime,

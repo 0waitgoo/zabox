@@ -1,7 +1,7 @@
 # 杂盒 ZaBox
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE)
-[![Version](https://img.shields.io/badge/version-2.0.10-blue.svg)](package.json)
+[![Version](https://img.shields.io/badge/version-2.0.11-blue.svg)](package.json)
 [![PRs Welcome](https://img.shields.io/badge/PRs-welcome-brightgreen.svg)](CONTRIBUTING.md)
 
 **杂盒 ZaBox 是一个本地优先的个人起始页：把常用网站、资讯、任务计划、文件工具和时间小组件收进一个新标签页，杂，而有序。**

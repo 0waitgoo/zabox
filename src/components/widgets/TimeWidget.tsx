@@ -118,7 +118,7 @@ function PosterStyle(p: StyleShared) {
       {!wide && !tall && (
         <div className="flex-1 min-h-0 flex flex-col justify-center">
           <div className="text-[10px] tracking-[0.35em] font-medium text-[#A3A3A3]">TIME {p.now.getFullYear()}</div>
-          <div className="mt-1 font-black tabular-nums leading-none tracking-[0.04em] text-[46px]" style={DATE_BLACK}><span className="text-black">{monthNum}/</span><span className="text-[#2563EB]">{dayNum}</span></div>
+          <div className="mt-1 font-black tabular-nums leading-none tracking-[0.04em] text-[46px]" style={DATE_BLACK}><span className="opacity-60">{monthNum}</span>/{dayNum}</div>
           <div className="mt-1.5 text-[14px] font-bold tabular-nums">
             {timeText}<span className="opacity-60">{secondsText}</span> <span className="text-[#A3A3A3] font-medium text-[13px]">{ampm} {weekdayText}</span>
           </div>
@@ -135,7 +135,7 @@ function PosterStyle(p: StyleShared) {
               <div className="text-[10px] tracking-[0.3em] font-medium text-[#A3A3A3]">TIME</div>
               <div className="font-bold tabular-nums leading-none text-[20px]">{p.now.getFullYear()}</div>
             </div>
-            <div className="flex-1 min-w-0 text-center font-black tabular-nums leading-none tracking-[0.04em] text-[56px]" style={DATE_BLACK}><span className="text-black">{monthNum}/</span><span className="text-[#2563EB]">{dayNum}</span></div>
+            <div className="flex-1 min-w-0 text-center font-black tabular-nums leading-none tracking-[0.04em] text-[56px]" style={DATE_BLACK}><span className="opacity-60">{monthNum}</span>/{dayNum}</div>
             <div className="shrink-0 flex flex-col items-end">
               <div className="flex items-center gap-1.5">
                 <span className="text-[13px] font-medium text-[#A3A3A3]">{ampm}</span>
@@ -160,7 +160,7 @@ function PosterStyle(p: StyleShared) {
                 <span>{String(p.now.getFullYear()).slice(0, 2)}</span>
                 <span>{String(p.now.getFullYear()).slice(2)}</span>
               </div>
-              <div className="flex-1 min-w-0 font-black tabular-nums leading-none tracking-[0.04em] text-[62px]" style={DATE_BLACK}><span className="text-black">{monthNum}/</span><span className="text-[#2563EB]">{dayNum}</span></div>
+              <div className="flex-1 min-w-0 font-black tabular-nums leading-none tracking-[0.04em] text-[62px]" style={DATE_BLACK}><span className="opacity-60">{monthNum}</span>/{dayNum}</div>
               <CircledWeekday ch={WEEKDAYS[p.now.getDay()]} className="w-7 h-7 text-[15px]" />
             </div>
             <div className="mt-2.5 font-extrabold tabular-nums leading-none tracking-tight text-[40px]">
@@ -183,7 +183,7 @@ function PosterStyle(p: StyleShared) {
             <div className="flex gap-4">
               <div className="flex-1 min-w-0 flex flex-col">
                 <div className="text-[10px] tracking-[0.35em] font-medium text-[#A3A3A3]">{todayLabel}</div>
-                <div className="mt-1 font-black tabular-nums leading-none tracking-[0.04em] text-[52px]" style={DATE_BLACK}><span className="text-black">{monthNum}/</span><span className="text-[#2563EB]">{dayNum}</span></div>
+                <div className="mt-1 font-black tabular-nums leading-none tracking-[0.04em] text-[52px]" style={DATE_BLACK}><span className="opacity-60">{monthNum}</span>/{dayNum}</div>
                 <div className="mt-2.5 min-w-0">{ipRow}</div>
                 {lunar ? <div className="mt-1.5 text-[13px] text-white truncate">农历 {lunar}</div> : null}
                 <div className="mt-1.5 text-[13px] text-[#A3A3A3] truncate">{tomorrowLabel} {tomorrowDateNum} {tomorrowWeekdayText}</div>
@@ -235,7 +235,7 @@ function BubbleStyle(p: StyleShared) {
           <div className="w-fit max-w-full -rotate-2 time-bubble-float">
             <WhiteBubble>
               <div className="flex items-end justify-between gap-3">
-                <div className="font-black tabular-nums leading-none tracking-[0.04em] text-[32px]"><span className="text-black">{monthNum}/</span><span className="text-[#2563EB]">{dayNum}</span></div>
+                <div className="font-black tabular-nums leading-none tracking-[0.04em] text-[32px]"><span className="opacity-60">{monthNum}</span>/{dayNum}<span className="text-[0.5em] font-bold ml-1">{weekdayText}</span></div>
                 <div className="text-right shrink-0 pb-0.5">
                   <div className="text-[9px] tracking-[0.25em] font-medium text-black/50">TIME</div>
                   <div className="text-[13px] font-bold text-[#2563EB]">日期</div>
@@ -263,7 +263,7 @@ function BubbleStyle(p: StyleShared) {
             <div className="w-fit max-w-[55%] -rotate-2 time-bubble-float">
               <WhiteBubble>
                 <div className="flex items-end justify-between gap-2">
-                  <div className="font-black tabular-nums leading-none tracking-[0.04em] text-[44px]"><span className="text-black">{monthNum}/</span><span className="text-[#2563EB]">{dayNum}</span></div>
+                  <div className="font-black tabular-nums leading-none tracking-[0.04em] text-[44px]"><span className="opacity-60">{monthNum}</span>/{dayNum}<span className="text-[0.5em] font-bold ml-1">{weekdayText}</span></div>
                   <div className="text-right shrink-0 pb-0.5">
                     <div className="text-[9px] tracking-[0.25em] font-medium text-black/50">TIME</div>
                     <div className="text-[13px] font-bold text-[#2563EB]">日期</div>
@@ -297,7 +297,7 @@ function BubbleStyle(p: StyleShared) {
             <div className="w-fit max-w-full -rotate-2 time-bubble-float">
               <WhiteBubble>
                 <div className="flex items-end justify-between gap-3">
-                  <div className="font-black tabular-nums leading-none tracking-[0.04em] text-[36px]"><span className="text-black">{monthNum}/</span><span className="text-[#2563EB]">{dayNum}</span></div>
+                  <div className="font-black tabular-nums leading-none tracking-[0.04em] text-[36px]"><span className="opacity-60">{monthNum}</span>/{dayNum}<span className="text-[0.5em] font-bold ml-1">{weekdayText}</span></div>
                   <div className="text-right shrink-0 pb-0.5">
                     <div className="text-[10px] tracking-[0.25em] font-medium text-black/50">TIME</div>
                     <div className="text-[14px] font-bold text-[#2563EB]">日期</div>
@@ -333,7 +333,7 @@ function BubbleStyle(p: StyleShared) {
             <div className="w-fit max-w-full -rotate-2 time-bubble-float">
               <WhiteBubble>
                 <div className="flex items-end justify-between gap-3">
-                  <div className="font-black tabular-nums leading-none tracking-[0.04em] text-[64px]"><span className="text-black">{monthNum}/</span><span className="text-[#2563EB]">{dayNum}</span></div>
+                  <div className="font-black tabular-nums leading-none tracking-[0.04em] text-[64px]"><span className="opacity-60">{monthNum}</span>/{dayNum}<span className="text-[0.5em] font-bold ml-1">{weekdayText}</span></div>
                   <div className="text-right shrink-0 pb-0.5">
                     <div className="text-[10px] tracking-[0.25em] font-medium text-black/50">TIME</div>
                     <div className="text-[15px] font-bold text-[#2563EB]">日期</div>

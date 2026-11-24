@@ -105,13 +105,15 @@ interface StyleShared {
   tomorrowLabel: string;
   wide: boolean;
   tall: boolean;
+  /** 手机单列：1x2 日期行给右上角风格按钮让位（pr-20），桌面 1x2 栏窄放不下不让 */
+  phone: boolean;
   ipRow: React.ReactNode;
   noteRow: React.ReactNode;
 }
 
 /* ---------------- 风格一：海报（分享版同款） ---------------- */
 function PosterStyle(p: StyleShared) {
-  const { wide, tall, lunar, dateNum, monthNum, dayNum, timeText, secondsText, fullTime, weekdayText, tomorrowDateNum, tomorrowWeekdayText, ampm, todayLabel, tomorrowLabel, ipRow, noteRow } = p;
+  const { wide, tall, lunar, dateNum, monthNum, dayNum, timeText, secondsText, fullTime, weekdayText, tomorrowDateNum, tomorrowWeekdayText, ampm, todayLabel, tomorrowLabel, ipRow, noteRow, phone } = p;
   return (
     <>
       {/* 1x1 紧凑：TIME 年份 + 大日期 + 时间 PM 星期 + IP + 农历 */}
@@ -155,7 +157,7 @@ function PosterStyle(p: StyleShared) {
       {!wide && tall && (
         <>
           <div className="flex-1 min-h-0 flex flex-col justify-center">
-            <div className="flex items-center gap-3">
+            <div className={`flex items-center gap-3${phone ? ' pr-20' : ''}`}>
               <div className="flex flex-col font-bold tabular-nums leading-[0.95] text-[24px] shrink-0">
                 <span>{String(p.now.getFullYear()).slice(0, 2)}</span>
                 <span>{String(p.now.getFullYear()).slice(2)}</span>
@@ -514,6 +516,7 @@ export default function TimeWidget({
     tomorrowLabel: t('widget.timeTomorrow'),
     wide,
     tall,
+    phone,
     ipRow,
     noteRow,
   };

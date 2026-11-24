@@ -534,6 +534,18 @@ function normalizeWidgetTints(raw: unknown): Record<string, WidgetTintValue> {
   return out;
 }
 
+/** 归一化 widgetBaseColors（2026-11-24 自定义纯色底）：只采纳 #rrggbb 形合法单色（统一存小写），
+ * 其余一律丢弃——旧存档无此字段时为空表（= 全部默认黑底 + 标准蓝），绝不因脏数据白屏。 */
+function normalizeWidgetBaseColors(raw: unknown): Record<string, string> {
+  const out: Record<string, string> = {};
+  if (raw && typeof raw === 'object') {
+    for (const [k, v] of Object.entries(raw as Record<string, unknown>)) {
+      if (typeof v === 'string' && /^#[0-9a-fA-F]{6}$/.test(v)) out[k] = v.toLowerCase();
+    }
+  }
+  return out;
+}
+
 /** 归一化 tasks：老数据无此字段 / 元素残缺时逐项清洗，非法整体回落空数组（首次即空状态，不塞假数据）。
  *  children 是数组的元素按「组」保留（子任务逐项清洗），非数组一律不当组。 */
 /** 笔记消息归一化（2026-11-20：加载/导入/同步都走 validateStoreData，notes 必须随任务一起保留） */
@@ -824,6 +836,12 @@ export interface StoreData {
    * 组件首次出现时随机抽一次并落盘，之后刷新/同步都不变；老数据无此字段时为空表（渲染前补抽）。
    */
   widgetTints: Record<string, WidgetTintValue>;
+  /**
+   * A 型小组件自定义底色（纯色，2026-11-24）：key = 卡片稳定 key（widget:<id>），value = 用户自选的单个 hex 色。
+   * 缺省（无此 key）= 黑底 + 标准蓝；换色后强调色 = 该色、底色 = 该色的深色版（明度压到 20%，见 widgetColor）。
+   * 显示偏好、不进预设快照（切预设不碰它）；同步/导出/导入随 store.data 整体走，老数据无此字段时为空表。
+   */
+  widgetBaseColors: Record<string, string>;
   /**
    * 当前主页预设（第一百零六轮建、第一百零九轮改语义）：内置预设 id 或 'my'
    * （用户自己的排版）。老存档无此字段时归一化为 'my'：既有排版即用户的「我的」。
@@ -1128,7 +1146,7 @@ export function prepareGroups(groups: NavGroup[]): NavGroup[] {
  * 默认主页构成（第一百零九轮）：用户 live 布局，seedData（新访客/恢复默认）与
  * 默认预设（data/presets.ts）同源共用——两边逐项一致。
  * 来源：用户导出的 ainav-data.json live 构成（组、站点、顺序、尺寸、栏位、组合、摞）。
- * 不含：widgetTints（底色属显示偏好，不进预设）、background、tasks/plans、旧 myPreset 快照。
+ * 不含：widgetTints / widgetBaseColors（底色属显示偏好，不进预设）、background、tasks/plans、旧 myPreset 快照。
  * 相对种子编组的组级差异只两处：编程工具改列表卡、图像/视频文件夹小角颜色；
  * 其余三套预设仍用种子编组原样（编程工具在程序员预设里仍是文件夹卡），
  * 故这里只对默认构成做覆盖，不动 data/groups.ts 的种子本身。
@@ -1225,6 +1243,7 @@ function seedData(): StoreData {
     combos: structuredClone(DEFAULT_PRESET_COMBOS),
     widgetStacks: structuredClone(DEFAULT_PRESET_WIDGET_STACKS),
     widgetTints: {},
+    widgetBaseColors: {},
     // 新装即默认预设的主页（构成与默认预设同源），「我的」尚无存档
     activePreset: 'default',
     myPreset: null,
@@ -1516,6 +1535,7 @@ export function validateStoreData(raw: unknown): StoreData | null {
     combos: normalizeCombos((data as { combos?: unknown }).combos, groups),
     widgetStacks: normalizeWidgetStacks((data as { widgetStacks?: unknown }).widgetStacks, widgets),
     widgetTints: normalizeWidgetTints((data as { widgetTints?: unknown }).widgetTints),
+    widgetBaseColors: normalizeWidgetBaseColors((data as { widgetBaseColors?: unknown }).widgetBaseColors),
     activePreset: normalizeActivePreset((data as { activePreset?: unknown }).activePreset),
     // 加载/导入时把现排版的标签补进“我的”快照（只加不删）：救内置预设上补过标签
     // 却没点覆盖确认的那批，下次切预设不再丢
@@ -2606,6 +2626,20 @@ export function useLocalStore() {
     [update],
   );
 
+  /** 自定义纯色底（2026-11-24，右键「换底色」）：hex 非法整次不写；传 null 删该卡记录（恢复默认黑底 + 标准蓝）。
+   * 走 update() 正常落盘（同步/导出随 store.data 整体走）。 */
+  const setWidgetBaseColor = useCallback(
+    (cardKey: string, hex: string | null) => {
+      if (hex !== null && !/^#[0-9a-fA-F]{6}$/.test(hex)) return;
+      update((d) => {
+        if (hex === null) delete d.widgetBaseColors[cardKey];
+        else d.widgetBaseColors[cardKey] = hex.toLowerCase();
+        return d;
+      });
+    },
+    [update],
+  );
+
   const setWidgetVisible = useCallback(
     (widgetId: WidgetId, visible: boolean) => {
       update((d) => {
@@ -3488,6 +3522,7 @@ export function useLocalStore() {
     ensureWidgetTints,
     setWidgetTint,
     setWidgetTintCustom,
+    setWidgetBaseColor,
     setBackground,
     addTask,
     addTaskGroup,

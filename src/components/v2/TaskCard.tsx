@@ -58,6 +58,7 @@ export default function TaskCard({
   colSpan = 1,
   heightUnits = 1,
   onOpenPlanPage,
+  colorVars,
 }: {
   store: LocalStore;
   delay?: number;
@@ -67,6 +68,8 @@ export default function TaskCard({
   heightUnits?: 1 | 2;
   /** 打开计划全窗页（第八十八轮）：由注册表按 onNavigate 注入；不传则不渲染卡头入口 */
   onOpenPlanPage?: () => void;
+  /** 每卡自定义底色的两个 CSS 变量（注册表适配层算好传下）；根不挂 transition-colors（滑杆直写变量要即时跟手） */
+  colorVars?: React.CSSProperties;
 }) {
   const { tasks, plans, cardFaceStyles } = store.data;
   const { t: tr } = useLang();
@@ -174,8 +177,8 @@ export default function TaskCard({
         transition={{ duration: 0.35, delay }}
         data-task-card
         data-task-mode="full"
-        style={{ fontFamily: POSTER_FONT }}
-        className="group-card-scope widget-panel widget-panel-hover relative rounded-[32px] h-full p-4 sm:p-5 flex flex-col overflow-hidden transition-colors"
+        style={{ fontFamily: POSTER_FONT, ...colorVars }}
+        className="group-card-scope widget-panel widget-panel-hover relative rounded-[32px] h-full p-4 sm:p-5 flex flex-col overflow-hidden"
       >
         <div className="relative flex flex-col flex-1 min-h-0">
         {/* 头部（本轮改成标题 tab）：计划 | 日程表 | 推进表 + 今日进度 + 展开图标 + AI 整理图标；
@@ -195,7 +198,7 @@ export default function TaskCard({
                 aria-label={tr(labelKey)}
                 onClick={() => switchPlanTab(tab)}
                 className={`${colSpan === 1 ? 'w-7 h-7 flex items-center justify-center' : 'flex items-center gap-1 px-2.5 py-1.5'} rounded-lg transition-colors ${
-                  planTab === tab ? 'bg-[#2563EB]/80 text-white font-medium' : 'text-[#A3A3A3] hover:text-white'
+                  planTab === tab ? 'bg-[color-mix(in_srgb,var(--widget-accent)_80%,transparent)] text-white font-medium' : 'text-[#A3A3A3] hover:text-white'
                 }`}
               >
                 <Icon size={13} />
@@ -306,13 +309,13 @@ export default function TaskCard({
       transition={{ duration: 0.35, delay }}
       data-task-card
       data-task-face={face}
-      style={{ fontFamily: POSTER_FONT }}
-      className="group-card-scope widget-panel widget-panel-hover relative rounded-[32px] h-full p-4 sm:p-5 flex flex-col overflow-hidden transition-colors"
+      style={{ fontFamily: POSTER_FONT, ...colorVars }}
+      className="group-card-scope widget-panel widget-panel-hover relative rounded-[32px] h-full p-4 sm:p-5 flex flex-col overflow-hidden"
     >
       <div className="relative flex flex-col flex-1 min-h-0">
       {/* 头部：标题 + 今日进度 */}
       <div className="flex items-center gap-2 mb-2 shrink-0">
- <div className="w-7 h-7 rounded-full bg-[#2563EB] text-white ring-1 ring-black/20 flex items-center justify-center shrink-0">
+ <div className="w-7 h-7 rounded-full bg-[var(--widget-accent)] text-white ring-1 ring-black/20 flex items-center justify-center shrink-0">
           <ListTodo size={14} />
         </div>
         <h3 className="font-semibold text-base sm:text-lg tracking-tight">{tr('widget.nameTask')}</h3>

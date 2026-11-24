@@ -2,10 +2,12 @@ import React from 'react';
 import { Clock, ListTodo, Newspaper, Palette, TrendingUp, Wrench, type LucideIcon } from 'lucide-react';
 import {
   DEFAULT_WIDGET_LAYOUTS,
+  widgetCardKey,
   type LocalStore,
   type WidgetId,
   type WidgetLayout,
 } from '../../store/localStore';
+import { widgetColorVars } from './widgetColor';
 import TaskCard from './TaskCard';
 import NewsCard from './NewsCard';
 import FileToolsCard from './FileToolsCard';
@@ -104,7 +106,10 @@ const ALL_SIZES: WidgetLayout[] = [
   { colSpan: 2, heightUnits: 2 },
 ];
 
-/* ---------- 适配组件：统一 props → 各组件真实 props（映射与原 HomePage switch 逐字一致） ---------- */
+/* ---------- 适配组件：统一 props → 各组件真实 props（映射与原 HomePage switch 逐字一致） ----------
+ * 自定义纯色底（2026-11-24）：各适配层按本卡 key 从 store.widgetBaseColors 取色，算出
+ * --widget-base-rgb / --widget-accent 两个 CSS 变量（widgetColorVars，无自定义色时回落
+ * 黑底 + 标准蓝），以 colorVars 传给卡根；主页/组件摞/商店预览三处渲染都走本表，故三处同色。 */
 
 const TaskWidget: React.ComponentType<WidgetRenderProps> = ({ store, onNavigate, layout, delay = 0, phone }) => (
   <TaskCard
@@ -113,36 +118,51 @@ const TaskWidget: React.ComponentType<WidgetRenderProps> = ({ store, onNavigate,
     colSpan={phone ? 1 : layout.colSpan}
     heightUnits={layout.heightUnits}
     onOpenPlanPage={() => onNavigate('plan')}
+    colorVars={widgetColorVars(store.data.widgetBaseColors?.[widgetCardKey('task')])}
   />
 );
 
-const NewsWidget: React.ComponentType<WidgetRenderProps> = ({ onNavigate, delay = 0 }) => (
-  <NewsCard onNavigate={onNavigate} delay={delay} />
+const NewsWidget: React.ComponentType<WidgetRenderProps> = ({ store, onNavigate, delay = 0 }) => (
+  <NewsCard
+    onNavigate={onNavigate}
+    delay={delay}
+    colorVars={widgetColorVars(store.data.widgetBaseColors?.[widgetCardKey('news')])}
+  />
 );
 
-const TrendingWidgetAdapter: React.ComponentType<WidgetRenderProps> = ({ layout }) => (
-  <TrendingWidget heightUnits={layout.heightUnits} />
+const TrendingWidgetAdapter: React.ComponentType<WidgetRenderProps> = ({ store, layout }) => (
+  <TrendingWidget
+    heightUnits={layout.heightUnits}
+    colorVars={widgetColorVars(store.data.widgetBaseColors?.[widgetCardKey('trending')])}
+  />
 );
 
-const ToolsWidget: React.ComponentType<WidgetRenderProps> = ({ layout, delay = 0, phone }) => (
+const ToolsWidget: React.ComponentType<WidgetRenderProps> = ({ store, layout, delay = 0, phone }) => (
   <FileToolsCard
     delay={delay}
     colSpan={phone ? 1 : layout.colSpan}
     heightUnits={layout.heightUnits}
+    colorVars={widgetColorVars(store.data.widgetBaseColors?.[widgetCardKey('tools')])}
   />
 );
 
-const ColorsWidget: React.ComponentType<WidgetRenderProps> = ({ layout, delay = 0, phone }) => (
+const ColorsWidget: React.ComponentType<WidgetRenderProps> = ({ store, layout, delay = 0, phone }) => (
   <ColorsCard
     delay={delay}
     colSpan={phone ? 1 : layout.colSpan}
     heightUnits={layout.heightUnits}
+    colorVars={widgetColorVars(store.data.widgetBaseColors?.[widgetCardKey('colors')])}
   />
 );
 
 /* 海报纯黑，不挂底色层（分享版设计即纯黑），故适配层不传 tint */
-const TimeWidgetAdapter: React.ComponentType<WidgetRenderProps> = ({ layout, delay = 0, phone }) => (
-  <TimeWidget layout={layout} delay={delay} phone={phone} />
+const TimeWidgetAdapter: React.ComponentType<WidgetRenderProps> = ({ store, layout, delay = 0, phone }) => (
+  <TimeWidget
+    layout={layout}
+    delay={delay}
+    phone={phone}
+    colorVars={widgetColorVars(store.data.widgetBaseColors?.[widgetCardKey('time')])}
+  />
 );
 
 /* ---------- 注册表本体（顺序与 localStore 的 ALL_WIDGETS 一致） ---------- */

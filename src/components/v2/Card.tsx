@@ -13,6 +13,7 @@ export function Card({
   className = '',
   onClick,
   delay = 0,
+  colorVars,
 }: {
   title?: React.ReactNode;
   icon?: React.ReactNode;
@@ -21,6 +22,10 @@ export function Card({
   className?: string;
   onClick?: () => void;
   delay?: number;
+  /** 每卡自定义底色的两个 CSS 变量（--widget-base-rgb / --widget-accent，注册表适配层算好传下；
+   *  无自定义色时为黑底 + 标准蓝）。根不挂 transition-colors：底色透明度由滑杆直写变量，
+   *  过渡会把跟手性拖慢 150ms（2026-11-24 滑杆延迟优化）。 */
+  colorVars?: React.CSSProperties;
 }) {
   // 时间组件同款：纯黑底 .widget-panel（透明度吃 --widget-alpha）+ POSTER_FONT；
   // 根挂 .group-card-scope，白天翻字规则表命中后由 index.css 的白天文字恢复段钉回白字
@@ -30,8 +35,8 @@ export function Card({
       animate={{ opacity: 1, y: 0 }}
       transition={{ duration: 0.35, delay }}
       onClick={onClick}
-      style={{ fontFamily: POSTER_FONT }}
-      className={`group-card-scope widget-panel widget-panel-hover relative rounded-[32px] h-full p-4 sm:p-5 flex flex-col overflow-hidden transition-colors ${onClick ? 'cursor-pointer' : ''} ${className}`}
+      style={{ fontFamily: POSTER_FONT, ...colorVars }}
+      className={`group-card-scope widget-panel widget-panel-hover relative rounded-[32px] h-full p-4 sm:p-5 flex flex-col overflow-hidden ${onClick ? 'cursor-pointer' : ''} ${className}`}
     >
       <div className="relative flex flex-col flex-1 min-h-0">
         {title !== undefined && (
@@ -50,8 +55,9 @@ export function Card({
 }
 
 /** 卡片标题左侧的圆形图标徽（第八十二轮：改实底——各组件专属色满底 + 白 glyph +
- * 深色细环与浅投影定轮廓；改前为 /20 半透明底 + -300 粉彩字，压在壁纸/渐变上几乎看不见） */
-export function CardIconBadge({ children, className = 'bg-[#2563EB] text-white' }: { children: React.ReactNode; className?: string }) {
+ * 深色细环与浅投影定轮廓；改前为 /20 半透明底 + -300 粉彩字，压在壁纸/渐变上几乎看不见）。
+ * 底色走每卡的 --widget-accent（自定义底色时跟着变；未换色即标准蓝），不在卡壳里不生效。 */
+export function CardIconBadge({ children, className = 'bg-[var(--widget-accent)] text-white' }: { children: React.ReactNode; className?: string }) {
   return (
  <div className={`w-7 h-7 rounded-full flex items-center justify-center shrink-0 ring-1 ring-black/20 ${className}`}>
       {children}

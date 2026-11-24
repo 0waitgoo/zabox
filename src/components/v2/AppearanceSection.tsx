@@ -211,7 +211,14 @@ export default function AppearanceSection({ store }: { store: LocalStore }) {
           step={1}
           value={alphaPct}
           data-group-alpha-slider
-          onChange={(e) => setDisplayPrefs({ groupCardAlpha: Number(e.target.value) / 100 })}
+          onChange={(e) => {
+            // 滑杆跟手（2026-11-24）：先同步直写 CSS 变量、视觉立即跟手，再走 setDisplayPrefs
+            // （落盘 + 预设自动保存不变；其后 applyDisplayPrefs 会再写一次同值，无害）。
+            // 只直写不够：卡根的 transition-colors 也会把底色变化拖 150ms（已从卡根摘掉，见 Card/TaskCard）。
+            const v = Number(e.target.value) / 100;
+            document.documentElement.style.setProperty('--group-card-alpha', String(v));
+            setDisplayPrefs({ groupCardAlpha: v });
+          }}
           className="flex-1 accent-indigo-500 cursor-pointer"
           aria-label={t('preset.groupAlpha')}
         />
@@ -226,7 +233,12 @@ export default function AppearanceSection({ store }: { store: LocalStore }) {
           step={1}
           value={widgetAlphaPct}
           data-widget-alpha-slider
-          onChange={(e) => setDisplayPrefs({ widgetAlpha: Number(e.target.value) / 100 })}
+          onChange={(e) => {
+            // 同上：先直写 --widget-alpha 让小组件透明度立即跟手，再走 setDisplayPrefs 落盘与自动保存
+            const v = Number(e.target.value) / 100;
+            document.documentElement.style.setProperty('--widget-alpha', String(v));
+            setDisplayPrefs({ widgetAlpha: v });
+          }}
           className="flex-1 accent-indigo-500 cursor-pointer"
           aria-label={t('preset.widgetAlpha')}
         />

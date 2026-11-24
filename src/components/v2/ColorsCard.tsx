@@ -95,10 +95,13 @@ export default function ColorsCard({
   delay = 0,
   colSpan = 2,
   heightUnits = 1,
+  colorVars,
 }: {
   delay?: number;
   colSpan?: 1 | 2;
   heightUnits?: 1 | 2;
+  /** 每卡自定义底色的两个 CSS 变量（注册表适配层算好传下），经 Card 壳挂到卡根 */
+  colorVars?: React.CSSProperties;
 }) {
   const ws = useColorsWorkspace();
   const colorsData = useColorsData();
@@ -266,7 +269,7 @@ export default function ColorsCard({
           data-color-format={f.id}
           onClick={() => setFormat(f.id)}
           className={`rounded-md px-2 py-1 text-[11px] transition-colors ${
-            format === f.id ? 'bg-[#2563EB]/85 text-white font-medium' : 'text-[#A3A3A3] hover:text-white'
+            format === f.id ? 'bg-[color-mix(in_srgb,var(--widget-accent)_85%,transparent)] text-white font-medium' : 'text-[#A3A3A3] hover:text-white'
           }`}
         >
           {f.label}
@@ -277,9 +280,10 @@ export default function ColorsCard({
 
   return (
     <Card
+      colorVars={colorVars}
       title={t('widget.nameColors')}
       icon={
-        <CardIconBadge className="bg-[#2563EB] text-white">
+        <CardIconBadge className="bg-[var(--widget-accent)] text-white">
           <Palette size={14} />
         </CardIconBadge>
       }
@@ -407,7 +411,7 @@ export default function ColorsCard({
                     data-colors-tab={t.id}
                     onClick={() => setTab(t.id)}
                     className={`rounded-md px-2.5 py-1 text-[11px] transition-colors ${
-                      tab === t.id ? 'bg-[#2563EB]/85 text-white font-medium' : 'text-[#A3A3A3] hover:text-white'
+                      tab === t.id ? 'bg-[color-mix(in_srgb,var(--widget-accent)_85%,transparent)] text-white font-medium' : 'text-[#A3A3A3] hover:text-white'
                     }`}
                   >
                     {t.label}
@@ -431,7 +435,7 @@ export default function ColorsCard({
                         onClick={() => setFamily(f)}
                         className={`rounded-full px-2 py-1 text-[11px] border transition-colors ${
                           family === f
-                            ? 'bg-[#2563EB]/25 text-white border-[#2563EB]/40'
+                            ? 'bg-[color-mix(in_srgb,var(--widget-accent)_25%,transparent)] text-white border-[color-mix(in_srgb,var(--widget-accent)_40%,transparent)]'
                             : 'bg-white/[0.04] text-[#A3A3A3] border-white/10 hover:bg-white/[0.08] hover:text-white'
                         }`}
                       >
@@ -513,7 +517,7 @@ export default function ColorsCard({
                         type="button"
                         data-random-roll
                         onClick={reroll}
-                        className="flex items-center gap-1 rounded-lg bg-[#2563EB]/85 hover:bg-[#2563EB] px-2.5 py-1.5 text-xs text-white font-medium transition-colors"
+                        className="flex items-center gap-1 rounded-lg bg-[color-mix(in_srgb,var(--widget-accent)_85%,transparent)] hover:bg-[var(--widget-accent)] px-2.5 py-1.5 text-xs text-white font-medium transition-colors"
                       >
                         <Shuffle size={12} />
                         {t('colors.rollRandom')}
@@ -593,7 +597,7 @@ export default function ColorsCard({
                         type="button"
                         data-favs-goto-wall
                         onClick={() => setTab('wall')}
-                        className="mt-4 rounded-lg bg-[#2563EB]/85 hover:bg-[#2563EB] px-3 py-2 text-xs text-white font-medium transition-colors"
+                        className="mt-4 rounded-lg bg-[color-mix(in_srgb,var(--widget-accent)_85%,transparent)] hover:bg-[var(--widget-accent)] px-3 py-2 text-xs text-white font-medium transition-colors"
                       >
                         {t('colors.gotoWall')}
                       </button>

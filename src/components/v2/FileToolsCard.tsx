@@ -45,12 +45,15 @@ export default function FileToolsCard({
   delay = 0,
   colSpan = 2,
   heightUnits = 1,
+  colorVars,
 }: {
   delay?: number;
   /** 右键布局宽度（决定排布列数） */
   colSpan?: 1 | 2;
   /** 右键布局高度：2x 时瓷砖放大排布 */
   heightUnits?: 1 | 2;
+  /** 每卡自定义底色的两个 CSS 变量（注册表适配层算好传下），经 Card 壳挂到卡根 */
+  colorVars?: React.CSSProperties;
 }) {
   const ws = useToolsWorkspace();
   /** 工作区是否曾经打开过：首次打开才挂载（懒加载工具实现），之后常驻保状态 */
@@ -81,9 +84,10 @@ export default function FileToolsCard({
 
   return (
     <Card
+      colorVars={colorVars}
       title={t('home.toolsTitle')}
       icon={
-        <CardIconBadge className="bg-[#2563EB] text-white">
+        <CardIconBadge className="bg-[var(--widget-accent)] text-white">
           <Wrench size={14} />
         </CardIconBadge>
       }
@@ -124,7 +128,7 @@ export default function FileToolsCard({
               }`}
             >
               <span
- className={`flex items-center justify-center bg-[#2563EB] text-white ring-1 ring-black/20 shrink-0 ${
+ className={`flex items-center justify-center bg-[var(--widget-accent)] text-white ring-1 ring-black/20 shrink-0 ${
                   compact ? 'w-7 h-7 rounded-lg' : 'w-10 h-10 rounded-xl'
                 }`}
               >
@@ -175,7 +179,7 @@ export default function FileToolsCard({
                   onClick={() => setToolsWorkspaceTool(t.id)}
                   className={`inline-flex items-center gap-1.5 rounded-lg px-2.5 py-1.5 text-xs whitespace-nowrap transition-colors ${
                     active
-                      ? 'bg-[#2563EB]/25 text-white border border-[#2563EB]/40'
+                      ? 'bg-[color-mix(in_srgb,var(--widget-accent)_25%,transparent)] text-white border border-[color-mix(in_srgb,var(--widget-accent)_40%,transparent)]'
                       : 'bg-white/[0.04] text-[#A3A3A3] border border-white/10 hover:bg-white/[0.08] hover:text-white'
                   }`}
                 >

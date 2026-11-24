@@ -5,14 +5,17 @@ import { useLang } from '../../i18n/useLang';
 import { Card, CardIconBadge } from './Card';
 
 /** A 型 · AI 资讯卡：接现有新闻接口，露头条 + 热门榜，点击进资讯页
- *  时间组件同款：纯黑底 + POSTER_FONT（经 Card 壳），主白 / 次 #A3A3A3 / 强调 #2563EB；
+ *  时间组件同款：纯黑底 + POSTER_FONT（经 Card 壳），主白 / 次 #A3A3A3 / 强调色走 --widget-accent（默认标准蓝）；
  *  来源标识行（最热粉 + 分类靛蓝）是内容色，保留 */
 export default function NewsCard({
   onNavigate,
   delay = 0,
+  colorVars,
 }: {
   onNavigate: (page: string) => void;
   delay?: number;
+  /** 每卡自定义底色的两个 CSS 变量（注册表适配层算好传下），经 Card 壳挂到卡根 */
+  colorVars?: React.CSSProperties;
 }) {
   const [news, setNews] = useState<NewsItem[]>([]);
   const [loading, setLoading] = useState(true);
@@ -39,9 +42,10 @@ export default function NewsCard({
 
   return (
     <Card
+      colorVars={colorVars}
       title={t('nav.newsCardTitle')}
       icon={
-        <CardIconBadge className="bg-[#2563EB] text-white">
+        <CardIconBadge className="bg-[var(--widget-accent)] text-white">
           <Newspaper size={14} />
         </CardIconBadge>
       }
@@ -100,7 +104,7 @@ export default function NewsCard({
       ) : (
         <div className="flex-1 flex flex-col gap-2 items-center justify-center text-sm text-[#A3A3A3]">
           <span>{t('nav.newsCardUnavailable')}</span>
-          <button type="button" className="text-[#2563EB] hover:text-[#2563EB]/80" onClick={(e) => {
+          <button type="button" className="text-[var(--widget-accent)] hover:text-[color-mix(in_srgb,var(--widget-accent)_80%,transparent)]" onClick={(e) => {
             e.stopPropagation();
             setRetry((value) => value + 1);
           }}>{t('nav.newsCardRetry')}</button>

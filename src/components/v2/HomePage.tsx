@@ -1,6 +1,6 @@
 import React, { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { AnimatePresence, motion } from 'motion/react';
-import { LayoutGrid, FolderPlus, X, Check, List, Folder, Unlink, LogOut, Trash2 } from 'lucide-react';
+import { LayoutGrid, FolderPlus, X, Check, List, Folder, Unlink, LogOut, Trash2, Palette, ChevronDown } from 'lucide-react';
 import { GROUP_NAME_MAX, TAB_GROUP_NAME, clampGroupName, textCharCount, type GroupDisplay, type NavGroup } from '../../data/groups';
 import {
   cardFaceStyleOf,
@@ -34,6 +34,7 @@ import { closeColorsWorkspace, useColorsWorkspace } from '../../store/colorsWork
 import { useDisplayPrefs } from '../../store/displayPrefs';
 import DockBar from './DockBar';
 import { WIDGET_DEFINITIONS, widgetDefOf, widgetDisplayName } from './widgetRegistry';
+import { DEFAULT_WIDGET_ACCENT, WIDGET_BASE_COLORS, darkenHexToRgbTriplet } from './widgetColor';
 import GroupListCard from './GroupListCard';
 import GroupStackCard, { StackGroupIcon } from './GroupStackCard';
 import GroupPanel from './GroupPanel';
@@ -121,6 +122,8 @@ export default function HomePage({ onNavigate, store }: { onNavigate: (page: str
     | { kind: 'wstack'; id: string };
   const [sizeMenu, setSizeMenu] = useState<(SizeMenuTarget & { x: number; y: number }) | null>(null);
   const sizeMenuRef = useRef<HTMLDivElement>(null);
+  /** 「换底色」选色面板的展开状态（2026-11-24 右键换纯色底）：记卡片 key，菜单关掉/换个目标自然对不上即收起 */
+  const [baseColorPanelFor, setBaseColorPanelFor] = useState<string | null>(null);
   /** 组右键菜单里的删组两步确认态：点「删组」后变确认行，菜单关掉/换个目标即复位 */
   const [confirmDeleteGroup, setConfirmDeleteGroup] = useState(false);
   /** 空白处右键菜单（第二十七轮）：新建编组 / 添加组件；只在非卡片、非弹窗、非顶栏区域触发 */
@@ -209,7 +212,11 @@ export default function HomePage({ onNavigate, store }: { onNavigate: (page: str
   /* ---------- 右键尺寸菜单（原生组件与 B 型编组共用） ---------- */
   /* 删组两步确认态随菜单关闭复位：任何路径关掉菜单后重开都是初始态 */
   useEffect(() => {
-    if (!sizeMenu) setConfirmDeleteGroup(false);
+    if (!sizeMenu) {
+      setConfirmDeleteGroup(false);
+      // 换底色面板同理：关掉菜单后重开回到折叠态，不沿用上次的展开状态
+      setBaseColorPanelFor(null);
+    }
   }, [sizeMenu]);
   useEffect(() => {
     if (!sizeMenu) return;
@@ -1785,6 +1792,83 @@ export default function HomePage({ onNavigate, store }: { onNavigate: (page: str
                 );
               })}
             </div>
+            {/* 小组件专属：换底色（纯色，2026-11-24）——每卡一个 hex 色存 widgetBaseColors，
+                强调色 = 该色、底色 = 该色的深色版（明度 20%）；只影响被点的这张卡，选色即时落盘，
+                面板不自动关闭、可连续试色；「恢复默认」回到黑底 + 标准蓝 */}
+            {sizeMenu.kind === 'widget' &&
+              (() => {
+                const key = widgetCardKey(sizeMenu.id);
+                const current = store.data.widgetBaseColors?.[key] ?? DEFAULT_WIDGET_ACCENT;
+                const lower = current.toLowerCase();
+                const panelOpen = baseColorPanelFor === key;
+                return (
+                  <>
+                    <div className="my-2.5 h-px bg-white/10" />
+                    <button
+                      data-base-color-toggle
+                      onClick={() => setBaseColorPanelFor(panelOpen ? null : key)}
+                      className="w-full flex items-center justify-center gap-1.5 py-1.5 rounded-lg text-xs bg-white/5 text-white/70 hover:bg-white/10 hover:text-white transition-colors"
+                    >
+                      <Palette size={12} /> {t('home.changeTint')}
+                      <ChevronDown
+                        size={12}
+                        className={`transition-transform ${panelOpen ? 'rotate-180' : ''}`}
+                      />
+                    </button>
+                    {panelOpen && (
+                      <div data-base-color-panel className="pt-2">
+                        {/* 预览条：深色底（与卡面同款压暗算法）+ 强调色圆点，直观看到换色后的样子 */}
+                        <div
+                          data-base-color-preview
+                          className="mb-2.5 h-7 rounded-lg border border-white/10 flex items-center gap-2 px-2.5"
+                          style={{ background: `rgb(${darkenHexToRgbTriplet(lower)})` }}
+                        >
+                          <span className="h-3.5 w-3.5 rounded-full shrink-0" style={{ backgroundColor: lower }} />
+                          <span className="text-[11px] text-white/85">Aa</span>
+                          <span className="ml-auto text-[10px] uppercase tracking-wide text-white/40">{lower}</span>
+                        </div>
+                        <div className="flex gap-1.5 pb-2">
+                          {WIDGET_BASE_COLORS.map(({ hex }) => (
+                            <button
+                              key={hex}
+                              data-base-color-swatch={hex.toLowerCase()}
+                              onClick={() => store.setWidgetBaseColor(key, hex)}
+                              title={hex}
+                              className={`h-4 w-4 rounded-full border transition-transform hover:scale-110 ${
+                                lower === hex.toLowerCase() ? 'border-white ring-1 ring-white/70' : 'border-white/25'
+                              }`}
+                              style={{ backgroundColor: hex }}
+                            />
+                          ))}
+                        </div>
+                        <div className="flex items-center gap-2 pb-1.5">
+                          <label
+                            className="relative h-6 w-9 shrink-0 cursor-pointer overflow-hidden rounded-md border border-white/25"
+                            style={{ backgroundColor: lower }}
+                            title={t('home.pickColorTitle')}
+                          >
+                            <input
+                              type="color"
+                              data-base-color-input
+                              value={lower}
+                              onChange={(e) => store.setWidgetBaseColor(key, e.target.value)}
+                              className="absolute inset-0 cursor-pointer opacity-0"
+                            />
+                          </label>
+                          <span className="text-[10px] uppercase tracking-wide text-white/40">{lower}</span>
+                          <button
+                            data-base-color-reset
+                            onClick={() => store.setWidgetBaseColor(key, null)}
+                            className="ml-auto px-2 py-1 rounded-lg text-[11px] bg-white/5 text-white/70 hover:bg-white/10 hover:text-white transition-colors"
+                          >
+                            {t('home.tintReset')}
+                          </button>
+                        </div>
+                      </div>
+                    )}
+                  </>
+                );
+              })()}
             {/* 组合卡专属：拆分组合（原位还原成左右两张普通 C 卡） */}
             {sizeMenu.kind === 'combo' && (
               <>

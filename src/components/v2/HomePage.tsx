@@ -786,6 +786,11 @@ export default function HomePage({ onNavigate, store }: { onNavigate: (page: str
           return lay.heightUnits === 2
             ? Math.min(600, Math.max(320, 250 + store.data.tasks.length * 40 + store.data.plans.length * 48))
             : 172;
+        case 'time':
+          // 时间：手机单列按 1 栏渲染（高卡走 1x2 版式），实测自然高：海报 236 / 气泡 264（2x），
+          // 海报 174 / 气泡 189（1x）；取两风格较大值再留 8px 余量（气泡浮动 ±4px），
+          // 旧默认 172 会把高卡内容裁掉（日期顶被切、时间压位置行）。
+          return lay.heightUnits === 2 ? 272 : 200;
         case 'news':
           return lay.heightUnits === 2 ? 336 : 172;
         case 'trending':

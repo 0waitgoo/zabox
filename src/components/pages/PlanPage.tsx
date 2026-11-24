@@ -3,13 +3,10 @@ import { ArrowLeft, CalendarDays, CalendarRange, ListTodo, Sparkles } from 'luci
 import { useLang } from '../../i18n/useLang';
 import {
   taskFlatStats,
-  widgetCardKey,
-  widgetTintOf,
   type LocalStore,
 } from '../../store/localStore';
 import { AiView, TasksSection } from '../v2/TaskSections';
 import { MonthView, TimelineView } from '../v2/PlanScheduleViews';
-import WidgetTintLayer from '../v2/WidgetTint';
 
 /**
  * 计划全窗页（第八十八轮，用户：「给计划做一个独立全窗页面，因为这是我们的重点小组件」，
@@ -71,10 +68,7 @@ export default function PlanPage({
   const { total, done } = taskFlatStats(tasks);
   const pct = total > 0 ? Math.round((done / total) * 100) : 0;
 
-  /* 专属底色与卡面同一份分配（widgetCardKey('task')）；未分配（从未打开过主页）时为
-   * undefined、面板不叠底色层，与卡面同口径 */
-  const tint = widgetTintOf(store.data.widgetTints, widgetCardKey('task'));
-
+  /* 任务小组件已改时间组件同款纯黑底（无 tint），本页面板同口径：不叠底色层 */
   const panelCls =
     'group-card-scope widget-panel relative rounded-[28px] overflow-hidden p-3.5 sm:p-4';
 
@@ -122,7 +116,6 @@ export default function PlanPage({
         <div
           className={`${panelCls} h-[calc(100dvh-13.5rem)] min-h-[26rem] flex flex-col`}
         >
-          {tint && <WidgetTintLayer tint={tint} emoji="📋" watermarkOpacity={0} />}
           <div className="relative flex flex-col flex-1 min-h-0" data-nodrag>
             <AiView store={store} onDone={() => setView('main')} />
           </div>

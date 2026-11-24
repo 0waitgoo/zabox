@@ -1,9 +1,6 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { Check, Minus, Plus, Search, Star } from 'lucide-react';
 import {
-  WIDGET_TINTS,
-  widgetCardKey,
-  widgetTintOf,
   type LocalStore,
   type WidgetId,
   type WidgetLayout,
@@ -98,7 +95,8 @@ export default function WidgetStorePage({
 
   /* 第七十七轮 · 外观接入：商店大面（列表块/详情块/预览外框/操作条）归编组卡同源
      表面——挂 .store-panel 走 index.css 的底色口径（暗夜沿用写死 #17171d 不变、
-     白天同 B 卡变量翻白，tint 同归 groupCardAlpha）；
+     白天同 B 卡变量翻白）；
+     列表块/详情块/操作条另挂 .group-card-scope 复用白天翻字作用域（C 卡同款接法）。
      列表块/详情块/操作条另挂 .group-card-scope 复用白天翻字作用域（C 卡同款接法）。
      预览外框**不挂** scope：里面的组件本体是 A 型组件、与主页一样永不进编组卡作用域，
      外框自有文字（标题/尺寸标注/脚注）改按 theme 条件类在白天翻深（下方 light 变量）。
@@ -130,20 +128,6 @@ export default function WidgetStorePage({
       return true;
     });
   }, [tab, query, lang]);
-
-  /** 预览底色：已分配的用已分配的；未添加组件尚未分配底色，预览临时挑一个同屏未用色（不落盘，
-   * 真正添加后由主页的补抽逻辑正式分配，颜色可能与预览不同——底色本就是首次出现时随机抽的） */
-  const previewTint = useMemo(() => {
-    const assigned = widgetTintOf(store.data.widgetTints, widgetCardKey(def.id));
-    if (assigned) return assigned;
-    const used = new Set<number>();
-    for (const id of addedIds) {
-      const v = store.data.widgetTints[widgetCardKey(id)];
-      if (typeof v === 'number') used.add(v);
-    }
-    const free = WIDGET_TINTS.findIndex((_, i) => !used.has(i));
-    return WIDGET_TINTS[free >= 0 ? free : 0];
-  }, [def.id, store.data.widgetTints, addedIds]);
 
   const pickSize = (layout: WidgetLayout) => {
     setSizePick((prev) => ({ ...prev, [def.id]: layout }));
@@ -364,7 +348,6 @@ export default function WidgetStorePage({
                 key={`${def.id}-${activeSize.colSpan}x${activeSize.heightUnits}`}
                 store={store}
                 onNavigate={onNavigate}
-                tint={previewTint}
                 layout={activeSize}
               />
             </PreviewStage>

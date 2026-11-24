@@ -8,13 +8,16 @@ import { POSTER_FONT } from './TimeWidget';
 /** 热门话题（第九十五轮重做）：数据经本站 /api 聚合微博热搜 + 百度热搜的公开热榜，
  *  heatText 为源站真实热度的格式化展示；拉不到时显示空态，绝不编造话题与热度。
  *  版式照参照图：卡头「实时 + 更新时间」，话题为单列软底圆角行（# 话题 …… 热度）。
- *  时间组件同款：纯黑底（.widget-panel）+ POSTER_FONT，主白 / 次 #A3A3A3 / 强调 #2563EB；
+ *  时间组件同款：纯黑底（.widget-panel）+ POSTER_FONT，主白 / 次 #A3A3A3 / 强调色走 --widget-accent（默认标准蓝）；
  *  过期琥珀色是状态色，保留。 */
 export default function TrendingWidget({
   heightUnits = 1,
+  colorVars,
 }: {
   /** 生效高度档（1x 显示 4 行、2x 显示 8 行），由注册表适配层按布局传入 */
   heightUnits?: number;
+  /** 每卡自定义底色的两个 CSS 变量（注册表适配层算好传下） */
+  colorVars?: React.CSSProperties;
 } = {}) {
   const [items, setItems] = useState<TrendItem[]>([]);
   const [updatedAt, setUpdatedAt] = useState<string | null>(null);
@@ -111,14 +114,14 @@ export default function TrendingWidget({
       initial={{ opacity: 0, y: 20 }}
       animate={{ opacity: 1, y: 0 }}
       transition={{ delay: 0.5 }}
-      style={{ fontFamily: POSTER_FONT }}
+      style={{ fontFamily: POSTER_FONT, ...colorVars }}
       className="group-card-scope widget-panel relative rounded-[32px] h-full p-4 sm:p-5 flex flex-col overflow-hidden"
       onClick={(e) => e.stopPropagation()}
     >
       <div className="relative flex flex-col flex-1 min-h-0">
         <div className="flex items-center justify-between gap-2 mb-3 shrink-0">
           <div className="flex items-center gap-2 min-w-0">
- <div className="w-7 h-7 rounded-full bg-[#2563EB] text-white ring-1 ring-black/20 flex items-center justify-center shrink-0">
+ <div className="w-7 h-7 rounded-full bg-[var(--widget-accent)] text-white ring-1 ring-black/20 flex items-center justify-center shrink-0">
               <TrendingUp size={14} />
             </div>
             <h3 className="font-semibold text-base sm:text-lg tracking-tight truncate">{t('widget.trendingTitle')}</h3>

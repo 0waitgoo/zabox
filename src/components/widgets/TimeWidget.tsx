@@ -222,9 +222,9 @@ function WhiteBubble({ children }: { children: React.ReactNode }) {
 }
 function BlueBubble({ children }: { children: React.ReactNode }) {
   return (
-    <div className="relative rounded-[22px] bg-[#2563EB] text-white px-4 py-2.5">
+    <div data-blue-bubble className="relative rounded-[22px] bg-[var(--widget-accent)] text-white px-4 py-2.5">
       {children}
-      <div className="absolute -bottom-[5px] right-6 w-3 h-3 bg-[#2563EB] rotate-45" />
+      <div className="absolute -bottom-[5px] right-6 w-3 h-3 bg-[var(--widget-accent)] rotate-45" />
     </div>
   );
 }
@@ -241,7 +241,7 @@ function BubbleStyle(p: StyleShared) {
                 <div className="font-black tabular-nums leading-none tracking-[0.04em] text-[32px]"><span className="opacity-60">{monthNum}</span>/{dayNum}</div>
                 <div className="text-right shrink-0 pb-0.5">
                   <div className="text-[9px] tracking-[0.25em] font-medium text-black/50">TIME</div>
-                  <div className="text-[13px] font-bold text-[#2563EB]">日期</div>
+                  <div className="text-[13px] font-bold text-[var(--widget-accent)]">日期</div>
                 </div>
               </div>
             </WhiteBubble>
@@ -269,7 +269,7 @@ function BubbleStyle(p: StyleShared) {
                   <div className="font-black tabular-nums leading-none tracking-[0.04em] text-[44px]"><span className="opacity-60">{monthNum}</span>/{dayNum}</div>
                   <div className="text-right shrink-0 pb-0.5">
                     <div className="text-[9px] tracking-[0.25em] font-medium text-black/50">TIME</div>
-                    <div className="text-[13px] font-bold text-[#2563EB]">日期</div>
+                    <div className="text-[13px] font-bold text-[var(--widget-accent)]">日期</div>
                   </div>
                 </div>
               </WhiteBubble>
@@ -303,7 +303,7 @@ function BubbleStyle(p: StyleShared) {
                   <div className="font-black tabular-nums leading-none tracking-[0.04em] text-[36px]"><span className="opacity-60">{monthNum}</span>/{dayNum}</div>
                   <div className="text-right shrink-0 pb-0.5">
                     <div className="text-[10px] tracking-[0.25em] font-medium text-black/50">TIME</div>
-                    <div className="text-[14px] font-bold text-[#2563EB]">日期</div>
+                    <div className="text-[14px] font-bold text-[var(--widget-accent)]">日期</div>
                   </div>
                 </div>
               </WhiteBubble>
@@ -339,7 +339,7 @@ function BubbleStyle(p: StyleShared) {
                   <div className="font-black tabular-nums leading-none tracking-[0.04em] text-[64px]"><span className="opacity-60">{monthNum}</span>/{dayNum}</div>
                   <div className="text-right shrink-0 pb-0.5">
                     <div className="text-[10px] tracking-[0.25em] font-medium text-black/50">TIME</div>
-                    <div className="text-[15px] font-bold text-[#2563EB]">日期</div>
+                    <div className="text-[15px] font-bold text-[var(--widget-accent)]">日期</div>
                   </div>
                 </div>
               </WhiteBubble>
@@ -378,12 +378,16 @@ export default function TimeWidget({
   layout,
   delay = 0,
   phone,
+  colorVars,
 }: {
   /** 生效布局：注册表适配层传入；卡内按 colSpan/heightUnits 分档排布，与其它组件同尺寸口径 */
   layout: WidgetLayout;
   delay?: number;
   /** 手机单列呈现：宽按 1 栏算（与主页现状口径一致） */
   phone?: boolean;
+  /** 每卡自定义底色的两个 CSS 变量（注册表适配层算好传下）：海报黑底即底色变量，
+   *  气泡的蓝底/蓝尾/「日期」蓝字走强调色变量；布局与功能不动 */
+  colorVars?: React.CSSProperties;
 }) {
   const { t } = useLang();
   const [now, setNow] = useState(() => new Date());
@@ -529,7 +533,7 @@ export default function TimeWidget({
       transition={{ delay }}
       data-time-widget
       data-time-style={style}
-      style={{ fontFamily: POSTER_FONT }}
+      style={{ fontFamily: POSTER_FONT, ...colorVars }}
       className="group-card-scope widget-panel relative rounded-[32px] h-full p-4 sm:p-5 flex flex-col overflow-hidden bg-black text-white"
       onClick={(e) => e.stopPropagation()}
     >

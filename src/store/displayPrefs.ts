@@ -154,6 +154,7 @@ export function applyDisplayPrefs(prefs: DisplayPrefs): void {
   const ua = navigator.userAgent;
   root.dataset.liquidRefraction = prefs.theme === 'liquid' && /Chrome|Chromium|Edg\//.test(ua) && !/Firefox|FxiOS|CriOS|EdgiOS/.test(ua) && CSS.supports('backdrop-filter', 'url(#zabox-liquid-glass)') ? 'true' : 'false';
   root.style.setProperty('--group-card-alpha', String(prefs.groupCardAlpha));
+  root.style.setProperty('--widget-alpha', String(prefs.widgetAlpha));
 }
 
 /* ---------- 极简订阅：多个组件（App 应用副作用 / 背景面板控件）共享同一份状态 ---------- */

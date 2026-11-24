@@ -92,23 +92,17 @@ body {
 [data-theme="light"] .group-card-panel-hover:hover { border-color: rgba(0, 0, 0, 0.16); }
 
 /* ---------- 第七十八轮：A 型小组件基底接入外观体系 ---------- */
-/* 用户定版（2026-10-23 两次修正后的最终口径）：小组件底色分两层——
-   ① 基底跟随整体外观：直接用与编组卡同款的面（同一套 --group-card-rgb /
-      --group-card-alpha 变量与透明度归属），暗夜深色磨砂、白天翻白，
-      不做实色死底、该透时与编组卡一起透；② 其上罩专属色渐变（WidgetTint），
-      浓淡由 widgetAlpha 滑杆控制——该滑杆的唯一职责从此只是渐变浓淡，
-      不再决定卡面透不透（旧病根：渐变自身 alpha 峰值仅约 16%、又叠在 0.4 的
-      写死磨砂壳上，滑杆拉满卡面仍大量透出页面背景，看起来「很淡」）。
-   本类数值逐项与 .group-card-panel 同值（同源对值的自测依据）；文字翻深不靠本类，
-   靠卡根另挂 .group-card-scope 作用域标记复用下方翻字规则表（C 卡同款接法）。 */
+/* 用户定版（时间组件同款，2026-11-24）：小组件底色改为纯黑实底，不再跟编组卡
+   同款磨砂面——background 纯黑 rgb(0 0 0)，透明度吃 --widget-alpha（外观面板
+   「小组件底色不透明度」滑杆，0 = 完全透明、1 = 完全不透明），无磨砂 blur、无渐变；
+   白天也不翻白（跟时间组件一致，底色始终纯黑）。hover 只在黑底上加一层白 5% 的
+   提亮（background-image 叠加，不动底色 alpha）。白天描边微调保留。 */
 .widget-panel {
-  background: rgb(var(--group-card-rgb) / var(--group-card-alpha, 0.4));
-  backdrop-filter: blur(24px);
-  -webkit-backdrop-filter: blur(24px);
+  background: rgb(0 0 0 / var(--widget-alpha, 1));
   border: 1px solid rgba(255, 255, 255, 0.08);
 }
 .widget-panel-hover:hover {
-  background: rgb(var(--group-card-rgb) / calc(var(--group-card-alpha, 0.4) + 0.1));
+  background-image: linear-gradient(rgb(255 255 255 / 0.05), rgb(255 255 255 / 0.05));
   border: 1px solid rgba(255, 255, 255, 0.15);
 }
 [data-theme="light"] .widget-panel { border-color: rgba(0, 0, 0, 0.09); }
@@ -125,11 +119,20 @@ body {
   -webkit-backdrop-filter: blur(24px);
 }
 
-/* 使用静态玻璃表面，避免背景折射造成的接缝和闪烁。 */
-[data-theme="liquid"] :is(.group-card-panel, .widget-panel, [data-stack-body], .card-glass-surface, .store-panel) {
+/* 使用静态玻璃表面，避免背景折射造成的接缝和闪烁。
+   小组件（.widget-panel）不在此列：时间组件同款纯黑无玻璃，见下条。 */
+[data-theme="liquid"] :is(.group-card-panel, [data-stack-body], .card-glass-surface, .store-panel) {
   background: linear-gradient(135deg, rgb(255 255 255 / .14), rgb(255 255 255 / .025) 42%, rgb(190 210 255 / .06)),
     rgb(15 18 30 / calc(var(--group-card-alpha, .4) * .7)) !important;
   border-color: transparent !important;
+  -webkit-backdrop-filter: none !important;
+  backdrop-filter: none !important;
+}
+/* 液态玻璃主题下小组件仍为纯黑实底（时间组件在 liquid 下也是纯黑无玻璃），
+   透明度同样吃 --widget-alpha；不挂玻璃渐变。 */
+[data-theme="liquid"] .widget-panel {
+  background: rgb(0 0 0 / var(--widget-alpha, 1)) !important;
+  border-color: rgba(255, 255, 255, 0.08) !important;
   -webkit-backdrop-filter: none !important;
   backdrop-filter: none !important;
 }
@@ -141,13 +144,13 @@ body {
   background-color: transparent;
   background-image: linear-gradient(125deg, rgb(255 255 255 / .15), rgb(255 255 255 / .025) 55%, rgb(255 255 255 / .07));
 }
-[data-theme="liquid"] :is(.group-card-panel, .widget-panel, [data-stack-body], .card-glass-surface, .store-panel) :is(button, [data-nav-site]):is(:hover, :focus-visible) {
+[data-theme="liquid"] :is(.group-card-panel, [data-stack-body], .card-glass-surface, .store-panel) :is(button, [data-nav-site]):is(:hover, :focus-visible) {
   background-image: linear-gradient(125deg, rgb(255 255 255 / .15), rgb(255 255 255 / .025) 55%, rgb(255 255 255 / .07));
   -webkit-backdrop-filter: none !important;
   backdrop-filter: none !important;
 }
 @supports (backdrop-filter: url(#zabox-liquid-glass)) {
-  [data-theme="liquid"][data-liquid-refraction="true"]:has(#zabox-liquid-glass) :is(.group-card-panel, .widget-panel, [data-stack-body], .card-glass-surface, .store-panel) :is(button, [data-nav-site]):is(:hover, :focus-visible) {
+  [data-theme="liquid"][data-liquid-refraction="true"]:has(#zabox-liquid-glass) :is(.group-card-panel, [data-stack-body], .card-glass-surface, .store-panel) :is(button, [data-nav-site]):is(:hover, :focus-visible) {
     backdrop-filter: url(#zabox-liquid-glass) saturate(190%) !important;
   }
 }
@@ -372,6 +375,69 @@ body {
 [data-theme="light"] .widget-panel [data-task-drag-clone] .text-white\/90 { color: rgb(255 255 255 / 0.9); }
 [data-theme="light"] .widget-panel [data-task-drag-clone] .text-zinc-300 { color: #d4d4d8; }
 [data-theme="light"] .widget-panel [data-task-drag-clone] .border-white\/50 { border-color: rgb(255 255 255 / 0.5); }
+
+/* ---------- 小组件白天档文字恢复（时间组件同款纯黑底，2026-11-24） ---------- */
+/* 小组件底色在白天也不翻白（纯黑 + --widget-alpha），故上方「白底翻深字」规则
+   在此失效：深字落在黑底上不可读。本节紧跟翻字表之后、用同等特异度把 .widget-panel
+   （含时间组件，同样挂 .widget-panel）内的文字钉回暗夜口径——白字按原透明度、
+   zinc 按原灰阶、彩色强调字按原亮色；只作用于 .widget-panel，编组卡与白底面不受影响。
+   行底/描边（bg-white/*、border-white/*）的翻色未在此恢复：白天黑底上黑 5% 底与黑边
+   只是隐形、不影响文字可读，属白天档已知小缺口（用户主用暗夜档）。 */
+[data-theme="light"] .widget-panel { color: #fff; }
+[data-theme="light"] .widget-panel .text-white { color: #fff; }
+[data-theme="light"] .widget-panel .text-white\/90 { color: rgb(255 255 255 / 0.9); }
+[data-theme="light"] .widget-panel .text-white\/85 { color: rgb(255 255 255 / 0.85); }
+[data-theme="light"] .widget-panel .text-white\/80 { color: rgb(255 255 255 / 0.8); }
+[data-theme="light"] .widget-panel .text-white\/75 { color: rgb(255 255 255 / 0.75); }
+[data-theme="light"] .widget-panel .text-white\/70 { color: rgb(255 255 255 / 0.7); }
+[data-theme="light"] .widget-panel .text-white\/60 { color: rgb(255 255 255 / 0.6); }
+[data-theme="light"] .widget-panel .text-white\/55 { color: rgb(255 255 255 / 0.55); }
+[data-theme="light"] .widget-panel .text-white\/50 { color: rgb(255 255 255 / 0.5); }
+[data-theme="light"] .widget-panel .text-white\/45 { color: rgb(255 255 255 / 0.45); }
+[data-theme="light"] .widget-panel .text-white\/40 { color: rgb(255 255 255 / 0.4); }
+[data-theme="light"] .widget-panel .text-white\/35 { color: rgb(255 255 255 / 0.35); }
+[data-theme="light"] .widget-panel .text-white\/30 { color: rgb(255 255 255 / 0.3); }
+[data-theme="light"] .widget-panel .text-white\/25 { color: rgb(255 255 255 / 0.25); }
+[data-theme="light"] .widget-panel .text-white\/20 { color: rgb(255 255 255 / 0.2); }
+[data-theme="light"] .widget-panel .hover\:text-white:hover { color: #fff; }
+[data-theme="light"] .widget-panel .hover\:text-white\/85:hover { color: rgb(255 255 255 / 0.85); }
+[data-theme="light"] .widget-panel .hover\:text-white\/80:hover { color: rgb(255 255 255 / 0.8); }
+[data-theme="light"] .widget-panel .hover\:text-white\/75:hover { color: rgb(255 255 255 / 0.75); }
+[data-theme="light"] .widget-panel .hover\:text-white\/70:hover { color: rgb(255 255 255 / 0.7); }
+[data-theme="light"] .widget-panel .text-zinc-100 { color: #f4f4f5; }
+[data-theme="light"] .widget-panel .text-zinc-200 { color: #e4e4e7; }
+[data-theme="light"] .widget-panel .text-zinc-300 { color: #d4d4d8; }
+[data-theme="light"] .widget-panel .text-zinc-400 { color: #a1a1aa; }
+[data-theme="light"] .widget-panel ::placeholder { color: rgb(255 255 255 / 0.3); opacity: 1; }
+/* 彩色强调字恢复原亮色（资讯来源、榜单、文件工具、色卡星标等内容色） */
+[data-theme="light"] .widget-panel .text-pink-300 { color: #f9a8d4; }
+[data-theme="light"] .widget-panel .text-indigo-100 { color: #e0e7ff; }
+[data-theme="light"] .widget-panel .text-indigo-200 { color: #c7d2fe; }
+[data-theme="light"] .widget-panel .text-indigo-300 { color: #a5b4fc; }
+[data-theme="light"] .widget-panel .text-indigo-400 { color: #818cf8; }
+[data-theme="light"] .widget-panel .text-yellow-300 { color: #fde047; }
+[data-theme="light"] .widget-panel .text-amber-300 { color: #fcd34d; }
+[data-theme="light"] .widget-panel .text-amber-400 { color: #fbbf24; }
+[data-theme="light"] .widget-panel .text-orange-300 { color: #fdba74; }
+[data-theme="light"] .widget-panel .text-orange-400 { color: #fb923c; }
+[data-theme="light"] .widget-panel .text-orange-400\/80 { color: rgb(251 146 60 / 0.8); }
+[data-theme="light"] .widget-panel .text-red-200 { color: #fecaca; }
+[data-theme="light"] .widget-panel .text-red-400 { color: #f87171; }
+[data-theme="light"] .widget-panel .bg-red-500\/15.text-red-300 { color: #fca5a5; }
+[data-theme="light"] .widget-panel .text-blue-400 { color: #60a5fa; }
+[data-theme="light"] .widget-panel .text-purple-400 { color: #c084fc; }
+[data-theme="light"] .widget-panel .text-violet-400 { color: #a78bfa; }
+[data-theme="light"] .widget-panel .text-fuchsia-400 { color: #e879f9; }
+[data-theme="light"] .widget-panel .text-pink-400 { color: #f472b6; }
+[data-theme="light"] .widget-panel .text-rose-400 { color: #fb7185; }
+[data-theme="light"] .widget-panel .text-green-400 { color: #4ade80; }
+[data-theme="light"] .widget-panel .text-emerald-400 { color: #34d399; }
+[data-theme="light"] .widget-panel .text-teal-400 { color: #2dd4bf; }
+[data-theme="light"] .widget-panel .text-cyan-400 { color: #22d3ee; }
+[data-theme="light"] .widget-panel .text-sky-400 { color: #38bdf8; }
+[data-theme="light"] .widget-panel .text-lime-400 { color: #a3e635; }
+[data-theme="light"] .widget-panel .text-yellow-400 { color: #facc15; }
+[data-theme="light"] .widget-panel .text-gray-200 { color: #e5e7eb; }
 
 /* 站点图标底框（全站统一 .site-icon-frame：SiteLogo / C 卡面瓷砖 / 组头图标 / 导航页同款）：
    改前白天 = 纯白无边无影——卡面同为白（或透壁纸的灰白）时框体没有定义、读成一片灰白块。

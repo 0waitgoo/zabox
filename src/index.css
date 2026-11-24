@@ -96,9 +96,11 @@ body {
    同款磨砂面——background 纯黑 rgb(0 0 0)，透明度吃 --widget-alpha（外观面板
    「小组件底色不透明度」滑杆，0 = 完全透明、1 = 完全不透明），无磨砂 blur、无渐变；
    白天也不翻白（跟时间组件一致，底色始终纯黑）。hover 只在黑底上加一层白 5% 的
-   提亮（background-image 叠加，不动底色 alpha）。白天描边微调保留。 */
+   提亮（background-image 叠加，不动底色 alpha）。白天描边微调保留。
+   自定义纯色底（2026-11-24 右键换底色）：底色 RGB 吃每卡根元素挂的 --widget-base-rgb
+   （默认 0 0 0 纯黑；换色后为该色的深色版，见 widgetColor），透明度仍吃 --widget-alpha。 */
 .widget-panel {
-  background: rgb(0 0 0 / var(--widget-alpha, 1));
+  background: rgb(var(--widget-base-rgb, 0 0 0) / var(--widget-alpha, 1));
   border: 1px solid rgba(255, 255, 255, 0.08);
 }
 .widget-panel-hover:hover {
@@ -129,9 +131,9 @@ body {
   backdrop-filter: none !important;
 }
 /* 液态玻璃主题下小组件仍为纯黑实底（时间组件在 liquid 下也是纯黑无玻璃），
-   透明度同样吃 --widget-alpha；不挂玻璃渐变。 */
+   透明度同样吃 --widget-alpha；不挂玻璃渐变。自定义底色同上，吃 --widget-base-rgb。 */
 [data-theme="liquid"] .widget-panel {
-  background: rgb(0 0 0 / var(--widget-alpha, 1)) !important;
+  background: rgb(var(--widget-base-rgb, 0 0 0) / var(--widget-alpha, 1)) !important;
   border-color: rgba(255, 255, 255, 0.08) !important;
   -webkit-backdrop-filter: none !important;
   backdrop-filter: none !important;

@@ -3,18 +3,16 @@ import { motion } from 'motion/react';
 import { TrendingUp, RefreshCw } from 'lucide-react';
 import { useLang } from '../../i18n/useLang';
 import { fetchTrends, type TrendItem } from '../../services/api';
-import type { WidgetTint } from '../../store/localStore';
-import WidgetTintLayer from '../v2/WidgetTint';
+import { POSTER_FONT } from './TimeWidget';
 
 /** 热门话题（第九十五轮重做）：数据经本站 /api 聚合微博热搜 + 百度热搜的公开热榜，
  *  heatText 为源站真实热度的格式化展示；拉不到时显示空态，绝不编造话题与热度。
- *  版式照参照图：卡头「实时 + 更新时间」，话题为单列软底圆角行（# 话题 …… 热度）。 */
+ *  版式照参照图：卡头「实时 + 更新时间」，话题为单列软底圆角行（# 话题 …… 热度）。
+ *  时间组件同款：纯黑底（.widget-panel）+ POSTER_FONT，主白 / 次 #A3A3A3 / 强调 #2563EB；
+ *  过期琥珀色是状态色，保留。 */
 export default function TrendingWidget({
-  tint,
   heightUnits = 1,
 }: {
-  /** 专属底色（第二十三轮，由 HomePage 按 widgetTints 分配传入；旧 BentoGrid 用法不传则无底色） */
-  tint?: WidgetTint;
   /** 生效高度档（1x 显示 4 行、2x 显示 8 行），由注册表适配层按布局传入 */
   heightUnits?: number;
 } = {}) {
@@ -108,26 +106,24 @@ export default function TrendingWidget({
     ? new Date(updatedAt).toLocaleTimeString(lang === 'en' ? 'en-US' : 'zh-CN', { hour: '2-digit', minute: '2-digit', hour12: false })
     : '';
 
-  const tintLayer = tint ? <WidgetTintLayer tint={tint} emoji="🔥" /> : null;
-
   return (
     <motion.div
       initial={{ opacity: 0, y: 20 }}
       animate={{ opacity: 1, y: 0 }}
       transition={{ delay: 0.5 }}
+      style={{ fontFamily: POSTER_FONT }}
       className="group-card-scope widget-panel relative rounded-[32px] h-full p-4 sm:p-5 flex flex-col overflow-hidden"
       onClick={(e) => e.stopPropagation()}
     >
-      {tintLayer}
       <div className="relative flex flex-col flex-1 min-h-0">
         <div className="flex items-center justify-between gap-2 mb-3 shrink-0">
           <div className="flex items-center gap-2 min-w-0">
- <div className="w-7 h-7 rounded-full bg-indigo-500 text-white ring-1 ring-black/20 flex items-center justify-center shrink-0">
+ <div className="w-7 h-7 rounded-full bg-[#2563EB] text-white ring-1 ring-black/20 flex items-center justify-center shrink-0">
               <TrendingUp size={14} />
             </div>
             <h3 className="font-semibold text-base sm:text-lg tracking-tight truncate">{t('widget.trendingTitle')}</h3>
           </div>
-          <span className={`text-[11px] shrink-0 ${stale ? 'text-amber-300/80' : 'text-white/40'}`}>
+          <span className={`text-[11px] shrink-0 ${stale ? 'text-amber-300/80' : 'text-[#A3A3A3]'}`}>
             {loading || failed ? t('widget.live') : stale ? t('widget.liveStale', { time: timeText }) : t('widget.liveUpdated', { time: timeText })}
           </span>
         </div>
@@ -138,11 +134,11 @@ export default function TrendingWidget({
           </div>
         ) : failed ? (
           <div className="flex-1 flex flex-col items-center justify-center gap-2 text-center px-4">
-            <span className="text-sm text-white/60">{t('widget.trendsEmpty')}</span>
-            <span className="text-[11px] text-white/35">{t('widget.trendsUnreachable')}</span>
+            <span className="text-sm text-white">{t('widget.trendsEmpty')}</span>
+            <span className="text-[11px] text-[#A3A3A3]">{t('widget.trendsUnreachable')}</span>
             <button
               onClick={load}
-              className="mt-1 flex items-center gap-1.5 text-xs text-white/70 hover:text-white bg-white/5 hover:bg-white/10 rounded-full px-3 py-1.5 transition-colors"
+              className="mt-1 flex items-center gap-1.5 text-xs text-[#A3A3A3] hover:text-white bg-white/5 hover:bg-white/10 rounded-full px-3 py-1.5 transition-colors"
             >
               <RefreshCw size={12} /> {t('widget.retry')}
             </button>
@@ -163,9 +159,9 @@ export default function TrendingWidget({
                 title={`${trend.topic}（${trend.source}）`}
               >
                 <span className="flex-1 min-w-0 text-[13px] font-semibold truncate"># {trend.topic}</span>
-                <span className="shrink-0 text-[10px] text-white/35">{trend.source.replace('热搜', '')}</span>
-                <span className="shrink-0 text-xs text-white/60 tabular-nums">
-                  {t('widget.heat')} <span className="text-white/85 font-medium">{trend.heatText}</span>
+                <span className="shrink-0 text-[10px] text-[#A3A3A3]">{trend.source.replace('热搜', '')}</span>
+                <span className="shrink-0 text-xs text-[#A3A3A3] tabular-nums">
+                  {t('widget.heat')} <span className="text-white font-medium">{trend.heatText}</span>
                 </span>
               </button>
             ))}

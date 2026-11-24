@@ -21,7 +21,8 @@ import type { WidgetLayout } from '../../store/localStore';
  */
 
 /** 海报字体：与分享版一致——系统无衬线（Arial/Helvetica 风格），无网络字体 */
-const POSTER_FONT = '"Arial", "Helvetica Neue", Helvetica, system-ui, -apple-system, "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", sans-serif';
+/** 海报字体（与时间组件同款，供其余小组件共用，勿各处复制） */
+export const POSTER_FONT = '"Arial", "Helvetica Neue", Helvetica, system-ui, -apple-system, "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", sans-serif';
 
 /** 组件自有数据 key（注册表 storage 声明登记） */
 const DATA_KEY = 'ainav-widget-time-data';

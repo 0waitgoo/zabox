@@ -34,7 +34,7 @@ import { closeColorsWorkspace, useColorsWorkspace } from '../../store/colorsWork
 import { useDisplayPrefs } from '../../store/displayPrefs';
 import DockBar from './DockBar';
 import { WIDGET_DEFINITIONS, widgetDefOf, widgetDisplayName } from './widgetRegistry';
-import { DEFAULT_WIDGET_ACCENT, WIDGET_BASE_COLORS, darkenHexToRgbTriplet } from './widgetColor';
+import WidgetBaseColorPanel from './WidgetBaseColorPanel';
 import GroupListCard from './GroupListCard';
 import GroupStackCard, { StackGroupIcon } from './GroupStackCard';
 import GroupPanel from './GroupPanel';
@@ -1793,13 +1793,12 @@ export default function HomePage({ onNavigate, store }: { onNavigate: (page: str
               })}
             </div>
             {/* 小组件专属：换底色（纯色，2026-11-24）——每卡一个 hex 色存 widgetBaseColors，
-                强调色 = 该色、底色 = 该色的深色版（明度 20%）；只影响被点的这张卡，选色即时落盘，
-                面板不自动关闭、可连续试色；「恢复默认」回到黑底 + 标准蓝 */}
+                强调色 = 该色、底色 = 该色的深色版（明度 20%；浅色例外见 widgetColor）；只影响被点的这张卡，
+                选色即时落盘，面板不自动关闭、可连续试色；「恢复默认」回到黑底 + 标准蓝。
+                面板本体在 WidgetBaseColorPanel（本地 live 状态 + 直写卡面变量 + 防抖落盘，拖动跟手） */}
             {sizeMenu.kind === 'widget' &&
               (() => {
                 const key = widgetCardKey(sizeMenu.id);
-                const current = store.data.widgetBaseColors?.[key] ?? DEFAULT_WIDGET_ACCENT;
-                const lower = current.toLowerCase();
                 const panelOpen = baseColorPanelFor === key;
                 return (
                   <>
@@ -1815,57 +1814,7 @@ export default function HomePage({ onNavigate, store }: { onNavigate: (page: str
                         className={`transition-transform ${panelOpen ? 'rotate-180' : ''}`}
                       />
                     </button>
-                    {panelOpen && (
-                      <div data-base-color-panel className="pt-2">
-                        {/* 预览条：深色底（与卡面同款压暗算法）+ 强调色圆点，直观看到换色后的样子 */}
-                        <div
-                          data-base-color-preview
-                          className="mb-2.5 h-7 rounded-lg border border-white/10 flex items-center gap-2 px-2.5"
-                          style={{ background: `rgb(${darkenHexToRgbTriplet(lower)})` }}
-                        >
-                          <span className="h-3.5 w-3.5 rounded-full shrink-0" style={{ backgroundColor: lower }} />
-                          <span className="text-[11px] text-white/85">Aa</span>
-                          <span className="ml-auto text-[10px] uppercase tracking-wide text-white/40">{lower}</span>
-                        </div>
-                        <div className="flex gap-1.5 pb-2">
-                          {WIDGET_BASE_COLORS.map(({ hex }) => (
-                            <button
-                              key={hex}
-                              data-base-color-swatch={hex.toLowerCase()}
-                              onClick={() => store.setWidgetBaseColor(key, hex)}
-                              title={hex}
-                              className={`h-4 w-4 rounded-full border transition-transform hover:scale-110 ${
-                                lower === hex.toLowerCase() ? 'border-white ring-1 ring-white/70' : 'border-white/25'
-                              }`}
-                              style={{ backgroundColor: hex }}
-                            />
-                          ))}
-                        </div>
-                        <div className="flex items-center gap-2 pb-1.5">
-                          <label
-                            className="relative h-6 w-9 shrink-0 cursor-pointer overflow-hidden rounded-md border border-white/25"
-                            style={{ backgroundColor: lower }}
-                            title={t('home.pickColorTitle')}
-                          >
-                            <input
-                              type="color"
-                              data-base-color-input
-                              value={lower}
-                              onChange={(e) => store.setWidgetBaseColor(key, e.target.value)}
-                              className="absolute inset-0 cursor-pointer opacity-0"
-                            />
-                          </label>
-                          <span className="text-[10px] uppercase tracking-wide text-white/40">{lower}</span>
-                          <button
-                            data-base-color-reset
-                            onClick={() => store.setWidgetBaseColor(key, null)}
-                            className="ml-auto px-2 py-1 rounded-lg text-[11px] bg-white/5 text-white/70 hover:bg-white/10 hover:text-white transition-colors"
-                          >
-                            {t('home.tintReset')}
-                          </button>
-                        </div>
-                      </div>
-                    )}
+                    {panelOpen && <WidgetBaseColorPanel cardKey={key} store={store} />}
                   </>
                 );
               })()}

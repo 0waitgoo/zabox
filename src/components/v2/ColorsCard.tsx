@@ -29,7 +29,6 @@ import {
 import { closeColorsWorkspace, openColorsWorkspace, useColorsWorkspace } from '../../store/colorsWorkspace';
 import { removeSavedPalette, savePalette, toggleFavorite, useColorsData } from '../../store/colorsData';
 import { useLang } from '../../i18n/useLang';
-import type { WidgetTint } from '../../store/localStore';
 import { Card, CardIconBadge } from './Card';
 
 /**
@@ -96,12 +95,10 @@ export default function ColorsCard({
   delay = 0,
   colSpan = 2,
   heightUnits = 1,
-  tint,
 }: {
   delay?: number;
   colSpan?: 1 | 2;
   heightUnits?: 1 | 2;
-  tint?: WidgetTint;
 }) {
   const ws = useColorsWorkspace();
   const colorsData = useColorsData();
@@ -269,7 +266,7 @@ export default function ColorsCard({
           data-color-format={f.id}
           onClick={() => setFormat(f.id)}
           className={`rounded-md px-2 py-1 text-[11px] transition-colors ${
-            format === f.id ? 'bg-indigo-500/85 text-white font-medium' : 'text-white/55 hover:text-white'
+            format === f.id ? 'bg-[#2563EB]/85 text-white font-medium' : 'text-[#A3A3A3] hover:text-white'
           }`}
         >
           {f.label}
@@ -282,7 +279,7 @@ export default function ColorsCard({
     <Card
       title={t('widget.nameColors')}
       icon={
-        <CardIconBadge className="bg-[#9d2933] text-white">
+        <CardIconBadge className="bg-[#2563EB] text-white">
           <Palette size={14} />
         </CardIconBadge>
       }
@@ -295,7 +292,7 @@ export default function ColorsCard({
               e.stopPropagation();
               closeColorsWorkspace();
             }}
-            className="flex items-center gap-1 rounded-lg px-2 py-1 text-[11px] text-white/50 transition-colors hover:bg-white/10 hover:text-white shrink-0"
+            className="flex items-center gap-1 rounded-lg px-2 py-1 text-[11px] text-[#A3A3A3] transition-colors hover:bg-white/10 hover:text-white shrink-0"
           >
             <X size={12} />
             {t('task.collapse')}
@@ -309,7 +306,7 @@ export default function ColorsCard({
                 e.stopPropagation();
                 swapPalette();
               }}
-              className="flex items-center gap-1 rounded-lg px-2 py-1 text-[11px] text-white/50 transition-colors hover:bg-white/10 hover:text-white"
+              className="flex items-center gap-1 rounded-lg px-2 py-1 text-[11px] text-[#A3A3A3] transition-colors hover:bg-white/10 hover:text-white"
             >
               {swapped ? <RotateCcw size={12} /> : <Shuffle size={12} />}
               {swapped ? t('colors.backToToday') : t('colors.swapGroup')}
@@ -321,7 +318,7 @@ export default function ColorsCard({
                 e.stopPropagation();
                 openColorsWorkspace();
               }}
-              className="rounded-lg px-2 py-1 text-[11px] text-white/50 transition-colors hover:bg-white/10 hover:text-white"
+              className="rounded-lg px-2 py-1 text-[11px] text-[#A3A3A3] transition-colors hover:bg-white/10 hover:text-white"
             >
               {t('task.expand')}
             </button>
@@ -329,18 +326,16 @@ export default function ColorsCard({
         )
       }
       delay={delay}
-      tint={tint}
-      watermark="🎨"
     >
       <div data-colors-card className="relative flex flex-1 min-h-0 flex-col">
         {/* 卡面：工作区打开时隐藏（状态无损） */}
         <div className={`flex-1 min-h-0 flex-col ${ws.open ? 'hidden' : 'flex'}`}>
           <div className="mb-2 flex items-baseline gap-2 shrink-0">
-            <span data-colors-palette-name className="text-sm font-medium text-white/90">
+            <span data-colors-palette-name className="text-sm font-medium text-white">
               {facePalette.name}
             </span>
-            {colSpan === 2 && <span className="text-[11px] text-white/40 truncate">{facePalette.note}</span>}
-            {!swapped && <span className="ml-auto text-[10px] text-white/35 shrink-0">{t('colors.todayPalette')}</span>}
+            {colSpan === 2 && <span className="text-[11px] text-[#A3A3A3] truncate">{facePalette.note}</span>}
+            {!swapped && <span className="ml-auto text-[10px] text-[#A3A3A3] shrink-0">{t('colors.todayPalette')}</span>}
           </div>
           {renderBands(faceColors, { labels: colSpan === 2, hexOnly: true, bandClass: 'min-h-[52px]', rootClass: 'flex-1' })}
 
@@ -366,7 +361,7 @@ export default function ColorsCard({
           {/* 2 栏 × 2 高：收藏速览 */}
           {colSpan === 2 && heightUnits === 2 && (
             <div className="mt-3 shrink-0">
-              <p className="text-[11px] text-white/40 mb-1.5">{t('colors.favsGlance')}</p>
+              <p className="text-[11px] text-[#A3A3A3] mb-1.5">{t('colors.favsGlance')}</p>
               {recentFavs.length > 0 ? (
                 <div className="flex gap-1.5">
                   {recentFavs.map((c) => (
@@ -386,7 +381,7 @@ export default function ColorsCard({
                   ))}
                 </div>
               ) : (
-                <p className="text-xs text-white/35">{t('colors.favsGlanceEmpty')}</p>
+                <p className="text-xs text-[#A3A3A3]">{t('colors.favsGlanceEmpty')}</p>
               )}
             </div>
           )}
@@ -412,7 +407,7 @@ export default function ColorsCard({
                     data-colors-tab={t.id}
                     onClick={() => setTab(t.id)}
                     className={`rounded-md px-2.5 py-1 text-[11px] transition-colors ${
-                      tab === t.id ? 'bg-indigo-500/85 text-white font-medium' : 'text-white/55 hover:text-white'
+                      tab === t.id ? 'bg-[#2563EB]/85 text-white font-medium' : 'text-[#A3A3A3] hover:text-white'
                     }`}
                   >
                     {t.label}
@@ -436,21 +431,21 @@ export default function ColorsCard({
                         onClick={() => setFamily(f)}
                         className={`rounded-full px-2 py-1 text-[11px] border transition-colors ${
                           family === f
-                            ? 'bg-indigo-500/25 text-white border-indigo-400/40'
-                            : 'bg-white/[0.04] text-white/55 border-white/10 hover:bg-white/[0.08] hover:text-white'
+                            ? 'bg-[#2563EB]/25 text-white border-[#2563EB]/40'
+                            : 'bg-white/[0.04] text-[#A3A3A3] border-white/10 hover:bg-white/[0.08] hover:text-white'
                         }`}
                       >
                         {f === '全部' ? t('colors.allFamilies') : f}
                       </button>
                     ))}
                     <label className="ml-auto flex items-center gap-1.5 rounded-lg border border-white/10 bg-white/[0.04] px-2 py-1 min-w-0">
-                      <Search size={12} className="text-white/40 shrink-0" />
+                      <Search size={12} className="text-[#A3A3A3] shrink-0" />
                       <input
                         data-colors-search
                         value={query}
                         onChange={(e) => setQuery(e.target.value)}
                         placeholder={t('colors.searchPlaceholder')}
-                        className="w-28 sm:w-36 bg-transparent text-xs text-white/85 placeholder:text-white/30 outline-none"
+                        className="w-28 sm:w-36 bg-transparent text-xs text-white placeholder:text-white/30 outline-none"
                       />
                     </label>
                   </div>
@@ -460,10 +455,10 @@ export default function ColorsCard({
                     <div data-color-detail className="mt-2 flex items-stretch gap-3 rounded-2xl border border-white/10 bg-white/[0.04] p-2.5">
                       <div className="w-14 rounded-xl ring-1 ring-black/25 shrink-0" style={{ backgroundColor: detail.hex }} />
                       <div className="min-w-0 flex-1">
-                        <p className="text-sm font-medium text-white/90 leading-tight">
+                        <p className="text-sm font-medium text-white leading-tight">
                           {detail.name}
-                          <span className="ml-2 text-xs font-normal text-white/45">{detail.pinyin}</span>
-                          <span className="ml-2 text-xs font-normal text-white/45">{t('colors.familyLine', { family: detail.family })}</span>
+                          <span className="ml-2 text-xs font-normal text-[#A3A3A3]">{detail.pinyin}</span>
+                          <span className="ml-2 text-xs font-normal text-[#A3A3A3]">{t('colors.familyLine', { family: detail.family })}</span>
                         </p>
                         <div className="mt-1 flex flex-wrap gap-x-4 gap-y-0.5">
                           {FORMAT_OPTIONS.map((f) => (
@@ -472,9 +467,9 @@ export default function ColorsCard({
                               type="button"
                               data-color-detail-value={f.id}
                               onClick={() => copyColor(detail, f.id)}
-                              className="text-xs text-white/65 hover:text-white transition-colors"
+                              className="text-xs text-[#A3A3A3] hover:text-white transition-colors"
                             >
-                              <span className="text-white/35 mr-1">{f.label}</span>
+                              <span className="text-[#A3A3A3] mr-1">{f.label}</span>
                               {colorValueOf(detail, f.id)}
                             </button>
                           ))}
@@ -485,7 +480,7 @@ export default function ColorsCard({
                         data-color-fav={detail.name}
                         aria-label={colorsData.favorites.includes(detail.name) ? t('colors.unfavColor', { name: detail.name }) : t('colors.favColor', { name: detail.name })}
                         onClick={() => toggleFavorite(detail.name)}
-                        className="self-start flex h-7 w-7 items-center justify-center rounded-lg bg-white/[0.05] border border-white/10 text-white/70 hover:text-white shrink-0"
+                        className="self-start flex h-7 w-7 items-center justify-center rounded-lg bg-white/[0.05] border border-white/10 text-[#A3A3A3] hover:text-white shrink-0"
                       >
                         <Star
                           size={14}
@@ -496,13 +491,13 @@ export default function ColorsCard({
                     </div>
                   )}
 
-                  <p className="mt-2 text-[11px] text-white/35" data-colors-wall-count>
+                  <p className="mt-2 text-[11px] text-[#A3A3A3]" data-colors-wall-count>
                     {t('colors.wallCount', { n: wallColors.length })}
                   </p>
                   <div className="mt-1.5 grid grid-cols-3 sm:grid-cols-5 gap-1.5 pb-1">
                     {wallColors.map((c) => renderCell(c))}
                   </div>
-                  {wallColors.length === 0 && <p className="py-8 text-center text-xs text-white/35">{t('colors.wallEmpty')}</p>}
+                  {wallColors.length === 0 && <p className="py-8 text-center text-xs text-[#A3A3A3]">{t('colors.wallEmpty')}</p>}
                 </div>
               )}
 
@@ -511,14 +506,14 @@ export default function ColorsCard({
                   {/* 随机配色（借鉴 Coolors 锁定玩法，色池只用 158 传统色） */}
                   <div className="rounded-2xl border border-white/10 bg-white/[0.03] p-3">
                     <div className="flex items-center gap-2">
-                      <p className="text-sm font-medium text-white/90">{t('colors.randomTitle')}</p>
-                      <span className="text-[11px] text-white/35">{t('colors.randomHint')}</span>
+                      <p className="text-sm font-medium text-white">{t('colors.randomTitle')}</p>
+                      <span className="text-[11px] text-[#A3A3A3]">{t('colors.randomHint')}</span>
                       <span className="ml-auto" />
                       <button
                         type="button"
                         data-random-roll
                         onClick={reroll}
-                        className="flex items-center gap-1 rounded-lg bg-indigo-500/85 hover:bg-indigo-500 px-2.5 py-1.5 text-xs text-white font-medium transition-colors"
+                        className="flex items-center gap-1 rounded-lg bg-[#2563EB]/85 hover:bg-[#2563EB] px-2.5 py-1.5 text-xs text-white font-medium transition-colors"
                       >
                         <Shuffle size={12} />
                         {t('colors.rollRandom')}
@@ -527,7 +522,7 @@ export default function ColorsCard({
                         type="button"
                         data-random-save
                         onClick={saveRandom}
-                        className="rounded-lg bg-white/[0.05] border border-white/10 px-2.5 py-1.5 text-xs text-white/70 hover:bg-white/[0.09] hover:text-white transition-colors"
+                        className="rounded-lg bg-white/[0.05] border border-white/10 px-2.5 py-1.5 text-xs text-[#A3A3A3] hover:bg-white/[0.09] hover:text-white transition-colors"
                       >
                         {t('colors.saveRandom')}
                       </button>
@@ -568,14 +563,14 @@ export default function ColorsCard({
                     return (
                       <div key={p.name} data-palette={p.name} className="rounded-2xl border border-white/10 bg-white/[0.03] p-3">
                         <div className="flex items-center gap-2">
-                          <p className="text-sm font-medium text-white/90">{p.name}</p>
-                          <span className="text-[11px] text-white/35 truncate">{p.note}</span>
+                          <p className="text-sm font-medium text-white">{p.name}</p>
+                          <span className="text-[11px] text-[#A3A3A3] truncate">{p.note}</span>
                           <span className="ml-auto" />
                           <button
                             type="button"
                             data-palette-copy={p.name}
                             onClick={() => copyPalette(p.name, colors)}
-                            className="flex items-center gap-1 rounded-lg bg-white/[0.05] border border-white/10 px-2.5 py-1.5 text-xs text-white/70 hover:bg-white/[0.09] hover:text-white transition-colors shrink-0"
+                            className="flex items-center gap-1 rounded-lg bg-white/[0.05] border border-white/10 px-2.5 py-1.5 text-xs text-[#A3A3A3] hover:bg-white/[0.09] hover:text-white transition-colors shrink-0"
                           >
                             <Copy size={12} />
                             {t('colors.copyGroup')}
@@ -592,13 +587,13 @@ export default function ColorsCard({
                 <div className="pb-1">
                   {favColors.length === 0 && colorsData.savedPalettes.length === 0 ? (
                     <div className="py-10 text-center">
-                      <p className="text-sm text-white/50">{t('colors.favsEmpty')}</p>
-                      <p className="mt-1 text-xs text-white/35">{t('colors.favsEmptyHint')}</p>
+                      <p className="text-sm text-[#A3A3A3]">{t('colors.favsEmpty')}</p>
+                      <p className="mt-1 text-xs text-[#A3A3A3]">{t('colors.favsEmptyHint')}</p>
                       <button
                         type="button"
                         data-favs-goto-wall
                         onClick={() => setTab('wall')}
-                        className="mt-4 rounded-lg bg-indigo-500/85 hover:bg-indigo-500 px-3 py-2 text-xs text-white font-medium transition-colors"
+                        className="mt-4 rounded-lg bg-[#2563EB]/85 hover:bg-[#2563EB] px-3 py-2 text-xs text-white font-medium transition-colors"
                       >
                         {t('colors.gotoWall')}
                       </button>
@@ -608,7 +603,7 @@ export default function ColorsCard({
                       {favColors.length > 0 && (
                         <>
                           <div className="flex items-center gap-2">
-                            <p className="text-sm font-medium text-white/90">{t('colors.favColors')}</p>
+                            <p className="text-sm font-medium text-white">{t('colors.favColors')}</p>
                             <span className="ml-auto" />
                             <button
                               type="button"
@@ -619,7 +614,7 @@ export default function ColorsCard({
                                   if (ok) showToast(t('colors.copiedAllFavs', { n: favColors.length }));
                                 });
                               }}
-                              className="flex items-center gap-1 rounded-lg bg-white/[0.05] border border-white/10 px-2.5 py-1.5 text-xs text-white/70 hover:bg-white/[0.09] hover:text-white transition-colors"
+                              className="flex items-center gap-1 rounded-lg bg-white/[0.05] border border-white/10 px-2.5 py-1.5 text-xs text-[#A3A3A3] hover:bg-white/[0.09] hover:text-white transition-colors"
                             >
                               <Copy size={12} />
                               {t('colors.copyAllFavs')}
@@ -632,19 +627,19 @@ export default function ColorsCard({
                       )}
                       {colorsData.savedPalettes.length > 0 && (
                         <div className="mt-4 flex flex-col gap-2.5">
-                          <p className="text-sm font-medium text-white/90">{t('colors.myPalettes')}</p>
+                          <p className="text-sm font-medium text-white">{t('colors.myPalettes')}</p>
                           {colorsData.savedPalettes.map((p, i) => {
                             const colors = p.colors.map(colorByName).filter((c): c is TraditionalColor => !!c);
                             return (
                               <div key={`${p.name}-${i}`} data-saved-palette={p.name} className="rounded-2xl border border-white/10 bg-white/[0.03] p-3">
                                 <div className="flex items-center gap-2">
-                                  <p className="text-sm text-white/85">{p.name}</p>
+                                  <p className="text-sm text-white">{p.name}</p>
                                   <span className="ml-auto" />
                                   <button
                                     type="button"
                                     data-palette-copy={p.name}
                                     onClick={() => copyPalette(p.name, colors)}
-                                    className="flex items-center gap-1 rounded-lg bg-white/[0.05] border border-white/10 px-2.5 py-1.5 text-xs text-white/70 hover:bg-white/[0.09] hover:text-white transition-colors"
+                                    className="flex items-center gap-1 rounded-lg bg-white/[0.05] border border-white/10 px-2.5 py-1.5 text-xs text-[#A3A3A3] hover:bg-white/[0.09] hover:text-white transition-colors"
                                   >
                                     <Copy size={12} />
                                     {t('colors.copyGroup')}
@@ -654,7 +649,7 @@ export default function ColorsCard({
                                     data-saved-palette-remove={p.name}
                                     aria-label={t('colors.deletePalette', { name: p.name })}
                                     onClick={() => removeSavedPalette(i)}
-                                    className="flex h-7 w-7 items-center justify-center rounded-lg bg-white/[0.05] border border-white/10 text-white/55 hover:text-white"
+                                    className="flex h-7 w-7 items-center justify-center rounded-lg bg-white/[0.05] border border-white/10 text-[#A3A3A3] hover:text-white"
                                   >
                                     <Trash2 size={13} />
                                   </button>

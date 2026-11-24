@@ -12,12 +12,11 @@ import {
   widgetCardKey,
   type LocalStore,
   type TaskItem,
-  type WidgetTint,
 } from '../../store/localStore';
 import { AiView, TasksSection } from './TaskSections';
 import { MonthView, TimelineView } from './PlanScheduleViews';
 import { useLang } from '../../i18n/useLang';
-import WidgetTintLayer from './WidgetTint';
+import { POSTER_FONT } from '../widgets/TimeWidget';
 
 /**
  * A 型 · 计划任务卡（第十八轮，替换原「今日任务」占位卡；第十九轮加待办分组）
@@ -58,7 +57,6 @@ export default function TaskCard({
   delay = 0,
   colSpan = 1,
   heightUnits = 1,
-  tint,
   onOpenPlanPage,
 }: {
   store: LocalStore;
@@ -67,8 +65,6 @@ export default function TaskCard({
   colSpan?: 1 | 2;
   /** 右键布局高度：1 = 简洁卡面，2 = 全功能卡面（操作都在卡内完成） */
   heightUnits?: 1 | 2;
-  /** 专属底色（第二十三轮，由 HomePage 按 widgetTints 分配传入；1x/2x 两壳都生效） */
-  tint?: WidgetTint;
   /** 打开计划全窗页（第八十八轮）：由注册表按 onNavigate 注入；不传则不渲染卡头入口 */
   onOpenPlanPage?: () => void;
 }) {
@@ -154,12 +150,6 @@ export default function TaskCard({
   const focusTask = open[0];
   const restCount = Math.max(0, open.length - 1);
 
-  /** 专属底色层（第二十三轮）：1x/2x 两壳共用，内容以 relative 层级盖在其上；
-   * 水印单独调低（第五十二轮）：2x 时 📋 正压在内容区，0.16 会干扰阅读，降到 0.1；
-   * 第八十七轮：水印只在待办与计划都为空时淡显（0.1），有任何条目即隐藏，不占视觉 */
-  const bothEmpty = tasks.length === 0 && plans.length === 0;
-  const tintLayer = tint ? <WidgetTintLayer tint={tint} emoji="📋" watermarkOpacity={bothEmpty ? 0.1 : 0} /> : null;
-
   /* 「打开计划页」入口（第八十八轮，1x/2x 两壳共用；本轮改成展开图标，不占文字位） */
   const planPageEntry = onOpenPlanPage ? (
     <button
@@ -168,7 +158,7 @@ export default function TaskCard({
       title={tr('plan.openPage')}
       aria-label={tr('plan.openPage')}
       onClick={onOpenPlanPage}
-      className="w-7 h-7 rounded-lg bg-white/10 hover:bg-white/[0.18] text-zinc-200 hover:text-white flex items-center justify-center transition-colors shrink-0"
+      className="w-7 h-7 rounded-lg bg-white/10 hover:bg-white/[0.18] text-[#A3A3A3] hover:text-white flex items-center justify-center transition-colors shrink-0"
     >
       <Maximize2 size={13} />
     </button>
@@ -184,9 +174,9 @@ export default function TaskCard({
         transition={{ duration: 0.35, delay }}
         data-task-card
         data-task-mode="full"
-        className="group-card-scope widget-panel widget-panel-hover relative rounded-[28px] h-full p-3.5 sm:p-4 flex flex-col overflow-hidden transition-colors"
+        style={{ fontFamily: POSTER_FONT }}
+        className="group-card-scope widget-panel widget-panel-hover relative rounded-[32px] h-full p-4 sm:p-5 flex flex-col overflow-hidden transition-colors"
       >
-        {tintLayer}
         <div className="relative flex flex-col flex-1 min-h-0">
         {/* 头部（本轮改成标题 tab）：计划 | 日程表 | 推进表 + 今日进度 + 展开图标 + AI 整理图标；
             1 栏时 tab 只留图标（窄卡放不下文字时同口径），2 栏时图标 + 文字 */}
@@ -205,7 +195,7 @@ export default function TaskCard({
                 aria-label={tr(labelKey)}
                 onClick={() => switchPlanTab(tab)}
                 className={`${colSpan === 1 ? 'w-7 h-7 flex items-center justify-center' : 'flex items-center gap-1 px-2.5 py-1.5'} rounded-lg transition-colors ${
-                  planTab === tab ? 'bg-indigo-500/80 text-white font-medium' : 'text-white/55 hover:text-white/85'
+                  planTab === tab ? 'bg-[#2563EB]/80 text-white font-medium' : 'text-[#A3A3A3] hover:text-white'
                 }`}
               >
                 <Icon size={13} />
@@ -213,7 +203,7 @@ export default function TaskCard({
               </button>
             ))}
           </div>
-          <span data-task-progress className="ml-auto text-xs text-zinc-300 tabular-nums">
+          <span data-task-progress className="ml-auto text-xs text-[#A3A3A3] tabular-nums">
             {doneCount}/{total}
           </span>
           {planPageEntry}
@@ -224,7 +214,7 @@ export default function TaskCard({
             title={tr('plan.downloadDesktop')}
             aria-label={tr('plan.downloadDesktop')}
             onClick={() => setDownloadPromptOpen(true)}
-            className="w-7 h-7 rounded-lg bg-white/10 hover:bg-white/[0.18] text-zinc-200 hover:text-white flex items-center justify-center transition-colors shrink-0"
+            className="w-7 h-7 rounded-lg bg-white/10 hover:bg-white/[0.18] text-[#A3A3A3] hover:text-white flex items-center justify-center transition-colors shrink-0"
           >
             <Download size={13} />
           </button>
@@ -234,7 +224,7 @@ export default function TaskCard({
             title={cardView === 'ai' ? tr('plan.back') : tr('ai.title')}
             aria-label={cardView === 'ai' ? tr('plan.back') : tr('ai.title')}
             onClick={() => setCardView((v) => (v === 'ai' ? 'main' : 'ai'))}
-            className="w-7 h-7 rounded-lg bg-white/10 hover:bg-white/[0.18] text-zinc-200 hover:text-white flex items-center justify-center transition-colors shrink-0"
+            className="w-7 h-7 rounded-lg bg-white/10 hover:bg-white/[0.18] text-[#A3A3A3] hover:text-white flex items-center justify-center transition-colors shrink-0"
           >
             {cardView === 'ai' ? <ArrowLeft size={13} /> : <Sparkles size={13} />}
           </button>
@@ -316,17 +306,17 @@ export default function TaskCard({
       transition={{ duration: 0.35, delay }}
       data-task-card
       data-task-face={face}
-      className="group-card-scope widget-panel widget-panel-hover relative rounded-[28px] h-full p-4 sm:p-5 flex flex-col overflow-hidden transition-colors"
+      style={{ fontFamily: POSTER_FONT }}
+      className="group-card-scope widget-panel widget-panel-hover relative rounded-[32px] h-full p-4 sm:p-5 flex flex-col overflow-hidden transition-colors"
     >
-      {tintLayer}
       <div className="relative flex flex-col flex-1 min-h-0">
       {/* 头部：标题 + 今日进度 */}
       <div className="flex items-center gap-2 mb-2 shrink-0">
- <div className="w-7 h-7 rounded-full bg-indigo-500 text-white ring-1 ring-black/20 flex items-center justify-center shrink-0">
+ <div className="w-7 h-7 rounded-full bg-[#2563EB] text-white ring-1 ring-black/20 flex items-center justify-center shrink-0">
           <ListTodo size={14} />
         </div>
         <h3 className="font-semibold text-base sm:text-lg tracking-tight">{tr('widget.nameTask')}</h3>
-        <span data-task-progress className="ml-auto text-xs text-zinc-300 tabular-nums">
+        <span data-task-progress className="ml-auto text-xs text-[#A3A3A3] tabular-nums">
           {doneCount}/{total}
         </span>
         {planPageEntry}
@@ -335,23 +325,23 @@ export default function TaskCard({
       {face === 'list' ? (
         <div className="flex-1 min-h-0 flex flex-col gap-1">
           {rows.length === 0 ? (
-            <p className="flex-1 flex items-center text-[13px] text-zinc-300">{tr('task.empty')}</p>
+            <p className="flex-1 flex items-center text-[13px] text-[#A3A3A3]">{tr('task.empty')}</p>
           ) : (
             rows.map((t) =>
               isTaskGroup(t) ? (
                 // 组行：不给勾选框（子任务在 2x 卡面处理），显示「组名 · n/m」；点组名展开全文
                 <div key={t.id} data-task-group-row className="flex items-center gap-2 py-1 min-w-0">
-                  <span className="w-[18px] h-[18px] rounded-[5px] bg-white/[0.12] text-zinc-200 flex items-center justify-center shrink-0">
+                  <span className="w-[18px] h-[18px] rounded-[5px] bg-white/[0.12] text-[#A3A3A3] flex items-center justify-center shrink-0">
                     <Layers size={11} />
                   </span>
                   <span
                     data-task-title
                     onClick={() => setExpandedRowId((id) => (id === t.id ? null : t.id))}
-                    className={`text-[13px] text-white/85 ${expandedRowId === t.id ? 'whitespace-normal break-words' : 'truncate'}`}
+                    className={`text-[13px] text-white ${expandedRowId === t.id ? 'whitespace-normal break-words' : 'truncate'}`}
                   >
                     {t.title}
                   </span>
-                  <span data-task-group-progress className="text-[11px] text-zinc-300 tabular-nums shrink-0">
+                  <span data-task-group-progress className="text-[11px] text-[#A3A3A3] tabular-nums shrink-0">
                     · {taskChildProgress(t).done}/{taskChildProgress(t).total}
                   </span>
                 </div>
@@ -372,7 +362,7 @@ export default function TaskCard({
                     onClick={() => setExpandedRowId((id) => (id === t.id ? null : t.id))}
                     className={`text-[13px] ${
                       expandedRowId === t.id ? 'whitespace-normal break-words' : 'truncate'
-                    } ${t.done ? 'line-through text-white/35' : 'text-white/85'}`}
+                    } ${t.done ? 'line-through text-white/35' : 'text-white'}`}
                   >
                     {t.title}
                   </span>
@@ -385,7 +375,7 @@ export default function TaskCard({
         <div className="flex-1 min-h-0 flex flex-col">
           {focusTask ? (
             <>
-              <p className="text-[11px] tracking-wider text-zinc-300 uppercase mb-1.5">{tr('task.nextUp')}</p>
+              <p className="text-[11px] tracking-wider text-[#A3A3A3] uppercase mb-1.5">{tr('task.nextUp')}</p>
               <p
                 data-task-focus-title
                 onClick={() => setFocusExpanded((v) => !v)}
@@ -394,18 +384,18 @@ export default function TaskCard({
                 {focusTask.title}
               </p>
               {isTaskGroup(focusTask) && (
-                <p className="mt-1 text-xs text-zinc-300 tabular-nums">
+                <p className="mt-1 text-xs text-[#A3A3A3] tabular-nums">
                   {tr('task.groupProgress', { total: taskChildProgress(focusTask).total, done: taskChildProgress(focusTask).done })}
                 </p>
               )}
-              <p className="mt-auto text-xs text-zinc-300">
+              <p className="mt-auto text-xs text-[#A3A3A3]">
                 {restCount > 0 ? tr('task.moreLeft', { n: restCount }) : tr('task.onlyOne')}
               </p>
             </>
           ) : (
             <>
-              <p className="text-[11px] tracking-wider text-zinc-300 uppercase mb-1.5">{tr('task.nextUp')}</p>
-              <p className="text-xl font-semibold leading-snug text-zinc-200">{tr('task.emptyShort')}</p>
+              <p className="text-[11px] tracking-wider text-[#A3A3A3] uppercase mb-1.5">{tr('task.nextUp')}</p>
+              <p className="text-xl font-semibold leading-snug text-[#A3A3A3]">{tr('task.emptyShort')}</p>
             </>
           )}
         </div>

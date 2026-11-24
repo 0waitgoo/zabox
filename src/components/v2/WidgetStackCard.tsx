@@ -1,7 +1,5 @@
 import React, { useEffect, useState } from 'react';
 import {
-  widgetCardKey,
-  widgetTintOf,
   type LocalStore,
   type WidgetId,
   type WidgetLayout,
@@ -108,7 +106,6 @@ export default function WidgetStackCard({
                 <Member
                   store={store}
                   onNavigate={onNavigate}
-                  tint={widgetTintOf(store.data.widgetTints, widgetCardKey(id))}
                   layout={layout}
                   delay={delay}
                   phone={phone}

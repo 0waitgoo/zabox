@@ -5,7 +5,6 @@ import {
   type LocalStore,
   type WidgetId,
   type WidgetLayout,
-  type WidgetTint,
 } from '../../store/localStore';
 import TaskCard from './TaskCard';
 import NewsCard from './NewsCard';
@@ -58,8 +57,6 @@ export function widgetCategoryLabelText(id: WidgetCategory, t: WidgetT): string 
 export interface WidgetRenderProps {
   store: LocalStore;
   onNavigate: (page: string) => void;
-  /** 专属底色（由主页/商店按 widgetTints 分配；未分配时为 undefined，组件不叠底色层） */
-  tint?: WidgetTint;
   /** 生效布局（存储口径）：主页传已存布局、商店预览传所选尺寸 */
   layout: WidgetLayout;
   delay?: number;
@@ -83,8 +80,6 @@ export interface WidgetDefinition {
   category: WidgetCategory;
   /** 商店列表与详情用的 lucide 图标（与卡面标题徽保持同一枚） */
   icon: LucideIcon;
-  /** 水印 Emoji（与组件本体渲染时传给底色层的字符一致） */
-  watermark: string;
   /** 支持的尺寸声明（规范 2.2 硬性要求）：尺寸菜单与商店尺寸选择只列这里的组合 */
   supportedSizes: WidgetLayout[];
   /** 默认尺寸：必须落在 supportedSizes 内；直接引用数据层 DEFAULT_WIDGET_LAYOUTS */
@@ -111,40 +106,37 @@ const ALL_SIZES: WidgetLayout[] = [
 
 /* ---------- 适配组件：统一 props → 各组件真实 props（映射与原 HomePage switch 逐字一致） ---------- */
 
-const TaskWidget: React.ComponentType<WidgetRenderProps> = ({ store, onNavigate, tint, layout, delay = 0, phone }) => (
+const TaskWidget: React.ComponentType<WidgetRenderProps> = ({ store, onNavigate, layout, delay = 0, phone }) => (
   <TaskCard
     store={store}
     delay={delay}
     colSpan={phone ? 1 : layout.colSpan}
     heightUnits={layout.heightUnits}
-    tint={tint}
     onOpenPlanPage={() => onNavigate('plan')}
   />
 );
 
-const NewsWidget: React.ComponentType<WidgetRenderProps> = ({ onNavigate, tint, delay = 0 }) => (
-  <NewsCard onNavigate={onNavigate} delay={delay} tint={tint} />
+const NewsWidget: React.ComponentType<WidgetRenderProps> = ({ onNavigate, delay = 0 }) => (
+  <NewsCard onNavigate={onNavigate} delay={delay} />
 );
 
-const TrendingWidgetAdapter: React.ComponentType<WidgetRenderProps> = ({ tint, layout }) => (
-  <TrendingWidget tint={tint} heightUnits={layout.heightUnits} />
+const TrendingWidgetAdapter: React.ComponentType<WidgetRenderProps> = ({ layout }) => (
+  <TrendingWidget heightUnits={layout.heightUnits} />
 );
 
-const ToolsWidget: React.ComponentType<WidgetRenderProps> = ({ tint, layout, delay = 0, phone }) => (
+const ToolsWidget: React.ComponentType<WidgetRenderProps> = ({ layout, delay = 0, phone }) => (
   <FileToolsCard
     delay={delay}
     colSpan={phone ? 1 : layout.colSpan}
     heightUnits={layout.heightUnits}
-    tint={tint}
   />
 );
 
-const ColorsWidget: React.ComponentType<WidgetRenderProps> = ({ tint, layout, delay = 0, phone }) => (
+const ColorsWidget: React.ComponentType<WidgetRenderProps> = ({ layout, delay = 0, phone }) => (
   <ColorsCard
     delay={delay}
     colSpan={phone ? 1 : layout.colSpan}
     heightUnits={layout.heightUnits}
-    tint={tint}
   />
 );
 
@@ -165,7 +157,6 @@ export const WIDGET_DEFINITIONS: WidgetDefinition[] = [
     descKey: 'widget.descTask',
     category: 'tools',
     icon: ListTodo,
-    watermark: '📋',
     supportedSizes: ALL_SIZES,
     defaultLayout: DEFAULT_WIDGET_LAYOUTS.task,
     featured: true,
@@ -180,7 +171,6 @@ export const WIDGET_DEFINITIONS: WidgetDefinition[] = [
     descKey: 'widget.descNews',
     category: 'tools',
     icon: Newspaper,
-    watermark: '📰',
     supportedSizes: ALL_SIZES,
     defaultLayout: DEFAULT_WIDGET_LAYOUTS.news,
     featured: true,
@@ -195,7 +185,6 @@ export const WIDGET_DEFINITIONS: WidgetDefinition[] = [
     descKey: 'widget.descTrending',
     category: 'tools',
     icon: TrendingUp,
-    watermark: '🔥',
     supportedSizes: ALL_SIZES,
     defaultLayout: DEFAULT_WIDGET_LAYOUTS.trending,
     network: [{ endpoint: '/api?type=trends', purpose: '本站话题接口：服务端聚合微博热搜与百度热搜的公开热榜，热度为源站真实值', purposeKey: 'widget.netTrending' }],
@@ -209,7 +198,6 @@ export const WIDGET_DEFINITIONS: WidgetDefinition[] = [
     descKey: 'widget.descTools',
     category: 'tools',
     icon: Wrench,
-    watermark: '🧰',
     supportedSizes: ALL_SIZES,
     defaultLayout: DEFAULT_WIDGET_LAYOUTS.tools,
     // 文件只在浏览器内存处理、不落盘不上传，无持久数据、无联网，故无 network / storage 声明
@@ -223,7 +211,6 @@ export const WIDGET_DEFINITIONS: WidgetDefinition[] = [
     descKey: 'widget.descColors',
     category: 'tools',
     icon: Palette,
-    watermark: '🎨',
     supportedSizes: ALL_SIZES,
     defaultLayout: DEFAULT_WIDGET_LAYOUTS.colors,
     // 数据随包内置（src/data/traditionalColors.ts）、零联网，故无 network 声明；
@@ -239,7 +226,6 @@ export const WIDGET_DEFINITIONS: WidgetDefinition[] = [
     descKey: 'widget.descTime',
     category: 'tools',
     icon: Clock,
-    watermark: '🕐',
     supportedSizes: ALL_SIZES,
     defaultLayout: DEFAULT_WIDGET_LAYOUTS.time,
     // 只显示本机公网 IP：走自家 /api?type=ip（网站与扩展同路），不直连第三方、不显示地址/经纬度

@@ -1,20 +1,18 @@
 import React, { useEffect, useState } from 'react';
 import { Newspaper, ChevronRight, RefreshCw } from 'lucide-react';
 import { fetchNews, type NewsItem } from '../../services/api';
-import type { WidgetTint } from '../../store/localStore';
 import { useLang } from '../../i18n/useLang';
 import { Card, CardIconBadge } from './Card';
 
-/** A 型 · AI 资讯卡：接现有新闻接口，露头条 + 热门榜，点击进资讯页 */
+/** A 型 · AI 资讯卡：接现有新闻接口，露头条 + 热门榜，点击进资讯页
+ *  时间组件同款：纯黑底 + POSTER_FONT（经 Card 壳），主白 / 次 #A3A3A3 / 强调 #2563EB；
+ *  来源标识行（最热粉 + 分类靛蓝）是内容色，保留 */
 export default function NewsCard({
   onNavigate,
   delay = 0,
-  tint,
 }: {
   onNavigate: (page: string) => void;
   delay?: number;
-  /** 专属底色（第二十三轮，由 HomePage 按 widgetTints 分配传入） */
-  tint?: WidgetTint;
 }) {
   const [news, setNews] = useState<NewsItem[]>([]);
   const [loading, setLoading] = useState(true);
@@ -43,19 +41,17 @@ export default function NewsCard({
     <Card
       title={t('nav.newsCardTitle')}
       icon={
-        <CardIconBadge className="bg-pink-500 text-white">
+        <CardIconBadge className="bg-[#2563EB] text-white">
           <Newspaper size={14} />
         </CardIconBadge>
       }
       right={
-        <span className="flex items-center gap-0.5 text-[11px] text-white/40">
+        <span className="flex items-center gap-0.5 text-[11px] text-[#A3A3A3]">
           {t('nav.newsCardOpen')} <ChevronRight size={12} />
         </span>
       }
       onClick={() => onNavigate('news')}
       delay={delay}
-      tint={tint}
-      watermark="📰"
     >
       {loading ? (
         <div className="flex-1 flex items-center justify-center">
@@ -65,7 +61,7 @@ export default function NewsCard({
         <div className="flex-1 flex flex-col min-h-0">
           {/* 头条 */}
           <div className="shrink-0">
-            <div className="flex items-center gap-2 text-[11px] text-white/50 mb-1.5">
+            <div className="flex items-center gap-2 text-[11px] text-[#A3A3A3] mb-1.5">
               <span className="text-pink-300 font-semibold tracking-wide">{t('nav.newsCardHottest')}</span>
               <span>{headline.source}</span>
               <span className="w-1 h-1 rounded-full bg-white/30" />
@@ -73,12 +69,12 @@ export default function NewsCard({
             </div>
             <h4 className="text-lg sm:text-xl font-bold leading-snug tracking-tight line-clamp-2">{headline.title}</h4>
             {headline.description && (
-              <p className="text-xs sm:text-sm text-white/55 mt-1 line-clamp-1">{headline.description}</p>
+              <p className="text-xs sm:text-sm text-[#A3A3A3] mt-1 line-clamp-1">{headline.description}</p>
             )}
           </div>
           {/* 热门榜 */}
           <div className="mt-3 pt-3 border-t border-white/10 flex-1 min-h-0 overflow-hidden">
-            <p className="text-[10px] font-medium tracking-wider text-white/35 uppercase mb-2">{t('nav.newsCardHotList')}</p>
+            <p className="text-[10px] font-medium tracking-wider text-[#A3A3A3] uppercase mb-2">{t('nav.newsCardHotList')}</p>
             <div className="space-y-1">
               {hotList.map((item, idx) => (
                 <button
@@ -89,11 +85,11 @@ export default function NewsCard({
                   }}
                   className="w-full flex items-center gap-2.5 px-1.5 py-1 rounded-lg hover:bg-white/5 text-left transition-colors"
                 >
-                  <span className="w-4.5 h-4.5 shrink-0 rounded bg-white/10 flex items-center justify-center text-[10px] font-bold text-white/60" style={{ width: 18, height: 18 }}>
+                  <span className="w-4.5 h-4.5 shrink-0 rounded bg-white/10 flex items-center justify-center text-[10px] font-bold text-[#A3A3A3]" style={{ width: 18, height: 18 }}>
                     {idx + 2}
                   </span>
-                  <span className="flex-1 text-xs sm:text-[13px] text-white/75 truncate">{item.title}</span>
-                  <span className="text-[10px] text-white/35 shrink-0">
+                  <span className="flex-1 text-xs sm:text-[13px] text-white truncate">{item.title}</span>
+                  <span className="text-[10px] text-[#A3A3A3] shrink-0">
                     {new Date(item.publishedAt).toLocaleDateString(lang === 'en' ? 'en-US' : 'zh-CN', { month: '2-digit', day: '2-digit' })}
                   </span>
                 </button>
@@ -102,9 +98,9 @@ export default function NewsCard({
           </div>
         </div>
       ) : (
-        <div className="flex-1 flex flex-col gap-2 items-center justify-center text-sm text-white/40">
+        <div className="flex-1 flex flex-col gap-2 items-center justify-center text-sm text-[#A3A3A3]">
           <span>{t('nav.newsCardUnavailable')}</span>
-          <button type="button" className="text-indigo-300 hover:text-indigo-200" onClick={(e) => {
+          <button type="button" className="text-[#2563EB] hover:text-[#2563EB]/80" onClick={(e) => {
             e.stopPropagation();
             setRetry((value) => value + 1);
           }}>{t('nav.newsCardRetry')}</button>

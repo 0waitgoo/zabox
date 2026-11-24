@@ -7,7 +7,6 @@ import {
   setToolsWorkspaceTool,
   useToolsWorkspace,
 } from '../../store/toolsWorkspace';
-import type { WidgetTint } from '../../store/localStore';
 import { useLang } from '../../i18n/useLang';
 import { Card, CardIconBadge } from './Card';
 
@@ -46,15 +45,12 @@ export default function FileToolsCard({
   delay = 0,
   colSpan = 2,
   heightUnits = 1,
-  tint,
 }: {
   delay?: number;
   /** 右键布局宽度（决定排布列数） */
   colSpan?: 1 | 2;
   /** 右键布局高度：2x 时瓷砖放大排布 */
   heightUnits?: 1 | 2;
-  /** 专属底色（由 HomePage 按 widgetTints 分配传入） */
-  tint?: WidgetTint;
 }) {
   const ws = useToolsWorkspace();
   /** 工作区是否曾经打开过：首次打开才挂载（懒加载工具实现），之后常驻保状态 */
@@ -87,7 +83,7 @@ export default function FileToolsCard({
     <Card
       title={t('home.toolsTitle')}
       icon={
-        <CardIconBadge className="bg-indigo-500 text-white">
+        <CardIconBadge className="bg-[#2563EB] text-white">
           <Wrench size={14} />
         </CardIconBadge>
       }
@@ -100,7 +96,7 @@ export default function FileToolsCard({
               e.stopPropagation();
               closeToolsWorkspace();
             }}
-            className="flex items-center gap-1 rounded-lg px-2 py-1 text-[11px] text-white/50 transition-colors hover:bg-white/10 hover:text-white shrink-0"
+            className="flex items-center gap-1 rounded-lg px-2 py-1 text-[11px] text-[#A3A3A3] transition-colors hover:bg-white/10 hover:text-white shrink-0"
           >
             <X size={12} />
             {t('menu.collapse')}
@@ -108,8 +104,6 @@ export default function FileToolsCard({
         ) : undefined
       }
       delay={delay}
-      tint={tint}
-      watermark="🧰"
     >
       {/* 瓷砖面：工作区打开时隐藏（状态无损，纯呈现切换） */}
       <div data-tools-grid className={`flex-1 min-h-0 grid ${gridCls} gap-2 ${ws.open ? 'hidden' : ''}`}>
@@ -130,13 +124,13 @@ export default function FileToolsCard({
               }`}
             >
               <span
- className={`flex items-center justify-center bg-indigo-500 text-white ring-1 ring-black/20 shrink-0 ${
+ className={`flex items-center justify-center bg-[#2563EB] text-white ring-1 ring-black/20 shrink-0 ${
                   compact ? 'w-7 h-7 rounded-lg' : 'w-10 h-10 rounded-xl'
                 }`}
               >
                 <Icon size={compact ? 14 : 19} />
               </span>
-              <span className={`leading-tight text-white/75 whitespace-nowrap ${compact ? 'text-[11px]' : 'text-center text-xs'}`}>
+              <span className={`leading-tight text-white whitespace-nowrap ${compact ? 'text-[11px]' : 'text-center text-xs'}`}>
                 {toolLabel(t.id, t.label)}
               </span>
             </button>
@@ -152,13 +146,13 @@ export default function FileToolsCard({
               type="button"
               data-tools-back
               onClick={() => closeToolsWorkspace()}
-              className="flex items-center gap-0.5 rounded-lg px-1.5 py-1 text-xs text-white/60 transition-colors hover:bg-white/10 hover:text-white shrink-0"
+              className="flex items-center gap-0.5 rounded-lg px-1.5 py-1 text-xs text-[#A3A3A3] transition-colors hover:bg-white/10 hover:text-white shrink-0"
             >
               <ChevronLeft size={14} />
               {t('home.toolsAll')}
             </button>
-            <span className="text-sm font-medium text-white/90 truncate">{toolLabel(activeDef.id, activeDef.label)}</span>
-            <span className="ml-auto hidden sm:flex items-center gap-1 text-[11px] text-white/40 shrink-0">
+            <span className="text-sm font-medium text-white truncate">{toolLabel(activeDef.id, activeDef.label)}</span>
+            <span className="ml-auto hidden sm:flex items-center gap-1 text-[11px] text-[#A3A3A3] shrink-0">
               <ShieldCheck size={12} className="text-emerald-300/80 shrink-0" />
               {t('home.toolsLocal')}
             </span>
@@ -181,8 +175,8 @@ export default function FileToolsCard({
                   onClick={() => setToolsWorkspaceTool(t.id)}
                   className={`inline-flex items-center gap-1.5 rounded-lg px-2.5 py-1.5 text-xs whitespace-nowrap transition-colors ${
                     active
-                      ? 'bg-indigo-500/25 text-white border border-indigo-400/40'
-                      : 'bg-white/[0.04] text-white/60 border border-white/10 hover:bg-white/[0.08] hover:text-white'
+                      ? 'bg-[#2563EB]/25 text-white border border-[#2563EB]/40'
+                      : 'bg-white/[0.04] text-[#A3A3A3] border border-white/10 hover:bg-white/[0.08] hover:text-white'
                   }`}
                 >
                   <Icon size={13} />

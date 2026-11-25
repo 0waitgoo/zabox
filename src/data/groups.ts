@@ -135,6 +135,7 @@ const iconMap: Record<string, string> = {
   'krea': '/icon_APP/krea.png',
   '海螺': '/icon_APP/hailuo.png',
   'jimengAI-01': '/icon_APP/jimengAI-01.svg',
+  '即梦': '/icon_APP/jimengAI-01.svg',
   'Runwayml': '/icon_APP/Runwayml.svg',
   'Sora': '/icon_APP/Sora.svg',
   'pika': '/icon_APP/pika.svg',
@@ -172,6 +173,16 @@ const iconMap: Record<string, string> = {
   'vidu': '/icon_APP/vidu.svg',
   '火山写作': '/icon_APP/huoshan.png',
   'copy ai': '/icon_APP/copyai.png',
+  // 快速组图标（2026-11-26 用户令：漫剧/设计/购物面板里这 7 站只出字母图，补品牌图标；
+  // behance.png / codepen.png / hetun-life.png 早已在 public/icon_APP/ 里、只缺映射，
+  // fanqie.jpg 取自 App Store 官方应用图标、shortdramas.png 取自 shortdramas.com 站内 favicon、
+  // stackoverflow.png 取自 stackoverflow 官方 apple-touch-icon）
+  '番茄': '/icon_APP/fanqie.jpg',
+  'shortdramas': '/icon_APP/shortdramas.png',
+  'behance': '/icon_APP/behance.png',
+  'codepen': '/icon_APP/codepen.png',
+  'stack overflow': '/icon_APP/stackoverflow.png',
+  '盒豚': '/icon_APP/hetun-life.png',
 };
 
 export const getSiteLogo = (name: string): string => {

@@ -1546,6 +1546,17 @@ export default function HomePage({ onNavigate, store }: { onNavigate: (page: str
               </button>
             );
           })}
+          {/* 工具按钮（2026-11-26 用户令）：不展开搜集面板，直接跳组件商店页（官方小工具） */}
+          <button
+            key="tools"
+            type="button"
+            data-quick-group="tools"
+            onClick={() => onNavigate('store')}
+            className="flex items-center gap-1 whitespace-nowrap rounded-full border border-white/10 bg-black/25 px-2 py-1 text-[11px] text-white/70 transition-colors hover:bg-white/10 hover:text-white sm:px-2.5 sm:text-xs"
+          >
+            <Wrench size={12} />
+            <span>{lang === 'en' ? 'Tools' : '工具'}</span>
+          </button>
         </div>
         {quickGroupOpen && (
           <QuickGroupPanel

@@ -163,14 +163,6 @@ export default function QuickGroupPanel({
               <span className="min-w-0 flex-1">
                 <span className="flex items-center gap-1 text-sm text-white/90">
                   <span className="truncate">{site.name}</span>
-                  {quick?.ad && (
-                    <span
-                      data-quick-ad
-                      className="shrink-0 rounded bg-amber-400/20 px-1 py-px text-[10px] leading-4 text-amber-300"
-                    >
-                      {t('quick.ad')}
-                    </span>
-                  )}
                 </span>
                 <span className="block truncate text-[11px] leading-4 text-white/45">{site.description}</span>
               </span>

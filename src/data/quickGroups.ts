@@ -6,10 +6,10 @@
  * 没有的走字母图标兜底）。
  * 2026-11-26 预设大清理：主页预设只剩「我的」，被删的默认/设计师/程序员/
  * 娱乐导航 4 套预设里的站按主题收进这里（设计→设计/编程、开发→设计/编程、
- * 影视娱乐→影视娱乐、AI 创作→漫剧创作、聊天/办公/效率→工具组；工具预设
- * 本身是纯组件、没有站，故工具组由聊天/办公/写作/翻译/Agent/图片处理类站
- * 组成）；盒豚查按用户令（2026-10-24 停推）不收录；同服务不同域名
- * （即梦/可灵/海螺/Liblib）只留快速组原有的一条，不重复。
+ * 影视娱乐→影视娱乐、AI 创作→漫剧创作）；盒豚查按用户令（2026-10-24 停推）不收录；
+ * 同服务不同域名（即梦/可灵/海螺/Liblib）只留快速组原有的一条，不重复。
+ * 工具组不在此列：2026-11-26 用户令，工具按钮直接跳组件商店页（官方小工具），
+ * 不展开搜集面板，故这里只有 4 组；工具按钮在 HomePage.tsx 里单独挂。
  */
 
 export interface QuickGroupSite {
@@ -199,73 +199,6 @@ export const QUICK_GROUPS: QuickGroup[] = [
       { name: '拼多多', url: 'https://www.pinduoduo.com', desc: '拼单便宜好货' },
       { name: '天猫', url: 'https://www.tmall.com', desc: '品牌官方旗舰' },
       { name: '唯品会', url: 'https://www.vip.com', desc: '品牌特卖' },
-    ],
-  },
-  {
-    id: 'tools',
-    name: '工具',
-    nameEn: 'Tools',
-    sites: [
-      { name: 'Kimi', url: 'https://kimi.moonshot.cn', desc: '月之暗面AI助手' },
-      { name: '豆包', url: 'https://www.doubao.com', desc: '字节跳动AI助手' },
-      { name: '通义千问', url: 'https://tongyi.aliyun.com', desc: '阿里巴巴AI大模型' },
-      { name: '文心一言', url: 'https://yiyan.baidu.com', desc: '百度AI对话助手' },
-      { name: '讯飞星火', url: 'https://xinghuo.xfyun.cn', desc: '科大讯飞AI大模型' },
-      { name: '腾讯混元', url: 'https://hunyuan.tencent.com', desc: '腾讯AI大模型' },
-      { name: 'DeepSeek', url: 'https://deepseek.com', desc: '深度求索AI助手' },
-      { name: 'MiniMax', url: 'https://www.minimaxi.com', desc: 'MiniMax助手' },
-      { name: 'ChatGPT', url: 'https://chat.openai.com', desc: 'OpenAI对话助手' },
-      { name: 'Claude', url: 'https://claude.ai', desc: 'Claude智能助手' },
-      { name: 'Gemini', url: 'https://gemini.google.com', desc: '谷歌多模态AI' },
-      { name: 'Chatgot', url: 'https://start.chatgot.io', desc: '多模型AI聊天聚合' },
-      { name: '腾讯元宝', url: 'https://yuanbao.tencent.com/', desc: '腾讯AI助手' },
-      { name: 'Grok', url: 'https://grok.com/', desc: 'xAI AI对话助手' },
-      { name: 'Clipdrop', url: 'https://clipdrop.co/', desc: 'AI图像处理工具箱' },
-      { name: 'PicWish', url: 'https://picwish.com/', desc: '国产AI抠图修图' },
-      { name: 'Vectorizer.ai', url: 'https://vectorizer.ai/', desc: '位图转矢量图工具' },
-      { name: 'Palette.fm', url: 'https://palette.fm/', desc: 'AI黑白照片上色' },
-      { name: 'Upscayl', url: 'https://www.upscayl.org/', desc: '开源免费AI图片放大' },
-      { name: 'Img.Upscaler', url: 'https://imgupscaler.com/', desc: '在线AI图片无损放大' },
-      { name: '飞书', url: 'https://www.feishu.cn/', desc: '字节一站式协作办公' },
-      { name: 'WPS云文档', url: 'https://www.wps.cn', desc: '金山在线协作文档' },
-      { name: 'AiPPT', url: 'https://www.aippt.cn/', desc: '输入主题生成PPT' },
-      { name: 'ProcessOn', url: 'https://www.processon.com', desc: '在线流程图思维导图' },
-      { name: 'ChatExcel', url: 'https://chatexcel.com/', desc: '对话式操作表格' },
-      { name: 'Beautiful.ai', url: 'https://www.beautiful.ai', desc: 'AI驱动PPT制作' },
-      { name: 'Prezi', url: 'https://prezi.com', desc: '非线性动态演示文稿' },
-      { name: 'Notion AI', url: 'https://www.notion.so', desc: 'AI写作神器' },
-      { name: '秘塔写作猫', url: 'https://xiezuocat.com', desc: '基于GPT中文写作' },
-      { name: '火山写作', url: 'https://writingo.volcengine.com', desc: '字节AI写作工具' },
-      { name: 'Copy AI', url: 'https://www.copy.ai', desc: 'AI社交媒体文案写作' },
-      { name: '字语未来', url: 'https://www.ziyuweilai.com', desc: 'AI文案创作' },
-      { name: '毕业宝AI论文降重', url: 'https://www.biyebao.com', desc: '论文降重神器' },
-      { name: 'DeepL', url: 'https://www.deepl.com', desc: 'AI翻译工具' },
-      { name: '百度翻译', url: 'https://fanyi.baidu.com', desc: '百度旗下AI翻译' },
-      { name: '有道翻译', url: 'https://fanyi.youdao.com', desc: '网易有道AI翻译' },
-      { name: '腾讯翻译君', url: 'https://fanyi.qq.com', desc: '腾讯AI翻译工具' },
-      { name: '彩云小译', url: 'https://fanyi.caiyunapp.com/', desc: '双语对照AI翻译' },
-      { name: 'Google翻译', url: 'https://translate.google.com/', desc: '上百种语言翻译' },
-      { name: '阿里翻译', url: 'https://translate.alibaba.com/', desc: '达摩院多语种翻译' },
-      { name: '有道龙虾', url: 'https://www.youdao.com', desc: '网易有道AI智能体' },
-      { name: '元气AI', url: 'https://www.yuanqi.ai', desc: '国产AI智能体平台' },
-      { name: 'OpenClaw', url: 'https://openclaw.ai', desc: 'AI智能体平台' },
-      { name: 'Copaw', url: 'https://copaw.ai', desc: 'AI智能体工具' },
-      { name: '扣子', url: 'https://www.coze.cn/', desc: '字节AI智能体开发' },
-      { name: 'Manus', url: 'https://manus.im/', desc: '通用AI智能体' },
-      { name: 'Lovart', url: 'https://www.lovart.ai/', desc: 'AI设计智能体' },
-      { name: 'Grammarly', url: 'https://www.grammarly.com', desc: 'AI英文写作助手' },
-      { name: 'QuillBot', url: 'https://quillbot.com', desc: 'AI英文改写润色' },
-      { name: '秘塔AI搜索', url: 'https://metaso.cn/', desc: '无广告AI搜索' },
-      { name: 'Jasper', url: 'https://www.jasper.ai/', desc: 'AI营销文案写作' },
-      { name: 'Remove.bg', url: 'https://www.remove.bg', desc: 'AI一键抠图' },
-      { name: 'Bigjpg', url: 'https://bigjpg.com', desc: 'AI图片无损放大' },
-      { name: 'Fotor', url: 'https://www.fotor.com/cn/', desc: '国产AI图片编辑' },
-      { name: 'PicsArt', url: 'https://picsart.com', desc: 'AI修图创意编辑' },
-      { name: '美图秀秀', url: 'https://xiuxiu.web.meitu.com', desc: '美图AI修图工具' },
-      { name: 'TME Studio', url: 'https://y.qq.com/tme_studio', desc: '腾讯音乐AI工具' },
-      { name: 'LALAL.AI', url: 'https://www.lalal.ai', desc: 'AI人声伴奏分离' },
-      { name: 'TTSMaker', url: 'https://ttsmaker.cn/', desc: '免费文字转语音' },
-      { name: '网易天音', url: 'https://tianyin.163.com/', desc: '网易AI音乐创作' },
     ],
   },
 ];

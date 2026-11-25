@@ -10,6 +10,11 @@
  * 同服务不同域名（即梦/可灵/海螺/Liblib）只留快速组原有的一条，不重复。
  * 工具组不在此列：2026-11-26 用户令，工具按钮直接跳组件商店页（官方小工具），
  * 不展开搜集面板，故这里只有 4 组；工具按钮在 HomePage.tsx 里单独挂。
+ * 2026-11-26 漫剧创作组按用户令重整：无限画布（LibTV、Toonflow）＋大模型
+ * （即梦/可灵/海螺/Sora/Runway/Vidu/Pika/Luma/Pixverse/清影/混元视频/Flow）
+ * ＋配音（ElevenLabs/魔音工坊/讯飞配音/Suno/Udio）＋剪辑（剪映/喵影/Kapwing/
+ * 必剪）＋漫剧平台/剧本；纯图片生成（Midjourney/DALL-E 等）与数字人站已删；
+ * LiblibAI 条目实为 LibTV（liblib.tv），已正名为 LibTV。
  */
 
 export interface QuickGroupSite {
@@ -32,37 +37,31 @@ export const QUICK_GROUPS: QuickGroup[] = [
     name: '漫剧创作',
     nameEn: 'Short Drama',
     sites: [
+      { name: 'LibTV', url: 'https://www.liblib.tv', desc: '无限画布漫剧创作' },
+      { name: 'Toonflow', url: 'https://toonflow.net', desc: '开源无限画布漫剧' },
       { name: '即梦AI', url: 'https://jimeng.jianying.com', desc: 'AI 视频生成' },
       { name: '可灵AI', url: 'https://klingai.kuaishou.com', desc: 'AI 视频创作' },
-      { name: 'Midjourney', url: 'https://www.midjourney.com', desc: 'AI 绘画神器' },
       { name: 'MiniMax 海螺AI', url: 'https://hailuoai.com', desc: 'AI 视频生成' },
-      { name: 'Runway', url: 'https://runwayml.com', desc: 'AI 视频编辑' },
-      { name: '剪映', url: 'https://www.capcut.cn', desc: '视频剪辑工具' },
-      { name: '番茄小说', url: 'https://fanqie.com', desc: '免费小说阅读' },
-      { name: 'shortdramas.com', url: 'https://shortdramas.com', desc: '漫剧出海平台' },
-      { name: 'LiblibAI', url: 'https://www.liblib.tv', desc: 'AI 绘画平台' },
-      { name: '通义万相', url: 'https://tongyi.aliyun.com/wanxiang', desc: '阿里AI图像生成' },
-      { name: 'Nano Banana', url: 'https://nanobanana.com', desc: 'AI图像生成平台' },
-      { name: 'Krea', url: 'https://krea.ai', desc: 'AI图像创作平台' },
-      { name: 'DALL-E', url: 'https://openai.com/dall-e-3', desc: 'OpenAI图像创作' },
-      { name: 'Firefly', url: 'https://www.adobe.com/firefly', desc: 'Adobe AI工具' },
-      { name: 'Stable Diffusion', url: 'https://stability.ai', desc: '开源图像生成模型' },
       { name: 'Sora', url: 'https://openai.com/sora', desc: 'OpenAI视频生成' },
+      { name: 'Runway', url: 'https://runwayml.com', desc: 'AI 视频编辑' },
       { name: 'Vidu', url: 'https://www.vidu.com', desc: 'AI视频生成平台' },
       { name: 'Pika', url: 'https://pika.art', desc: '快速AI视频创作' },
-      { name: 'Kapwing', url: 'https://www.kapwing.com', desc: '在线AI视频编辑平台' },
-      { name: '来画', url: 'https://www.laihua.com', desc: 'AI数字人视频创作' },
-      { name: 'HeyGen', url: 'https://www.heygen.com/', desc: 'AI数字人视频生成' },
-      { name: '万兴喵影', url: 'https://miao.wondershare.cn/', desc: '国产视频剪辑软件' },
-      { name: 'Synthesia', url: 'https://www.synthesia.io/', desc: '企业级数字人视频' },
-      { name: 'Flowith', url: 'https://flowith.com', desc: 'AI图像工作流平台' },
-      { name: 'Leonardo', url: 'https://leonardo.ai/', desc: 'AI绘画与游戏资产' },
-      { name: 'Civitai', url: 'https://civitai.com/', desc: 'AI模型分享社区' },
-      { name: 'TensorArt', url: 'https://tensor.art/', desc: 'AI创作与模型社区' },
-      { name: '无界AI', url: 'https://www.wujieai.com/', desc: '国产AI绘画平台' },
+      { name: 'Luma', url: 'https://lumalabs.ai/dream-machine', desc: 'AI电影级视频' },
+      { name: 'Pixverse', url: 'https://pixverse.ai', desc: 'AI视频生成' },
+      { name: '智谱清影', url: 'https://chatglm.cn/video', desc: '国产AI视频生成' },
+      { name: '腾讯混元视频', url: 'https://aivideo.hunyuan.tencent.com', desc: '腾讯AI视频生成' },
+      { name: 'Google Flow', url: 'https://labs.google/fx/tools/flow', desc: '谷歌AI电影制作' },
+      { name: 'ElevenLabs', url: 'https://elevenlabs.io', desc: 'AI语音合成' },
+      { name: '魔音工坊', url: 'https://www.moyin.com', desc: '中文AI配音' },
+      { name: '讯飞配音', url: 'https://peiyin.xunfei.cn', desc: '讯飞AI配音' },
       { name: 'Suno', url: 'https://suno.ai', desc: 'AI音乐生成工具' },
       { name: 'Udio', url: 'https://udio.com', desc: 'AI音乐创作平台' },
-      { name: 'ElevenLabs', url: 'https://elevenlabs.io', desc: 'AI语音合成' },
+      { name: '剪映', url: 'https://www.capcut.cn', desc: '视频剪辑工具' },
+      { name: '万兴喵影', url: 'https://miao.wondershare.cn/', desc: '国产视频剪辑软件' },
+      { name: 'Kapwing', url: 'https://www.kapwing.com', desc: '在线AI视频编辑平台' },
+      { name: '必剪', url: 'https://bcut.bilibili.cn', desc: 'B站视频剪辑' },
+      { name: 'shortdramas.com', url: 'https://shortdramas.com', desc: '漫剧出海平台' },
+      { name: '番茄小说', url: 'https://fanqie.com', desc: '免费小说阅读' },
     ],
   },
   {

@@ -1,7 +1,9 @@
 import React, { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { AnimatePresence, motion } from 'motion/react';
-import { LayoutGrid, FolderPlus, X, Check, List, Folder, Unlink, LogOut, Trash2, Palette, ChevronDown } from 'lucide-react';
+import { LayoutGrid, FolderPlus, X, Check, List, Folder, Unlink, LogOut, Trash2, Palette, ChevronDown, Clapperboard, Code, Tv, ShoppingBag, Sparkles, type LucideIcon } from 'lucide-react';
 import { GROUP_NAME_MAX, TAB_GROUP_NAME, clampGroupName, textCharCount, type GroupDisplay, type NavGroup } from '../../data/groups';
+import { QUICK_GROUPS } from '../../data/quickGroups';
+import QuickGroupPanel from './QuickGroupPanel';
 import {
   cardFaceStyleOf,
   clampColSpan,
@@ -60,6 +62,14 @@ import { displayGroupName } from '../../i18n/groupNames';
 /** 两个虚线入口块在放置计算里的伪 key（不算卡、无锚点，回落到最矮栏末尾） */
 const TILE_ADD_KEY = '__tile_add__';
 const TILE_NEW_KEY = '__tile_new__';
+
+/** 快速组按钮图标（2026-11-26）：按组 id 配 lucide 小图标 */
+const QUICK_GROUP_ICONS: Record<string, LucideIcon> = {
+  manju: Clapperboard,
+  design: Code,
+  entertainment: Tv,
+  shopping: ShoppingBag,
+};
 
 /** 向上查找最近的可滚动祖先（拖拽到边缘时自动滚动用） */
 function findScrollAncestor(el: HTMLElement): HTMLElement | null {
@@ -530,6 +540,8 @@ export default function HomePage({ onNavigate, store }: { onNavigate: (page: str
     [store.data.cardOrder, defaultOrder],
   );
   const [previewOrder, setPreviewOrder] = useState<string[] | null>(null);
+  /** 快速组搜集面板当前展开的组 id（2026-11-26）：null = 未展开 */
+  const [quickGroupOpen, setQuickGroupOpen] = useState<string | null>(null);
   const displayOrder = previewOrder ?? baseOrder;
   /** 拖拽中的预览锚点（存储空间，key → 栏）：普通拖拽只有被拖卡一项，
    *  tab 拖出时含被拖组与另一组（另一组 = 组合原来的栏）。state 供渲染、ref 供拖拽逻辑同步读 */
@@ -1507,6 +1519,41 @@ export default function HomePage({ onNavigate, store }: { onNavigate: (page: str
       className="flex flex-col pt-[16vh] sm:pt-[18vh] lg:pt-[20vh]"
       onContextMenu={handleBlankContextMenu}
     >
+      {/* 快速组（2026-11-26 用户令）：顶部一排不显眼的小药丸按钮，点开展开搜集面板；
+          按钮行在顶栏上方居中（wrapper 的 pt 留白区下方、顶栏正上方），不遮搜索框与顶栏按钮；
+          面板挂在按钮行下方（QuickGroupPanel，absolute、无遮罩），拖拽可直达底下的组卡 */}
+      <div className="relative z-50 flex justify-center pb-2">
+        <div className="flex items-center gap-1 sm:gap-2">
+          {QUICK_GROUPS.map((g) => {
+            const Icon = QUICK_GROUP_ICONS[g.id] ?? Sparkles;
+            const open = quickGroupOpen === g.id;
+            return (
+              <button
+                key={g.id}
+                type="button"
+                data-quick-group={g.id}
+                aria-expanded={open}
+                onClick={() => setQuickGroupOpen(open ? null : g.id)}
+                className={`flex items-center gap-1 whitespace-nowrap rounded-full border px-2 py-1 text-[11px] transition-colors sm:px-2.5 sm:text-xs ${
+                  open
+                    ? 'border-white/30 bg-white/20 text-white'
+                    : 'border-white/10 bg-black/25 text-white/70 hover:bg-white/10 hover:text-white'
+                }`}
+              >
+                <Icon size={12} />
+                <span>{lang === 'en' ? g.nameEn : g.name}</span>
+              </button>
+            );
+          })}
+        </div>
+        {quickGroupOpen && (
+          <QuickGroupPanel
+            group={QUICK_GROUPS.find((g) => g.id === quickGroupOpen)!}
+            store={store}
+            onClose={() => setQuickGroupOpen(null)}
+          />
+        )}
+      </div>
       {/* 顶栏（一行对齐）：与下方卡片网格同款 4 栏 grid——左半 2 栏放页面导航图标组（靠左），
           右半 2 栏放搜索框 +「数据」入口（算在右半内）；2026-11-04 用户令：本栏不再吸顶，
           随卡片一起上下滚动（顶部毛玻璃遮挡带同轮删除）；relative 保留定位上下文，

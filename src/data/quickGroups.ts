@@ -3,7 +3,7 @@
  * 最近流行什么就推荐什么工具/网页给用户，用户可把站拖进自己的组、或整组添加。
  * 静态定义，随版本更新：不进 store、不参与同步/导出/预设。
  * 图标不新做：面板里用现有 SiteLogo + siteIconSrc（按 name/url 解析品牌图标，
- * 没有的走字母图标兜底）；ad = 该站是广告（购物组里的盒豚生活，名字后标「广告」）。
+ * 没有的走字母图标兜底）。
  */
 
 export interface QuickGroupSite {
@@ -11,8 +11,6 @@ export interface QuickGroupSite {
   url: string;
   /** 一句中文短描述（≤10 字），瓷砖上展示 */
   desc?: string;
-  /** 广告位：只在购物组里盒豚生活这一站为 true */
-  ad?: boolean;
 }
 
 export interface QuickGroup {
@@ -75,13 +73,12 @@ export const QUICK_GROUPS: QuickGroup[] = [
     name: '购物领券',
     nameEn: 'Shopping & Coupons',
     sites: [
-      { name: '盒豚生活', url: 'https://www.hiitun.top/', desc: '领券返利', ad: true },
+      { name: '盒豚生活', url: 'https://www.hiitun.top/', desc: '领券返利' },
       { name: '淘宝', url: 'https://www.taobao.com', desc: '综合购物平台' },
       { name: '京东', url: 'https://www.jd.com', desc: '正品自营购物' },
       { name: '拼多多', url: 'https://www.pinduoduo.com', desc: '拼单便宜好货' },
       { name: '天猫', url: 'https://www.tmall.com', desc: '品牌官方旗舰' },
       { name: '唯品会', url: 'https://www.vip.com', desc: '品牌特卖' },
-      { name: '什么值得买', url: 'https://www.smzdm.com', desc: '好价爆料社区' },
     ],
   },
 ];

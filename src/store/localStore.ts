@@ -843,17 +843,16 @@ export interface StoreData {
    */
   widgetBaseColors: Record<string, string>;
   /**
-   * 当前主页预设（第一百零六轮建、第一百零九轮改语义）：内置预设 id 或 'my'
-   * （用户自己的排版）。老存档无此字段时归一化为 'my'：既有排版即用户的「我的」。
-   * 任一构成变更都经 update() 自动处理：内置预设期翻为 'my' 并立即刷新存档，
-   * 本来就在 'my' 时同样刷新存档——「我的」恒等于当前排版（见 update）。
+   * 当前主页预设（第一百零六轮建、第一百零九轮改语义；2026-11-26 起只剩 'my'）：
+   * 老存档无此字段、或存着已删的内置预设 id 时，归一化为 'my'：既有排版即用户的「我的」。
+   * 任一构成变更都经 update() 自动刷新存档——「我的」恒等于当前排版（见 update）。
    */
   activePreset: PresetId;
   /**
    * 「我的」预设存档（第一百零六轮建、第一百零九轮改语义）：用户自有构成的快照，
    * 构成一变即由 update() 自动刷新（无需用户点任何东西）；null = 尚无存档
    * （老存档/新装初期），面板上「我的」显示「暂无存档」、点击无操作，
-   * 首次构成变更时自动生成。内置预设之间互切不覆盖存档。
+   * 首次构成变更时自动生成。
    */
   myPreset: CompositionSnapshot | null;
   /**
@@ -895,13 +894,9 @@ export function dockSiteSnapshot(site: SiteEntry): DockSiteSnapshot {
   };
 }
 
-/** 内置预设 id（第一百零六轮）：构成数据在 data/presets.ts，本层只认 id */
-export type BuiltinPresetId = 'default' | 'designer' | 'developer' | 'tools' | 'entertainment';
-
-/** 当前预设：内置预设 id 或 'my'（自定义态） */
-export type PresetId = BuiltinPresetId | 'my';
-
-export const BUILTIN_PRESET_IDS: readonly BuiltinPresetId[] = ['default', 'designer', 'developer', 'tools', 'entertainment'];
+/** 当前预设（2026-11-26 预设大清理，用户令）：内置预设（默认/设计师/程序员/
+ * 工具/娱乐导航）全部删除，只剩「我的」；老存档里的内置预设 id 一律回落到 'my' */
+export type PresetId = 'my';
 
 /**
  * 主页构成快照（第一百零六轮， 第一百一十一轮起含外观）：预设切换与「我的」存档的统一形态——
@@ -964,65 +959,6 @@ function compositionFingerprint(d: StoreData): string {
 /** 网址归一键（标签按站走、跨预设认站就靠它：末尾斜杠不计） */
 function tagUrlKey(url: unknown): string {
   return typeof url === 'string' ? url.replace(/\/+$/, '') : '';
-}
-
-/** 去掉全部站点标签后的编组副本（只改标签的判定用：tag / tags 都不要） */
-function groupsWithoutTags(groups: NavGroup[]): NavGroup[] {
-  return groups.map((g) => ({
-    ...g,
-    sites: g.sites.map((s) => {
-      const c = { ...s };
-      delete c.tags;
-      delete c.tag;
-      return c;
-    }),
-  }));
-}
-
-/** 只改了标签？——去掉标签后构成指纹相同，即本次改动没动排版、没动站、没动外观 */
-function isTagsOnlyChange(prev: StoreData, next: StoreData): boolean {
-  return (
-    compositionFingerprint({ ...prev, groups: groupsWithoutTags(prev.groups) }) ===
-    compositionFingerprint({ ...next, groups: groupsWithoutTags(next.groups) })
-  );
-}
-
-/**
- * 把改动的标签并进“我的”存档（2026-11-06 用户令：保存/上传时标签要一起保存）：
- * 标签是站点元数据、不动排版，绝不能因为人在内置预设上就丢掉。
- * 只动本次改动过的站（按 id 比 prev/next 的标签差异找出来），按网址认进快照里的同站；
- * 没改过的站一律不动——内置预设种子站没标签，不能把存档里已有的标签反向清掉。
- * 快照排版原样不动，也不切走当前预设。
- */
-function mergeChangedTagsIntoSnapshot(
-  snap: CompositionSnapshot,
-  prev: StoreData,
-  next: StoreData,
-): CompositionSnapshot {
-  const changed = new Map<string, string[]>();
-  const prevById = new Map<string, SiteEntry>();
-  for (const g of prev.groups) for (const s of g.sites) if (s.id) prevById.set(s.id, s);
-  for (const g of next.groups) {
-    for (const s of g.sites) {
-      if (!s.id) continue;
-      const before = prevById.get(s.id);
-      const a = before ? siteTags(before) : [];
-      const b = siteTags(s);
-      if (a.join('|') !== b.join('|')) changed.set(tagUrlKey(s.url), b);
-    }
-  }
-  if (changed.size === 0) return snap;
-  const out = structuredClone(snap);
-  for (const g of out.groups) {
-    for (const s of g.sites) {
-      const tags = changed.get(tagUrlKey(s.url));
-      if (tags === undefined) continue;
-      if (tags.length) s.tags = [...tags];
-      else delete s.tags;
-      delete s.tag;
-    }
-  }
-  return out;
 }
 
 /**
@@ -1143,12 +1079,10 @@ export function prepareGroups(groups: NavGroup[]): NavGroup[] {
 }
 
 /**
- * 默认主页构成（第一百零九轮）：用户 live 布局，seedData（新访客/恢复默认）与
- * 默认预设（data/presets.ts）同源共用——两边逐项一致。
+ * 默认主页构成（第一百零九轮）：用户 live 布局，seedData（新访客/恢复默认）用它。
  * 来源：用户导出的 ainav-data.json live 构成（组、站点、顺序、尺寸、栏位、组合、摞）。
  * 不含：widgetTints / widgetBaseColors（底色属显示偏好，不进预设）、background、tasks/plans、旧 myPreset 快照。
  * 相对种子编组的组级差异只两处：编程工具改列表卡、图像/视频文件夹小角颜色；
- * 其余三套预设仍用种子编组原样（编程工具在程序员预设里仍是文件夹卡），
  * 故这里只对默认构成做覆盖，不动 data/groups.ts 的种子本身。
  */
 export function defaultPresetGroups(): NavGroup[] {
@@ -1227,7 +1161,7 @@ export const DEFAULT_PRESET_WIDGET_STACKS: WidgetStackItem[] = [
 ];
 
 function seedData(): StoreData {
-  return {
+  const data: StoreData = {
     version: 1,
     groups: defaultPresetGroups(),
     widgets: [...DEFAULT_WIDGETS],
@@ -1244,11 +1178,13 @@ function seedData(): StoreData {
     widgetStacks: structuredClone(DEFAULT_PRESET_WIDGET_STACKS),
     widgetTints: {},
     widgetBaseColors: {},
-    // 新装即默认预设的主页（构成与默认预设同源），「我的」尚无存档
-    activePreset: 'default',
+    // 新装即「我的」：种子构成（与原默认预设同源）同时作为「我的」首份存档
+    activePreset: 'my',
     myPreset: null,
     dock: [],
   };
+  data.myPreset = compositionOf(data);
+  return data;
 }
 
 /**
@@ -1426,10 +1362,9 @@ function normalizeGroupsField(raw: unknown): NavGroup[] | null {
 }
 
 /** 当前预设归一化：合法 id 采纳，其余（老存档无此字段等）一律 'my'——既有排版即用户的「我的」 */
-function normalizeActivePreset(raw: unknown): PresetId {
-  return raw === 'my' || (BUILTIN_PRESET_IDS as readonly string[]).includes(raw as string)
-    ? (raw as PresetId)
-    : 'my';
+/** 归一化当前预设（2026-11-26）：内置预设已删，老存档里的任何值都回落到 'my' */
+function normalizeActivePreset(_raw: unknown): PresetId {
+  return 'my';
 }
 
 /** 构成快照归一化（「我的」存档）：逐字段走与主数据相同的归一器；结构非法整体返回 null（视为无存档）。
@@ -1719,11 +1654,6 @@ export function useLocalStore() {
   const [data, setData] = useState<StoreData>(loadInitial);
   const dataRef = useRef(data);
   dataRef.current = data;
-  /* 覆盖「我的」确认（用户 2026-11-04 定）：内置预设期改动先不覆盖存档，等用户
-   * 在提示里点确认才覆盖。ref 供 update()/偏好桥接的 setData 回调内标记（回调须纯净，
-   * 只写 ref 不直接 setState），state 经下方 effect 同步后由 PresetMenu 渲染提示。 */
-  const overwritePendingRef = useRef(false);
-  const [overwriteConfirmOpen, setOverwriteConfirmOpen] = useState(false);
   /* 上一个存档的时间戳（2026-11-08 回退功能）：落盘 effect 里随旧档一起更新，面板按钮据此显示/禁用 */
   const [prevInfo, setPrevInfo] = useState<PrevSnapshotInfo | null>(() => readPrevSnapshotInfo());
   /* Ctrl+Z 撤销栈（2026-11-08 用户令：网页加 ctrl+z 返回上一步）：
@@ -1746,9 +1676,6 @@ export function useLocalStore() {
     redoStackRef.current = [];
     lastUndoJsonRef.current = '';
   }, []);
-  useEffect(() => {
-    if (overwritePendingRef.current) setOverwriteConfirmOpen(true);
-  }, [data]);
   if (lastAppearance === null) lastAppearance = appearanceOf(data, getDisplayPrefs());
 
   /* 落盘前留一步回退点（2026-11-08）：只对“用户改动”留档——新数据时间戳比已落盘的
@@ -1792,8 +1719,6 @@ export function useLocalStore() {
       }
       if (!incoming || incoming.updatedAt <= dataRef.current.updatedAt) return;
       lastAppearance = appearanceOf(incoming, getDisplayPrefs());
-      overwritePendingRef.current = false;
-      setOverwriteConfirmOpen(false);
       clearUndoStacks();
       setData(incoming);
     };
@@ -1802,10 +1727,8 @@ export function useLocalStore() {
   }, []);
 
   /* 显示偏好订阅桥接（第一百一十一轮）：偏好改动同样走自动保存语义——
-   * 内置预设期翻为 'my' 并刷新快照，本来就在 'my' 时同样刷新快照；
-   * 与基线相等（点已激活项、无实际变化）不触发；计划内容不走此通道，永不触发。
-   * 2026-11-04 起内置预设期同样先弹确认：外观改动只改当前排版，不动存档，
-   * 点确认才覆盖（与 update() 同一提示、同一确认入口）。 */
+   * 恒为 'my'（内置预设已删，2026-11-26），改动即刷新「我的」存档；
+   * 与基线相等（点已激活项、无实际变化）不触发；计划内容不走此通道，永不触发。 */
   useEffect(() => {
     return subscribeDisplayPrefs((prefs) => {
       if (suppressAppearanceFlip || !lastAppearance) return;
@@ -1820,13 +1743,8 @@ export function useLocalStore() {
       lastAppearance = nextAppearance;
       setData((prev) => {
         const next = structuredClone(prev);
-        if (prev.activePreset === 'my' || !prev.myPreset) {
-          next.activePreset = 'my';
-          next.myPreset = structuredClone(compositionOf(next));
-          overwritePendingRef.current = false;
-        } else {
-          overwritePendingRef.current = true;
-        }
+        next.activePreset = 'my';
+        next.myPreset = structuredClone(compositionOf(next));
         next.updatedAt = Date.now();
         return next;
       });
@@ -1845,28 +1763,13 @@ export function useLocalStore() {
       next.updatedAt = Date.now();
       /* 预设状态机（第一百零六轮建、第一百零九轮改语义：预设一有变化自动变「我的」，
        * 并且自动保存「我的」；第一百一十一轮起外观同样触发）：任一经 update() 的构成
-       * 或外观变更（增删改编组/站点、改尺寸、拖拽排序、合并/拆分、换背景等）都立即翻为
-       * 'my' 并把当前构成存进 myPreset——本来就在 'my' 时同样刷新快照，
-       * 「我的」恒等于当前排版。显示偏好不走 update()，由订阅桥接进同一逻辑。
-       * 2026-11-04 起例外（用户定）：当前在内置预设上、且 myPreset 存档存在时，
-       * 改动只改当前排版，不翻 'my'、不动存档，并挂起覆盖确认；用户点确认后
-       * confirmMyPresetOverwrite 才把当前构成存进 myPreset 并翻为 'my'，
-       * 点取消则本次改动留在当前内置预设上、存档原样不动。
-       * 计划内容不改指纹，不触发。静默写回（栏锚点补写/迁移、底色补抽走 setData 直写）
-       * 不经此处，不会误翻误存。 */
+       * 或外观变更（增删改编组/站点、改尺寸、拖拽排序、合并/拆分、换背景等）都立即
+       * 刷新「我的」存档——「我的」恒等于当前排版。2026-11-26 起内置预设已删，
+       * 恒为 'my'，原内置预设期弹确认的覆盖流程随之退役。计划内容不改指纹，不触发。
+       * 静默写回（栏锚点补写/迁移、底色补抽走 setData 直写）不经此处，不会误翻误存。 */
       if (compositionFingerprint(next) !== compositionFingerprint(prev)) {
-        if (prev.activePreset === 'my' || !prev.myPreset) {
-          next.activePreset = 'my';
-          next.myPreset = structuredClone(compositionOf(next));
-          overwritePendingRef.current = false;
-        } else if (isTagsOnlyChange(prev, next)) {
-          // 只改标签：标签是站点元数据、不动排版，直接按网址并进“我的”存档——
-          // 不弹覆盖确认（2026-11-04 的确认只拦排版覆盖），也不切走当前内置预设
-          next.myPreset = mergeChangedTagsIntoSnapshot(prev.myPreset, prev, next);
-          overwritePendingRef.current = false;
-        } else {
-          overwritePendingRef.current = true;
-        }
+        next.activePreset = 'my';
+        next.myPreset = structuredClone(compositionOf(next));
       }
       lastAppearance = appearanceOf(next, getDisplayPrefs());
       return next;
@@ -3243,26 +3146,6 @@ export function useLocalStore() {
     [update],
   );
 
-  /* 覆盖「我的」确认的确认/取消（2026-11-04）：确认按点确认那一刻的当前排版
-   * 存档并翻为 'my'（含提示打开期间又做的改动）；取消只关提示，当前排版与
-   * 存档都不动，下一次内置预设期改动会再次提示。 */
-  const confirmMyPresetOverwrite = useCallback(() => {
-    overwritePendingRef.current = false;
-    setOverwriteConfirmOpen(false);
-    setData((prev) => {
-      const next = structuredClone(prev);
-      next.myPreset = structuredClone(compositionOf(next));
-      next.activePreset = 'my';
-      next.updatedAt = Date.now();
-      return next;
-    });
-  }, []);
-
-  const cancelMyPresetOverwrite = useCallback(() => {
-    overwritePendingRef.current = false;
-    setOverwriteConfirmOpen(false);
-  }, []);
-
   /* Dock 栏（2026-11-04）：只改 dock 引用数组，不走 update()——不翻预设、不刷新
    * 「我的」存档、不触发覆盖确认；updatedAt 照常刷新以便同步/导出带走 Dock。
    * 拖入已在 Dock 里的站点 = 无操作（不重复、不改位置）；主页编组与站点一概不动。 */
@@ -3321,8 +3204,6 @@ export function useLocalStore() {
     // 手动导入文件是用户明确操作：导入的即最新，刷新时间戳，同步按它为准（随后自动推上云）；
     // 同步拉取（applyRemote / 计划栏）绝不能刷新——拉取后时间戳须与云端基准对齐，否则每次拉取都会触发回推。
     if (opts?.refreshTimestamp) validated.updatedAt = Date.now();
-    overwritePendingRef.current = false;
-    setOverwriteConfirmOpen(false);
     // 手动导入可撤销（当前态推进栈）；同步拉取则清空栈、云端作新基线
     if (opts?.refreshTimestamp) pushUndoSnapshot(dataRef.current);
     else clearUndoStacks();
@@ -3331,8 +3212,6 @@ export function useLocalStore() {
   }, []);
 
   const resetData = useCallback(() => {
-    overwritePendingRef.current = false;
-    setOverwriteConfirmOpen(false);
     pushUndoSnapshot(dataRef.current);
     setData(seedData());
     // 恢复默认回到雾光 + 当前偏好：基线同步跟上，否则下一次偏好比对会拿旧外观作基准
@@ -3357,8 +3236,6 @@ export function useLocalStore() {
     if (!prev) return null;
     const prevUpdatedAt = prev.updatedAt;
     prev.updatedAt = Date.now();
-    overwritePendingRef.current = false;
-    setOverwriteConfirmOpen(false);
     pushUndoSnapshot(dataRef.current);
     setData(prev);
     // 外观基线同步跟上（与 resetData 同口径），否则下一次偏好比对会拿旧外观作基准
@@ -3374,8 +3251,6 @@ export function useLocalStore() {
     if (!snapshot) return false;
     redoStackRef.current.push(structuredClone(dataRef.current));
     if (redoStackRef.current.length > UNDO_LIMIT) redoStackRef.current.shift();
-    overwritePendingRef.current = false;
-    setOverwriteConfirmOpen(false);
     const restored = structuredClone(snapshot);
     restored.updatedAt = Date.now();
     setData(restored);
@@ -3388,8 +3263,6 @@ export function useLocalStore() {
     if (!snapshot) return false;
     undoStackRef.current.push(structuredClone(dataRef.current));
     if (undoStackRef.current.length > UNDO_LIMIT) undoStackRef.current.shift();
-    overwritePendingRef.current = false;
-    setOverwriteConfirmOpen(false);
     const restored = structuredClone(snapshot);
     restored.updatedAt = Date.now();
     setData(restored);
@@ -3427,34 +3300,20 @@ export function useLocalStore() {
   }, [undo, redo]);
 
   /**
-   * 应用预设（第一百零六轮建、第一百零九轮改语义、第一百一十一轮起含外观）：
-   * 一键把整套主页构成 + 外观换成目标快照，计划数据（tasks/plans）一概不动。状态机：
-   * - 切到内置预设（须传该预设的构成快照）：若当前是自定义态（activePreset='my'），
-   *   先把当前构成存进 myPreset（第一百零九轮起 update() 已在每次改动时自动存过，
-   *   此处只是兜底、内容一致）；若当前已在某个内置预设上，直接换、不覆盖存档。
-   * - 切到「我的」：恢复 myPreset 存档（含外观）；存档为空（null）时无操作。
+   * 应用预设（第一百零六轮建、第一百零九轮改语义、第一百一十一轮起含外观；
+   * 2026-11-26 起只剩「我的」）：一键把整套主页构成 + 外观换回「我的」存档，
+   * 计划数据（tasks/plans）一概不动。存档为空（null）时无操作。
    * 直写 setData（不经 update）：应用本身不是「改动构成」，不能被状态机误翻为自定义；
    * 显示偏好经独立通道写（抑制订阅桥接，应用不被误判为外观改动），基线同步为快照外观。
    * 本地图片背景不进预设：应用预设一律回到预设背景（图片本体仍在 IndexedDB）。
    */
-  const applyPreset = useCallback((presetId: PresetId, snapshot?: CompositionSnapshot) => {
-    overwritePendingRef.current = false;
-    setOverwriteConfirmOpen(false);
+  const applyPreset = useCallback((presetId: PresetId) => {
     const prev = dataRef.current;
-    let snap: CompositionSnapshot | null = null;
-    if (presetId === 'my') {
-      if (!prev.myPreset) return;
-      snap = structuredClone(prev.myPreset);
-    } else {
-      if (!snapshot) return;
-      snap = structuredClone(snapshot);
-    }
-    const savedMy =
-      presetId !== 'my' && prev.activePreset === 'my' ? structuredClone(compositionOf(prev)) : null;
+    if (presetId !== 'my' || !prev.myPreset) return;
+    const snap = structuredClone(prev.myPreset);
     pushUndoSnapshot(prev);
     setData((prevData) => {
       const next = structuredClone(prevData);
-      if (savedMy) next.myPreset = savedMy;
       next.groups = snap.groups;
       next.widgets = snap.widgets;
       next.widgetLayouts = snap.widgetLayouts;
@@ -3466,7 +3325,7 @@ export function useLocalStore() {
       next.cardFaceStyles = snap.cardFaceStyles;
       next.widgetTints = snap.widgetTints;
       next.background = { kind: 'preset', presetId: snap.appearance.background.presetId };
-      next.activePreset = presetId;
+      next.activePreset = 'my';
       next.updatedAt = Date.now();
       return next;
     });
@@ -3558,9 +3417,6 @@ export function useLocalStore() {
     undo,
     redo,
     applyPreset,
-    myPresetOverwritePending: overwriteConfirmOpen,
-    confirmMyPresetOverwrite,
-    cancelMyPresetOverwrite,
     addDockSite,
     removeDockSite,
     setDockOrder,

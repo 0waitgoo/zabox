@@ -1,6 +1,6 @@
 import React, { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { AnimatePresence, motion } from 'motion/react';
-import { LayoutGrid, FolderPlus, X, Check, List, Folder, Unlink, LogOut, Trash2, Palette, ChevronDown, Clapperboard, Code, Tv, ShoppingBag, Sparkles, type LucideIcon } from 'lucide-react';
+import { LayoutGrid, FolderPlus, X, Check, List, Folder, Unlink, LogOut, Trash2, Palette, ChevronDown, Clapperboard, Code, Tv, ShoppingBag, Wrench, Sparkles, type LucideIcon } from 'lucide-react';
 import { GROUP_NAME_MAX, TAB_GROUP_NAME, clampGroupName, textCharCount, type GroupDisplay, type NavGroup } from '../../data/groups';
 import { QUICK_GROUPS } from '../../data/quickGroups';
 import QuickGroupPanel from './QuickGroupPanel';
@@ -69,6 +69,7 @@ const QUICK_GROUP_ICONS: Record<string, LucideIcon> = {
   design: Code,
   entertainment: Tv,
   shopping: ShoppingBag,
+  tools: Wrench,
 };
 
 /** 向上查找最近的可滚动祖先（拖拽到边缘时自动滚动用） */

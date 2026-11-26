@@ -1,3 +1,5 @@
+<p align="center"><img src="docs/images/logo.png" alt="杂盒 ZaBox" width="180"></p>
+
 # 杂盒 ZaBox
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE)

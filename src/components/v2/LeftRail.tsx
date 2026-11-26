@@ -7,8 +7,9 @@ import DataMenu from './DataMenu';
 
 /**
  * 左上悬浮图标组（2026-11-05 用户令，截图红线定位置，取代上一版左侧竖向居中毛玻璃栏；
- * 2026-11-05 01:50 用户改定：一行排、不分 3 行）：
- * 不要任何底框/背景容器，图标直接浮在背景上，固定在左上角，一行横排：
+ * 2026-11-05 01:50 用户改定：一行排、不分 3 行；
+ * 2026-11-26 用户令：整组移到上面中间居中对齐，left-6 改为水平居中）：
+ * 不要任何底框/背景容器，图标直接浮在背景上，固定在顶部中间，一行横排：
  * LOGO、导航页（指南针）、预设（面板内含「外观」节，用户称之为外观）、CN / EN 切换、
  * 下载、「数据」。顺序与每个图标的功能不变，点 LOGO 仍回主页；搜索/AI 整理栏留在
  * 顶部原位（已居中）。随滚动一直可见，不占页面布局。
@@ -51,7 +52,7 @@ export default function LeftRail({
   showExtras: boolean;
 }) {
   return (
-    <div data-left-rail className="fixed left-6 top-6 z-40 flex items-center gap-1.5 select-none">
+    <div data-left-rail className="fixed left-1/2 -translate-x-1/2 top-6 z-40 flex items-center gap-1.5 select-none">
       <TopLogo onClick={() => onNavigate('home')} />
       <TopNavIcons onPageChange={onNavigate} currentPage={currentPage} presetsNode={<PresetMenu store={store} onNavigate={onNavigate} />} />
       <LangToggle />

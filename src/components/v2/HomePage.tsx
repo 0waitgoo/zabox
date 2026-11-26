@@ -1513,25 +1513,17 @@ export default function HomePage({ onNavigate, store }: { onNavigate: (page: str
     'w-full h-full rounded-[26px] border border-dashed border-white/15 text-white/45 hover:text-white/85 hover:border-white/35 transition-colors flex flex-col items-center justify-center gap-1.5 text-xs';
 
   return (
-    <div
-      // 2026-11-23 用户令：搜索框按红框位置居中对齐——顶留白收小，让搜索框落到
-      // 顶部空区的正中（约 22% 屏高），不再贴着卡片。手机 16vh / 平板 18vh / 桌面 20vh。
-      // 注：2026-11-22「到顶到底」撤掉的小 pt 已被本留白取代，不是回到旧值；滚动后内容仍可贴底。
-      className="flex flex-col pt-[16vh] sm:pt-[18vh] lg:pt-[20vh]"
-      onContextMenu={handleBlankContextMenu}
-    >
-      {/* LOGO 组居中固定置顶（2026-11-26 用户令：顶栏 LOGO 组移到上面中间居中对齐；
+    <>
+      {/* LOGO 组居中（2026-11-26 用户令：顶栏 LOGO 组移到上面中间居中对齐；
           2026-11-26 晚用户令：窄屏下下载与「数据」也收到这一行，顶栏只剩搜索；
-          2026-11-26 晚用户令：这一行置顶，始终贴在视口顶部不走；
-          2026-11-26 晚用户反馈：sticky 只在滚过它之后才贴顶，窗口模式下它不在最上面、
-          且与宽屏 LeftRail 位置不一致，改成 fixed 与 LeftRail 同款定位 top-6 居中；
-          底框（小胶囊 bg-black/30）用户明确不要，已去掉，与 LeftRail 一致）：
-          LOGO、预设入口、CN/EN、下载、「数据」一行居中固定在视口顶部；
-          只在非宽屏时渲染（宽屏由 LeftRail 固定悬浮组接管，同样居中），避免两套同时挂载；
-          fixed 脱离文档流，wrapper 的 pt 留白仍在，搜索行位置不变；
+          2026-11-27 用户反馈：不要 fixed 跟随（往下滚也贴顶）、不要底框、放在上面：
+          回正常文档流，随页面一起滚走；挪到 wrapper 外面作 fragment 首个子元素，
+          只留 pt-6 一点顶部间距，不再被 wrapper 的 pt-[16vh] 留白顶到 16vh 以下；
+          内层无底框（无 rounded-full/bg-black/backdrop-blur），与 LeftRail 一致；
+          只在非宽屏时渲染（宽屏由 LeftRail 固定悬浮组接管），避免两套同时挂载；
           z-50 保持在最上，预设弹窗不被顶栏盖住 */}
       {!wideRail && (
-        <div className="fixed left-1/2 top-6 z-50 -translate-x-1/2">
+        <div className="relative z-50 flex justify-center pt-6 pb-2">
           <div className="flex items-center gap-2">
             <TopLogo onClick={() => onNavigate('home')} />
             <TopNav onPageChange={onNavigate} currentPage="home" presetsNode={<PresetMenu store={store} onNavigate={onNavigate} />} />
@@ -1540,6 +1532,13 @@ export default function HomePage({ onNavigate, store }: { onNavigate: (page: str
           </div>
         </div>
       )}
+      <div
+      // 2026-11-23 用户令：搜索框按红框位置居中对齐——顶留白收小，让搜索框落到
+      // 顶部空区的正中（约 22% 屏高），不再贴着卡片。手机 16vh / 平板 18vh / 桌面 20vh。
+      // 注：2026-11-22「到顶到底」撤掉的小 pt 已被本留白取代，不是回到旧值；滚动后内容仍可贴底。
+      className="flex flex-col pt-[16vh] sm:pt-[18vh] lg:pt-[20vh]"
+      onContextMenu={handleBlankContextMenu}
+    >
       {/* 顶栏（一行对齐）：与下方卡片网格同款 4 栏 grid——左半 2 栏放页面导航图标组（靠左），
           右半 2 栏放搜索框 +「数据」入口（算在右半内）；2026-11-04 用户令：本栏不再吸顶，
           随卡片一起上下滚动（顶部毛玻璃遮挡带同轮删除）；relative 保留定位上下文，
@@ -2141,5 +2140,6 @@ export default function HomePage({ onNavigate, store }: { onNavigate: (page: str
       )}
       <DockBar store={store} />
     </div>
+    </>
   );
 }

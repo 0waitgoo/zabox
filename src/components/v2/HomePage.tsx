@@ -1520,16 +1520,19 @@ export default function HomePage({ onNavigate, store }: { onNavigate: (page: str
       className="flex flex-col pt-[16vh] sm:pt-[18vh] lg:pt-[20vh]"
       onContextMenu={handleBlankContextMenu}
     >
-      {/* LOGO 组居中吸顶（2026-11-26 用户令：顶栏 LOGO 组移到上面中间居中对齐；
+      {/* LOGO 组居中固定置顶（2026-11-26 用户令：顶栏 LOGO 组移到上面中间居中对齐；
           2026-11-26 晚用户令：窄屏下下载与「数据」也收到这一行，顶栏只剩搜索；
-          2026-11-26 晚用户令：这一行置顶吸顶，往下滚时贴住视口顶部不走）：
-          LOGO、预设入口、CN/EN、下载、「数据」一行居中放在内容最上方；
+          2026-11-26 晚用户令：这一行置顶，始终贴在视口顶部不走；
+          2026-11-26 晚用户反馈：sticky 只在滚过它之后才贴顶，窗口模式下它不在最上面、
+          且与宽屏 LeftRail 位置不一致，改成 fixed 与 LeftRail 同款定位 top-6 居中；
+          底框（小胶囊 bg-black/30）用户明确不要，已去掉，与 LeftRail 一致）：
+          LOGO、预设入口、CN/EN、下载、「数据」一行居中固定在视口顶部；
           只在非宽屏时渲染（宽屏由 LeftRail 固定悬浮组接管，同样居中），避免两套同时挂载；
-          sticky 相对 App 滚动区（flex-1 overflow-y-auto）生效；内层小胶囊半透明黑底＋毛玻璃，
-          卡片从底下滚过时仍能看清；z-50 保持在最上，预设弹窗不被顶栏盖住 */}
+          fixed 脱离文档流，wrapper 的 pt 留白仍在，搜索行位置不变；
+          z-50 保持在最上，预设弹窗不被顶栏盖住 */}
       {!wideRail && (
-        <div className="sticky top-0 z-50 flex justify-center pb-2">
-          <div className="flex items-center gap-2 rounded-full bg-black/30 px-3 py-1 backdrop-blur-md">
+        <div className="fixed left-1/2 top-6 z-50 -translate-x-1/2">
+          <div className="flex items-center gap-2">
             <TopLogo onClick={() => onNavigate('home')} />
             <TopNav onPageChange={onNavigate} currentPage="home" presetsNode={<PresetMenu store={store} onNavigate={onNavigate} />} />
             <PwaInstallButton />

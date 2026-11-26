@@ -1,5 +1,6 @@
 import React, { useEffect, useRef, useState } from 'react';
-import { Check, Compass, LayoutTemplate, Palette, User } from 'lucide-react';
+import { Check, Compass, LayoutTemplate, Palette, Plus, User } from 'lucide-react';
+import { MAX_CUSTOM_PRESETS } from '../../store/localStore';
 import { AnimatePresence, motion } from 'motion/react';
 import type { LocalStore } from '../../store/localStore';
 import { useLang } from '../../i18n/useLang';
@@ -16,6 +17,9 @@ import AppearanceSection from './AppearanceSection';
  * 2026-11-26 用户令：顶栏罗盘（AI 导航）图标收进本弹窗（顶部 AI 导航入口，
  * 点后跳 nav 页）；顶栏只剩本图标。另修：动画 animate 透明度曾被大清理误写
  * 为 0 致面板全程不可见（2026-11-26 晚实测确认），已改回 1。
+ * 2026-11-26 自定义预设（用户令）：网格加虚线框 + 号瓷砖新建预设，每人最多 4 个
+ * （满 4 个时 + 号隐藏，网格正好 6 格＝2 行）；自定义预设是新建时拍下的固定快照，
+ * 点按应用、右键删除；建/删不走 update，不翻「我的」存档。
  * 面板形态与原 BackgroundMenu 同款：无底色图标触发 + 实色浮层 + 点外关闭。
  */
 export default function PresetMenu({ store, onNavigate }: { store: LocalStore; onNavigate: (page: string) => void }) {
@@ -128,6 +132,38 @@ export default function PresetMenu({ store, onNavigate }: { store: LocalStore; o
                 <Compass size={18} className="text-white/70" />
                 <span className="text-[10px] leading-none text-white/45">{t('topbar.navAi')}</span>
               </button>
+              {/* 自定义预设（2026-11-26 用户令）：新建时拍下的固定快照，点按应用并关面板；
+                  当前激活的显示蓝勾；右键删（确认框）。顺序：我的、AI 导航、自定义（按创建时间）、+ 号 */}
+              {store.data.customPresets.map((p) => (
+                <button
+                  key={p.id}
+                  data-custom-preset={p.id}
+                  title={p.name}
+                  onClick={() => { store.applyCustomPreset(p.id); setOpen(false); }}
+                  onContextMenu={(e) => {
+                    e.preventDefault();
+                    if (window.confirm(t('preset.deleteConfirm'))) store.deleteCustomPreset(p.id);
+                  }}
+                  className={tileClass(activePreset === p.id)}
+                >
+                  <LayoutTemplate size={18} className="text-white/70" />
+                  <span className="text-[10px] leading-none text-white/45">{p.name || t('preset.customDefault')}</span>
+                  {activePreset === p.id && tileCheck}
+                </button>
+              ))}
+              {/* + 号新建（2026-11-26 用户令）：虚线框，点按以当前排版新建一个预设快照；
+                  满 4 个时不渲染（网格正好 6 格＝2 行） */}
+              {store.data.customPresets.length < MAX_CUSTOM_PRESETS && (
+                <button
+                  data-add-preset
+                  title={t('preset.createCustom')}
+                  onClick={() => { store.createCustomPreset(); }}
+                  className="relative flex flex-col items-center justify-center gap-0.5 h-12 rounded-xl border border-dashed border-white/25 text-white/55 hover:border-white/50 hover:text-white/80 hover:bg-white/[0.04] transition-all"
+                >
+                  <Plus size={18} />
+                  <span className="text-[10px] leading-none">{t('preset.createCustom')}</span>
+                </button>
+              )}
             </div>
             <p className="px-3 pt-1.5 text-[10px] text-white/35">
               {t('preset.planNote')}

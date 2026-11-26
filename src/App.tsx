@@ -202,7 +202,7 @@ export default function App() {
                   {!wideRail && (
                     <div className="col-span-1 lg:col-span-2 flex items-center justify-start gap-2 min-w-0">
                       <TopLogo onClick={() => handlePageChange('home')} />
-                      <TopNav onPageChange={handlePageChange} currentPage={currentPage} presetsNode={<PresetMenu store={store} />} />
+                      <TopNav onPageChange={handlePageChange} currentPage={currentPage} presetsNode={<PresetMenu store={store} onNavigate={handlePageChange} />} />
                     </div>
                   )}
                   <div className="col-span-1 lg:col-span-2" />

@@ -1,5 +1,4 @@
 import React from 'react';
-import { Compass } from 'lucide-react';
 import { useLang, setLang } from '../i18n/useLang';
 import type { Lang } from '../i18n/strings';
 
@@ -67,12 +66,11 @@ export function TopLogo({ onClick }: { onClick: () => void }) {
  * 主页上没有任何导航钮高亮是预期结果，子页面上当前页图标仍照常纯白高亮。
  */
 /**
- * 导航图标行（指南针＋预设入口）：TopNav 与左上悬浮栏第 1 行共用同一组，
- * 顺序与行为一致，调用方自行决定它与中英切换的排布（横排一行 / 分行）。
+ * 导航图标行（2026-11-26 用户令：罗盘/AI 导航图标收进预设弹窗，此处只剩预设入口）：
+ * TopNav 与左上悬浮栏第 1 行共用同一组，调用方自行决定它与中英切换的排布（横排一行 / 分行）。
+ * onPageChange/currentPage 已无图标使用，保留签名以免调用方改动（TopNav/LeftRail 仍传）。
  */
 export function TopNavIcons({
-  onPageChange,
-  currentPage,
   presetsNode,
 }: {
   onPageChange: (page: string) => void;
@@ -81,15 +79,8 @@ export function TopNavIcons({
    * 注入 <PresetMenu store={store} />；文件工具卡与商店入口不受影响，仍在主页上 */
   presetsNode?: React.ReactNode;
 }) {
-  const { t } = useLang();
   return (
     <>
-      <NavItem
-        icon={<Compass size={20} />}
-        label={t('topbar.navAi')}
-        active={currentPage === 'nav'}
-        onClick={() => onPageChange('nav')}
-      />
       {presetsNode}
     </>
   );

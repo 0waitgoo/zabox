@@ -1520,6 +1520,17 @@ export default function HomePage({ onNavigate, store }: { onNavigate: (page: str
       className="flex flex-col pt-[16vh] sm:pt-[18vh] lg:pt-[20vh]"
       onContextMenu={handleBlankContextMenu}
     >
+      {/* LOGO 组居中置顶（2026-11-26 用户令：顶栏 LOGO 组移到上面中间居中对齐）：
+          LOGO、预设入口、CN/EN 一行居中放在内容最上方（快速组按钮行之上），取代原顶栏左组；
+          只在非宽屏时渲染（宽屏由 LeftRail 固定悬浮组接管，同样居中），避免两套同时挂载 */}
+      {!wideRail && (
+        <div className="relative z-50 flex justify-center pb-2">
+          <div className="flex items-center gap-2">
+            <TopLogo onClick={() => onNavigate('home')} />
+            <TopNav onPageChange={onNavigate} currentPage="home" presetsNode={<PresetMenu store={store} onNavigate={onNavigate} />} />
+          </div>
+        </div>
+      )}
       {/* 快速组（2026-11-26 用户令）：顶部一排不显眼的小药丸按钮，点开展开搜集面板；
           按钮行在顶栏上方居中（wrapper 的 pt 留白区下方、顶栏正上方），不遮搜索框与顶栏按钮；
           面板挂在按钮行下方（QuickGroupPanel，absolute、无遮罩），拖拽可直达底下的组卡 */}
@@ -1577,18 +1588,9 @@ export default function HomePage({ onNavigate, store }: { onNavigate: (page: str
             （390px 时 177px）装不下、工具钮会被搜索框盖住一半无法点。移动端改左列按内容宽、
             右列吃剩余（搜索框可缩），lg 起仍是原 4 栏等分、左组位置与桌面完全一致 */}
         <div className="grid grid-cols-[auto_minmax(0,1fr)] lg:grid-cols-4 gap-3 sm:gap-4 items-center">
-          {!wideRail && (
-            <div className="col-span-1 lg:col-span-2 flex items-center justify-start gap-2 min-w-0">
-              <TopLogo onClick={() => onNavigate('home')} />
-              <TopNav onPageChange={onNavigate} currentPage="home" presetsNode={<PresetMenu store={store} onNavigate={onNavigate} />} />
-            </div>
-          )}
-          {/* 一栏两模式（2026-10-30）：搜索与 AI 整理共用一栏，分段开关切换，平时只显示一栏。
-              <lg 时本格自动落到第二行占满宽（左组只占 1 栏、剩 1 栏装不下 col-span-2），
-              避免开关 + 搜索框在窄屏被挤到 0 宽；lg 起恢复左右两半一行。
-              宽屏悬浮栏接管时左组不渲染，搜索格定在第 2 栏起、占中间两栏左右居中
-              （2026-11-05 用户令：搜索栏放中间） */}
-          <div className={`col-span-2 lg:col-span-2 flex items-center gap-2 min-w-0 ${wideRail ? 'lg:col-start-2' : ''}`}>
+          {/* LOGO 组已移到内容最上方居中行（2026-11-26 用户令），顶栏只剩搜索组；
+              搜索格定在第 2 栏起、占中间两栏左右居中（原只宽屏如此，现 LOGO 组既已移出、窄屏亦然） */}
+          <div className="col-span-2 lg:col-span-2 lg:col-start-2 flex items-center gap-2 min-w-0">
             {/* 一栏两模式（2026-10-30）：搜索与 AI 整理共用一栏，分段开关切换，平时只显示一栏 */}
             <UnifiedSearchAiBar groups={groups} onOpenGroup={openGroupFromSearch} store={store} />
             {!wideRail && (

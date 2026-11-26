@@ -1,5 +1,5 @@
 import React, { useEffect, useRef, useState } from 'react';
-import { Check, LayoutTemplate, Palette, User } from 'lucide-react';
+import { Check, Compass, LayoutTemplate, Palette, User } from 'lucide-react';
 import { AnimatePresence, motion } from 'motion/react';
 import type { LocalStore } from '../../store/localStore';
 import { useLang } from '../../i18n/useLang';
@@ -13,9 +13,12 @@ import AppearanceSection from './AppearanceSection';
  * 存档，含外观；改动即自动保存），下方是「外观」节。被删预设的站已按主题
  * 收进主页顶部的快速组（见 data/quickGroups.ts）。内置预设期改动弹确认的
  * 覆盖流程随之退役（只有「我的」，改动直接自动保存，不再提示）。
+ * 2026-11-26 用户令：顶栏罗盘（AI 导航）图标收进本弹窗（顶部 AI 导航入口，
+ * 点后跳 nav 页）；顶栏只剩本图标。另修：动画 animate 透明度曾被大清理误写
+ * 为 0 致面板全程不可见（2026-11-26 晚实测确认），已改回 1。
  * 面板形态与原 BackgroundMenu 同款：无底色图标触发 + 实色浮层 + 点外关闭。
  */
-export default function PresetMenu({ store }: { store: LocalStore }) {
+export default function PresetMenu({ store, onNavigate }: { store: LocalStore; onNavigate: (page: string) => void }) {
   const { t } = useLang();
   const [open, setOpen] = useState(false);
   // 面板横向平移（打开时按按钮位置算）：按钮在顶栏左组第三位，手机上从按钮左缘
@@ -93,7 +96,7 @@ export default function PresetMenu({ store }: { store: LocalStore }) {
         {open && (
           <motion.div
             initial={{ opacity: 0, y: 6 }}
-            animate={{ opacity: 0, y: 0 }}
+            animate={{ opacity: 1, y: 0 }}
             exit={{ opacity: 0, y: 6 }}
             transition={{ duration: 0.15 }}
             /* 面板实色不透明（同 BackgroundMenu 口径）：不用毛玻璃，避免透出后面卡片文字；
@@ -102,6 +105,14 @@ export default function PresetMenu({ store }: { store: LocalStore }) {
             style={{ marginLeft: panelShift }}
           >
             <p className={`px-3 pt-1.5 pb-0.5 ${sectionHeadCls}`}><LayoutTemplate size={11} className="text-white/40" /> {t('preset.heading')}</p>
+            {/* AI 导航（2026-11-26 用户令）：顶栏罗盘图标收进本弹窗，点后跳 AI 网站导航页 */}
+            <button
+              onClick={() => { setOpen(false); onNavigate('nav'); }}
+              className="mx-3 mt-1 mb-0.5 flex w-[calc(100%-24px)] items-center gap-2 rounded-xl border border-white/10 px-3 py-2 text-left text-[13px] text-white/80 transition-colors hover:border-white/30 hover:bg-white/[0.04] hover:text-white"
+            >
+              <Compass size={16} className="text-white/60" />
+              <span>{t('topbar.navAi')}</span>
+            </button>
             <div className="grid grid-cols-3 gap-1.5 px-3 py-1">
               {/* 「我的」：恢复自己的存档（含外观）。无存档时呈禁用态注明「暂无存档」；
                   有存档或正在自定义态时说明：改动即自动保存 */}

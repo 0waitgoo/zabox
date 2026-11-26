@@ -1580,7 +1580,7 @@ export default function HomePage({ onNavigate, store }: { onNavigate: (page: str
           {!wideRail && (
             <div className="col-span-1 lg:col-span-2 flex items-center justify-start gap-2 min-w-0">
               <TopLogo onClick={() => onNavigate('home')} />
-              <TopNav onPageChange={onNavigate} currentPage="home" presetsNode={<PresetMenu store={store} />} />
+              <TopNav onPageChange={onNavigate} currentPage="home" presetsNode={<PresetMenu store={store} onNavigate={onNavigate} />} />
             </div>
           )}
           {/* 一栏两模式（2026-10-30）：搜索与 AI 整理共用一栏，分段开关切换，平时只显示一栏。

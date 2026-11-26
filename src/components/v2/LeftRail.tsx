@@ -53,7 +53,7 @@ export default function LeftRail({
   return (
     <div data-left-rail className="fixed left-6 top-6 z-40 flex items-center gap-1.5 select-none">
       <TopLogo onClick={() => onNavigate('home')} />
-      <TopNavIcons onPageChange={onNavigate} currentPage={currentPage} presetsNode={<PresetMenu store={store} />} />
+      <TopNavIcons onPageChange={onNavigate} currentPage={currentPage} presetsNode={<PresetMenu store={store} onNavigate={onNavigate} />} />
       <LangToggle />
       {showExtras && (
         <>

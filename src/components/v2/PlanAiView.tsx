@@ -3,6 +3,7 @@ import { fetch as tauriFetch } from '@tauri-apps/plugin-http';
 import type { LocalStore } from '../../store/localStore';
 import { useLang } from '../../i18n/useLang';
 import { loadAiConfig } from './planAiConfig';
+import { AI_DAILY_LIMIT, canUseAi, getAiDailyRemaining, recordAiUse } from '../../services/aiDailyLimit';
 import type { PlanTheme } from '../../plan-app';
 
 /**
@@ -69,6 +70,10 @@ export default function PlanAiView({
 
   const generate = async () => {
     if (!hasKey || busy) return;
+    if (!canUseAi()) {
+      setStatus(t('plan.aiStatusDailyLimit'));
+      return;
+    }
     setBusy(true);
     setStatus(t('plan.aiStatusGenerating'));
     setSteps([]);
@@ -122,6 +127,7 @@ export default function PlanAiView({
         return;
       }
       setSteps(parsed);
+      recordAiUse();
       setStatus(t('plan.aiStatusGenerated', { n: parsed.length }));
     } catch (e) {
       const msg = e instanceof Error ? e.message : String(e);
@@ -198,6 +204,9 @@ export default function PlanAiView({
         </button>
         {status && <span className={`text-xs ${faint}`}>{status}</span>}
       </div>
+      <p data-ai-daily-remaining className={`text-[11px] ${faint}`}>
+        {t('plan.aiDailyRemaining', { n: getAiDailyRemaining(), total: AI_DAILY_LIMIT })}
+      </p>
       {steps.length > 0 && (
         <div className="flex flex-col gap-2">
           {steps.map((s, i) => (

@@ -26,6 +26,7 @@ import { scanIconFill, type IconFillHit } from '../../services/iconFill';
 import { mergeTagSuggestion, scanTagFill, type TagFillHit } from '../../services/tagFill';
 import { siteTagBadgeCls } from './GroupExpanded';
 import {
+  AI_DAILY_LIMIT_ERROR,
   buildCategorizeMessages,
   buildCollectMessages,
   buildIconLogoMessages,
@@ -46,6 +47,7 @@ import {
   type SiteAiConfig,
   type SiteAiProvider,
 } from '../../services/siteAi';
+import { AI_DAILY_LIMIT, canUseAi, getAiDailyRemaining } from '../../services/aiDailyLimit';
 
 type Mode = 'categorize' | 'collect' | 'icons' | 'tags';
 type Phase = 'idle' | 'thinking' | 'error' | 'review' | 'done';
@@ -168,6 +170,7 @@ export default function SiteAiAssistant({
     setIconAiFailed(false);
     setIconAiWorking(false);
     const aiCfg = loadSiteAiConfig();
+    const aiSkippedByLimit = siteAiConfigured(aiCfg) && !canUseAi();
     try {
       const res = await scanIconFill(
         store.data.groups,
@@ -176,7 +179,7 @@ export default function SiteAiAssistant({
           if (iconScanRunRef.current === runId) setIconProgress({ done, total });
         },
         {
-          suggestLogos: siteAiConfigured(aiCfg)
+          suggestLogos: siteAiConfigured(aiCfg) && canUseAi()
             ? async (sites) => {
                 const text = await callSiteAi(
                   aiCfg,
@@ -199,6 +202,7 @@ export default function SiteAiAssistant({
       setIconAiFailed(res.aiFailed);
       setIconAiWorking(false);
       setIconProgress({ done: res.scanned, total: res.scanned });
+      if (aiSkippedByLimit) setStatus(t('ai.dailyLimitReached'));
       setPhase('review');
     } catch {
       if (iconScanRunRef.current !== runId) return;
@@ -235,6 +239,7 @@ export default function SiteAiAssistant({
     setTagAiFailed(false);
     setTagAiWorking(false);
     const aiCfg = loadSiteAiConfig();
+    const tagAiSkippedByLimit = siteAiConfigured(aiCfg) && !canUseAi();
     try {
       const res = scanTagFill(store.data.groups);
       if (tagScanRunRef.current !== runId) return;
@@ -242,7 +247,7 @@ export default function SiteAiAssistant({
       setTagAlreadyFull(res.alreadyFull);
       const hits: TagFillHit[] = [...res.hits];
       let noSuggestion = res.noSuggestion;
-      if (siteAiConfigured(aiCfg) && res.noSuggestion.length > 0) {
+      if (siteAiConfigured(aiCfg) && canUseAi() && res.noSuggestion.length > 0) {
         setTagAiWorking(true);
         try {
           const text = await callSiteAi(
@@ -270,9 +275,13 @@ export default function SiteAiAssistant({
             } else still.push(s);
           }
           noSuggestion = still;
-        } catch {
+        } catch (e) {
           if (tagScanRunRef.current !== runId) return;
-          setTagAiFailed(true);
+          if (e instanceof Error && e.message === AI_DAILY_LIMIT_ERROR) {
+            setStatus(t('ai.dailyLimitReached'));
+          } else {
+            setTagAiFailed(true);
+          }
         } finally {
           if (tagScanRunRef.current === runId) setTagAiWorking(false);
         }
@@ -281,6 +290,7 @@ export default function SiteAiAssistant({
       setTagHits(hits);
       setCheckedTagHitIds(new Set(hits.map((h) => h.siteId)));
       setTagNoSuggestion(noSuggestion.length);
+      if (tagAiSkippedByLimit) setStatus(t('ai.dailyLimitReached'));
       setPhase('review');
     } catch {
       if (tagScanRunRef.current !== runId) return;
@@ -315,6 +325,11 @@ export default function SiteAiAssistant({
     if (!siteAiConfigured(current)) {
       setView('settings');
       setStatus('先填好服务商与口令（只存本机）');
+      return;
+    }
+    if (!canUseAi()) {
+      setPhase('error');
+      setStatus(t('ai.dailyLimitReached'));
       return;
     }
     const controller = new AbortController();
@@ -359,6 +374,11 @@ export default function SiteAiAssistant({
         setStatus('已取消');
         return;
       }
+      if (e instanceof Error && e.message === AI_DAILY_LIMIT_ERROR) {
+        setPhase('error');
+        setStatus(t('ai.dailyLimitReached'));
+        return;
+      }
       setPhase('error');
       setStatus(e instanceof Error ? e.message : String(e));
     } finally {
@@ -386,7 +406,7 @@ export default function SiteAiAssistant({
     setTestOk(false);
     setStatus('正在测试连接…');
     try {
-      await callSiteAi(cfg, [{ role: 'user', content: '请只回一个字：好' }]);
+      await callSiteAi(cfg, [{ role: 'user', content: '请只回一个字：好' }], undefined, { countUsage: false });
       setTestOk(true);
       setStatus('连接正常，可以开始用了');
     } catch (e) {
@@ -607,6 +627,10 @@ export default function SiteAiAssistant({
               </div>
 
               <div className="flex-1 overflow-y-auto px-4 pb-4 min-h-0 bg-[#17171d]">
+                {/* 今日 AI 剩余次数（每日限额 10 次，只存本机）：面板打开即显示，动作成功后随重渲染刷新 */}
+                <p data-ai-daily-remaining className="text-[11px] text-white/40 pt-1 pb-2">
+                  {t('ai.dailyRemaining', { n: getAiDailyRemaining(), total: AI_DAILY_LIMIT })}
+                </p>
                 {view === 'settings' ? (
                   <div className="flex flex-col gap-3">
                     <p className="text-[11px] text-white/45 leading-relaxed">
@@ -748,7 +772,7 @@ export default function SiteAiAssistant({
                     {mode === 'tags' && (
                       <p className="text-[11px] text-white/45 leading-relaxed">{t('ai.tagNote')}</p>
                     )}
-                    {status && phase !== 'done' && <p className="text-[11px] text-white/50">{status}</p>}
+                    {status && phase !== 'done' && !(phase === 'error' && mode !== 'icons' && mode !== 'tags') && <p className="text-[11px] text-white/50">{status}</p>}
                     {phase === 'thinking' && mode === 'icons' && iconProgress && (
                       <p className="text-[11px] text-indigo-300">
                         {iconAiWorking
@@ -783,9 +807,11 @@ export default function SiteAiAssistant({
                     {phase === 'error' && mode !== 'icons' && mode !== 'tags' && (
                       <div className="rounded-xl bg-red-500/10 border border-red-400/30 px-3 py-2">
                         <p className="text-xs text-red-200">{status}</p>
-                        <button onClick={run} className={`${btnGhost} mt-2`}>
-                          再试一次
-                        </button>
+                        {status !== t('ai.dailyLimitReached') && (
+                          <button onClick={run} className={`${btnGhost} mt-2`}>
+                            再试一次
+                          </button>
+                        )}
                       </div>
                     )}
 

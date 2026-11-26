@@ -1520,14 +1520,17 @@ export default function HomePage({ onNavigate, store }: { onNavigate: (page: str
       className="flex flex-col pt-[16vh] sm:pt-[18vh] lg:pt-[20vh]"
       onContextMenu={handleBlankContextMenu}
     >
-      {/* LOGO 组居中置顶（2026-11-26 用户令：顶栏 LOGO 组移到上面中间居中对齐）：
-          LOGO、预设入口、CN/EN 一行居中放在内容最上方（快速组按钮行之上），取代原顶栏左组；
+      {/* LOGO 组居中置顶（2026-11-26 用户令：顶栏 LOGO 组移到上面中间居中对齐；
+          2026-11-26 晚用户令：窄屏下下载与「数据」也收到这一行，顶栏只剩搜索）：
+          LOGO、预设入口、CN/EN、下载、「数据」一行居中放在内容最上方（快速组按钮行之上）；
           只在非宽屏时渲染（宽屏由 LeftRail 固定悬浮组接管，同样居中），避免两套同时挂载 */}
       {!wideRail && (
         <div className="relative z-50 flex justify-center pb-2">
           <div className="flex items-center gap-2">
             <TopLogo onClick={() => onNavigate('home')} />
             <TopNav onPageChange={onNavigate} currentPage="home" presetsNode={<PresetMenu store={store} onNavigate={onNavigate} />} />
+            <PwaInstallButton />
+            <DataMenu store={store} />
           </div>
         </div>
       )}
@@ -1589,16 +1592,11 @@ export default function HomePage({ onNavigate, store }: { onNavigate: (page: str
             右列吃剩余（搜索框可缩），lg 起仍是原 4 栏等分、左组位置与桌面完全一致 */}
         <div className="grid grid-cols-[auto_minmax(0,1fr)] lg:grid-cols-4 gap-3 sm:gap-4 items-center">
           {/* LOGO 组已移到内容最上方居中行（2026-11-26 用户令），顶栏只剩搜索组；
-              搜索格定在第 2 栏起、占中间两栏左右居中（原只宽屏如此，现 LOGO 组既已移出、窄屏亦然） */}
+              搜索格定在第 2 栏起、占中间两栏左右居中（原只宽屏如此，现 LOGO 组既已移出、窄屏亦然）；
+              下载与「数据」已收到上方 LOGO 行（2026-11-26 晚用户令），此处不再挂 */}
           <div className="col-span-2 lg:col-span-2 lg:col-start-2 flex items-center gap-2 min-w-0">
             {/* 一栏两模式（2026-10-30）：搜索与 AI 整理共用一栏，分段开关切换，平时只显示一栏 */}
             <UnifiedSearchAiBar groups={groups} onOpenGroup={openGroupFromSearch} store={store} />
-            {!wideRail && (
-              <>
-                <PwaInstallButton />
-                <DataMenu store={store} />
-              </>
-            )}
           </div>
         </div>
       </div>

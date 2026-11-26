@@ -105,14 +105,6 @@ export default function PresetMenu({ store, onNavigate }: { store: LocalStore; o
             style={{ marginLeft: panelShift }}
           >
             <p className={`px-3 pt-1.5 pb-0.5 ${sectionHeadCls}`}><LayoutTemplate size={11} className="text-white/40" /> {t('preset.heading')}</p>
-            {/* AI 导航（2026-11-26 用户令）：顶栏罗盘图标收进本弹窗，点后跳 AI 网站导航页 */}
-            <button
-              onClick={() => { setOpen(false); onNavigate('nav'); }}
-              className="mx-3 mt-1 mb-0.5 flex w-[calc(100%-24px)] items-center gap-2 rounded-xl border border-white/10 px-3 py-2 text-left text-[13px] text-white/80 transition-colors hover:border-white/30 hover:bg-white/[0.04] hover:text-white"
-            >
-              <Compass size={16} className="text-white/60" />
-              <span>{t('topbar.navAi')}</span>
-            </button>
             <div className="grid grid-cols-3 gap-1.5 px-3 py-1">
               {/* 「我的」：恢复自己的存档（含外观）。无存档时呈禁用态注明「暂无存档」；
                   有存档或正在自定义态时说明：改动即自动保存 */}
@@ -126,6 +118,15 @@ export default function PresetMenu({ store, onNavigate }: { store: LocalStore; o
                 <User size={18} className="text-white/70" />
                 <span className="text-[10px] leading-none text-white/45">{t('preset.my')}</span>
                 {activePreset === 'my' && tileCheck}
+              </button>
+              {/* AI 导航（2026-11-26 用户令）：顶栏罗盘图标收进本弹窗，与「我的」并列一格，点后跳 AI 网站导航页 */}
+              <button
+                data-ai-nav-tile
+                onClick={() => { setOpen(false); onNavigate('nav'); }}
+                className={tileClass(false)}
+              >
+                <Compass size={18} className="text-white/70" />
+                <span className="text-[10px] leading-none text-white/45">{t('topbar.navAi')}</span>
               </button>
             </div>
             <p className="px-3 pt-1.5 text-[10px] text-white/35">

@@ -856,6 +856,12 @@ export interface StoreData {
    */
   myPreset: CompositionSnapshot | null;
   /**
+   * 自定义预设（2026-11-26 用户令）：用户在外观面板点 + 号新建的预设快照列表，最多 4 个。
+   * 不进构成快照与指纹：建/删预设本身不翻 activePreset、不刷新「我的」存档；
+   * 同步/导出/导入随 store.data 整体走。老数据无此字段时归一化为空数组。
+   */
+  customPresets: CustomPreset[];
+  /**
    * 底部 Dock 栏的引用（2026-11-04 新增）：只存「组 id + 站点 id」，不复制站点数据。
    * 拖网站进 Dock 只追加一条引用，主页编组/站点原样不动——同一网站同时在主页与 Dock 出现；
    * 站点在主页改名/换图标后 Dock 里同步变，删站后 Dock 渲染时自动跳过该引用。
@@ -895,8 +901,22 @@ export function dockSiteSnapshot(site: SiteEntry): DockSiteSnapshot {
 }
 
 /** 当前预设（2026-11-26 预设大清理，用户令）：内置预设（默认/设计师/程序员/
- * 工具/娱乐导航）全部删除，只剩「我的」；老存档里的内置预设 id 一律回落到 'my' */
-export type PresetId = 'my';
+ * 工具/娱乐导航）全部删除，只剩「我的」；老存档里的内置预设 id 一律回落到 'my'。
+ * 2026-11-26 自定义预设（用户令）：放宽到 'my' 或自定义预设 id（string） */
+export type PresetId = 'my' | string;
+
+/** 自定义预设（2026-11-26 用户令）：用户在外观面板点 + 号新建的预设快照。
+ *  与「我的」不同：新建时拍下当前构成的快照，之后不再自动刷新；点按即恢复该快照。
+ *  名字自动取「预设1/2/3/4」按已存在数量顺延；id 用 genId('p') 生成。 */
+export interface CustomPreset {
+  id: string;
+  name: string;
+  snapshot: CompositionSnapshot;
+}
+
+/** 自定义预设上限（2026-11-26 用户令）：每人最多 4 个，面板 2 行正好放下
+ * （我的＋AI 导航＋4 自定义＝6 格） */
+export const MAX_CUSTOM_PRESETS = 4;
 
 /**
  * 主页构成快照（第一百零六轮， 第一百一十一轮起含外观）：预设切换与「我的」存档的统一形态——
@@ -1181,6 +1201,7 @@ function seedData(): StoreData {
     // 新装即「我的」：种子构成（与原默认预设同源）同时作为「我的」首份存档
     activePreset: 'my',
     myPreset: null,
+    customPresets: [],
     dock: [],
   };
   data.myPreset = compositionOf(data);
@@ -1362,9 +1383,29 @@ function normalizeGroupsField(raw: unknown): NavGroup[] | null {
 }
 
 /** 当前预设归一化：合法 id 采纳，其余（老存档无此字段等）一律 'my'——既有排版即用户的「我的」 */
-/** 归一化当前预设（2026-11-26）：内置预设已删，老存档里的任何值都回落到 'my' */
-function normalizeActivePreset(_raw: unknown): PresetId {
+/** 归一化当前预设（2026-11-26）：'my' 或 customPresets 里存在的 id 才采纳，其余回落到 'my' */
+function normalizeActivePreset(raw: unknown, customPresets: CustomPreset[]): PresetId {
+  if (raw === 'my') return 'my';
+  if (typeof raw === 'string' && raw && customPresets.some((p) => p.id === raw)) return raw;
   return 'my';
+}
+
+/** 归一化自定义预设（2026-11-26）：数组、每项 id/name 非空、snapshot 经
+ *  normalizeSnapshot 合法才保留，非法项丢弃，最多留 4 个 */
+function normalizeCustomPresets(raw: unknown, appearanceFallback: PresetAppearance): CustomPreset[] {
+  if (!Array.isArray(raw)) return [];
+  const out: CustomPreset[] = [];
+  for (const item of raw) {
+    if (!item || typeof item !== 'object') continue;
+    const p = item as Partial<CustomPreset>;
+    if (typeof p.id !== 'string' || !p.id) continue;
+    if (typeof p.name !== 'string' || !p.name) continue;
+    const snap = normalizeSnapshot(p.snapshot, appearanceFallback);
+    if (!snap) continue;
+    out.push({ id: p.id, name: p.name, snapshot: snap });
+    if (out.length >= MAX_CUSTOM_PRESETS) break;
+  }
+  return out;
 }
 
 /** 构成快照归一化（「我的」存档）：逐字段走与主数据相同的归一器；结构非法整体返回 null（视为无存档）。
@@ -1454,6 +1495,10 @@ export function validateStoreData(raw: unknown): StoreData | null {
   const cardOrder = Array.isArray(rawOrder) ? (rawOrder.filter((k) => typeof k === 'string') as string[]) : [];
   const background = normalizeBackground((data as { background?: unknown }).background);
   const cardCols = normalizeCardCols((data as { cardCols?: unknown }).cardCols);
+  const customPresets = normalizeCustomPresets(
+    (data as { customPresets?: unknown }).customPresets,
+    fallbackAppearance(background.presetId),
+  );
   return {
     version: 1,
     groups,
@@ -1471,7 +1516,8 @@ export function validateStoreData(raw: unknown): StoreData | null {
     widgetStacks: normalizeWidgetStacks((data as { widgetStacks?: unknown }).widgetStacks, widgets),
     widgetTints: normalizeWidgetTints((data as { widgetTints?: unknown }).widgetTints),
     widgetBaseColors: normalizeWidgetBaseColors((data as { widgetBaseColors?: unknown }).widgetBaseColors),
-    activePreset: normalizeActivePreset((data as { activePreset?: unknown }).activePreset),
+    activePreset: normalizeActivePreset((data as { activePreset?: unknown }).activePreset, customPresets),
+    customPresets,
     // 加载/导入时把现排版的标签补进“我的”快照（只加不删）：救内置预设上补过标签
     // 却没点覆盖确认的那批，下次切预设不再丢
     myPreset: (() => {
@@ -3307,11 +3353,14 @@ export function useLocalStore() {
    * 显示偏好经独立通道写（抑制订阅桥接，应用不被误判为外观改动），基线同步为快照外观。
    * 本地图片背景不进预设：应用预设一律回到预设背景（图片本体仍在 IndexedDB）。
    */
-  const applyPreset = useCallback((presetId: PresetId) => {
-    const prev = dataRef.current;
-    if (presetId !== 'my' || !prev.myPreset) return;
-    const snap = structuredClone(prev.myPreset);
-    pushUndoSnapshot(prev);
+  /**
+   * 应用一份构成快照（applyPreset / applyCustomPreset 共用）：structuredClone 后的快照
+   * 写回构成＋外观，直写 setData（不经 update）：应用本身不是「改动构成」，不能被
+   * 状态机误翻为自定义；显示偏好经独立通道写（抑制订阅桥接，应用不被误判为外观改动），
+   * 基线同步为快照外观。本地图片背景不进预设：应用预设一律回到预设背景（图片本体仍在 IndexedDB）。
+   */
+  const applySnapshot = useCallback((snap: CompositionSnapshot, presetId: PresetId) => {
+    pushUndoSnapshot(dataRef.current);
     setData((prevData) => {
       const next = structuredClone(prevData);
       next.groups = snap.groups;
@@ -3325,7 +3374,7 @@ export function useLocalStore() {
       next.cardFaceStyles = snap.cardFaceStyles;
       next.widgetTints = snap.widgetTints;
       next.background = { kind: 'preset', presetId: snap.appearance.background.presetId };
-      next.activePreset = 'my';
+      next.activePreset = presetId;
       next.updatedAt = Date.now();
       return next;
     });
@@ -3342,6 +3391,56 @@ export function useLocalStore() {
       suppressAppearanceFlip = false;
     }
     lastAppearance = structuredClone(snap.appearance);
+  }, []);
+
+  const applyPreset = useCallback((presetId: PresetId) => {
+    const prev = dataRef.current;
+    if (presetId !== 'my' || !prev.myPreset) return;
+    applySnapshot(structuredClone(prev.myPreset), 'my');
+  }, [applySnapshot]);
+
+  /** 新建自定义预设（2026-11-26 用户令）：以当前构成为快照新建，名字自动取「预设1/2/3/4」
+   *  按已存在数量顺延（重名时往后顺延）；满 4 个时不建。新建后 activePreset 设为该新预设 id。
+   *  直写 setData（不经 update）：建预设本身不是「改动构成」，不翻 activePreset、不刷新「我的」。 */
+  const createCustomPreset = useCallback(() => {
+    const prev = dataRef.current;
+    if (prev.customPresets.length >= MAX_CUSTOM_PRESETS) return;
+    const used = new Set(prev.customPresets.map((p) => p.name));
+    let n = prev.customPresets.length + 1;
+    let name = `预设${n}`;
+    while (used.has(name)) {
+      n += 1;
+      name = `预设${n}`;
+    }
+    const preset: CustomPreset = { id: genId('p'), name, snapshot: structuredClone(compositionOf(prev)) };
+    setData((prevData) => {
+      const next = structuredClone(prevData);
+      next.customPresets = [...prevData.customPresets, preset];
+      next.activePreset = preset.id;
+      next.updatedAt = Date.now();
+      return next;
+    });
+  }, []);
+
+  /** 应用自定义预设（2026-11-26 用户令）：与 applyPreset 同款写法，快照写回构成＋外观，
+   *  直写 setData（不经 update），activePreset 设为该 id。 */
+  const applyCustomPreset = useCallback((presetId: string) => {
+    const prev = dataRef.current;
+    const preset = prev.customPresets.find((p) => p.id === presetId);
+    if (!preset) return;
+    applySnapshot(structuredClone(preset.snapshot), presetId);
+  }, [applySnapshot]);
+
+  /** 删除自定义预设（2026-11-26 用户令）：删掉该项；若删的是当前激活的，activePreset 回 'my'。
+   *  直写 setData（不经 update）：删预设本身不翻预设、不刷新「我的」。 */
+  const deleteCustomPreset = useCallback((presetId: string) => {
+    setData((prevData) => {
+      const next = structuredClone(prevData);
+      next.customPresets = prevData.customPresets.filter((p) => p.id !== presetId);
+      if (next.activePreset === presetId) next.activePreset = 'my';
+      next.updatedAt = Date.now();
+      return next;
+    });
   }, []);
 
   return {
@@ -3417,6 +3516,9 @@ export function useLocalStore() {
     undo,
     redo,
     applyPreset,
+    createCustomPreset,
+    applyCustomPreset,
+    deleteCustomPreset,
     addDockSite,
     removeDockSite,
     setDockOrder,

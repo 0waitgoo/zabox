@@ -1520,13 +1520,16 @@ export default function HomePage({ onNavigate, store }: { onNavigate: (page: str
       className="flex flex-col pt-[16vh] sm:pt-[18vh] lg:pt-[20vh]"
       onContextMenu={handleBlankContextMenu}
     >
-      {/* LOGO 组居中置顶（2026-11-26 用户令：顶栏 LOGO 组移到上面中间居中对齐；
-          2026-11-26 晚用户令：窄屏下下载与「数据」也收到这一行，顶栏只剩搜索）：
-          LOGO、预设入口、CN/EN、下载、「数据」一行居中放在内容最上方（快速组按钮行之上）；
-          只在非宽屏时渲染（宽屏由 LeftRail 固定悬浮组接管，同样居中），避免两套同时挂载 */}
+      {/* LOGO 组居中吸顶（2026-11-26 用户令：顶栏 LOGO 组移到上面中间居中对齐；
+          2026-11-26 晚用户令：窄屏下下载与「数据」也收到这一行，顶栏只剩搜索；
+          2026-11-26 晚用户令：这一行置顶吸顶，往下滚时贴住视口顶部不走）：
+          LOGO、预设入口、CN/EN、下载、「数据」一行居中放在内容最上方；
+          只在非宽屏时渲染（宽屏由 LeftRail 固定悬浮组接管，同样居中），避免两套同时挂载；
+          sticky 相对 App 滚动区（flex-1 overflow-y-auto）生效；内层小胶囊半透明黑底＋毛玻璃，
+          卡片从底下滚过时仍能看清；z-50 保持在最上，预设弹窗不被顶栏盖住 */}
       {!wideRail && (
-        <div className="relative z-50 flex justify-center pb-2">
-          <div className="flex items-center gap-2">
+        <div className="sticky top-0 z-50 flex justify-center pb-2">
+          <div className="flex items-center gap-2 rounded-full bg-black/30 px-3 py-1 backdrop-blur-md">
             <TopLogo onClick={() => onNavigate('home')} />
             <TopNav onPageChange={onNavigate} currentPage="home" presetsNode={<PresetMenu store={store} onNavigate={onNavigate} />} />
             <PwaInstallButton />
@@ -1534,10 +1537,32 @@ export default function HomePage({ onNavigate, store }: { onNavigate: (page: str
           </div>
         </div>
       )}
+      {/* 顶栏（一行对齐）：与下方卡片网格同款 4 栏 grid——左半 2 栏放页面导航图标组（靠左），
+          右半 2 栏放搜索框 +「数据」入口（算在右半内）；2026-11-04 用户令：本栏不再吸顶，
+          随卡片一起上下滚动（顶部毛玻璃遮挡带同轮删除）；relative 保留定位上下文，
+          z-40 让菜单面板盖过卡片、仍在弹窗/拖影之下；2026-11-26 晚用户令：搜索行与快速组行换位，
+          顶栏在快速组之上，z-40 高于快速组 z-30、搜索下拉盖住快速组行，仍低于 LOGO 行 z-50。移动端为 2 栏 grid，左右各半，仍保持一行不换行。 */}
+      {/* 栏底全透明：各控件自带实色底，直接浮在页面背景之上 */}
+      <div data-topbar className="relative z-40 pt-1 pb-2">
+        {/* 遮挡带（第五十九轮）第六十三轮起改由 App 在容器层统一渲染（fixed 全幅），不在栏内挂 */}
+        {/* 移动端列宽（第六十四轮实测修正）：左组加 LOGO 后内容约 207px，grid-cols-2 的半屏
+            （390px 时 177px）装不下、工具钮会被搜索框盖住一半无法点。移动端改左列按内容宽、
+            右列吃剩余（搜索框可缩），lg 起仍是原 4 栏等分、左组位置与桌面完全一致 */}
+        <div className="grid grid-cols-[auto_minmax(0,1fr)] lg:grid-cols-4 gap-3 sm:gap-4 items-center">
+          {/* LOGO 组已移到内容最上方居中行（2026-11-26 用户令），顶栏只剩搜索组；
+              搜索格定在第 2 栏起、占中间两栏左右居中（原只宽屏如此，现 LOGO 组既已移出、窄屏亦然）；
+              下载与「数据」已收到上方 LOGO 行（2026-11-26 晚用户令），此处不再挂 */}
+          <div className="col-span-2 lg:col-span-2 lg:col-start-2 flex items-center gap-2 min-w-0">
+            {/* 一栏两模式（2026-10-30）：搜索与 AI 整理共用一栏，分段开关切换，平时只显示一栏 */}
+            <UnifiedSearchAiBar groups={groups} onOpenGroup={openGroupFromSearch} store={store} />
+          </div>
+        </div>
+      </div>
+
       {/* 快速组（2026-11-26 用户令）：顶部一排不显眼的小药丸按钮，点开展开搜集面板；
-          按钮行在顶栏上方居中（wrapper 的 pt 留白区下方、顶栏正上方），不遮搜索框与顶栏按钮；
+          按钮行在顶栏下方居中（顶栏之下、卡片之上），不遮搜索框与顶栏按钮；
           面板挂在按钮行下方（QuickGroupPanel，absolute、无遮罩），拖拽可直达底下的组卡 */}
-      <div className="relative z-50 flex justify-center pb-2">
+      <div className="relative z-30 flex justify-center pb-2">
         <div className="flex items-center gap-1 sm:gap-2">
           {QUICK_GROUPS.map((g) => {
             const Icon = QUICK_GROUP_ICONS[g.id] ?? Sparkles;
@@ -1580,27 +1605,6 @@ export default function HomePage({ onNavigate, store }: { onNavigate: (page: str
           />
         )}
       </div>
-      {/* 顶栏（一行对齐）：与下方卡片网格同款 4 栏 grid——左半 2 栏放页面导航图标组（靠左），
-          右半 2 栏放搜索框 +「数据」入口（算在右半内）；2026-11-04 用户令：本栏不再吸顶，
-          随卡片一起上下滚动（顶部毛玻璃遮挡带同轮删除）；relative 保留定位上下文，
-          z-40 让菜单面板盖过卡片、仍在弹窗/拖影之下。移动端为 2 栏 grid，左右各半，仍保持一行不换行。 */}
-      {/* 栏底全透明：各控件自带实色底，直接浮在页面背景之上 */}
-      <div data-topbar className="relative z-40 pt-1 pb-2">
-        {/* 遮挡带（第五十九轮）第六十三轮起改由 App 在容器层统一渲染（fixed 全幅），不在栏内挂 */}
-        {/* 移动端列宽（第六十四轮实测修正）：左组加 LOGO 后内容约 207px，grid-cols-2 的半屏
-            （390px 时 177px）装不下、工具钮会被搜索框盖住一半无法点。移动端改左列按内容宽、
-            右列吃剩余（搜索框可缩），lg 起仍是原 4 栏等分、左组位置与桌面完全一致 */}
-        <div className="grid grid-cols-[auto_minmax(0,1fr)] lg:grid-cols-4 gap-3 sm:gap-4 items-center">
-          {/* LOGO 组已移到内容最上方居中行（2026-11-26 用户令），顶栏只剩搜索组；
-              搜索格定在第 2 栏起、占中间两栏左右居中（原只宽屏如此，现 LOGO 组既已移出、窄屏亦然）；
-              下载与「数据」已收到上方 LOGO 行（2026-11-26 晚用户令），此处不再挂 */}
-          <div className="col-span-2 lg:col-span-2 lg:col-start-2 flex items-center gap-2 min-w-0">
-            {/* 一栏两模式（2026-10-30）：搜索与 AI 整理共用一栏，分段开关切换，平时只显示一栏 */}
-            <UnifiedSearchAiBar groups={groups} onOpenGroup={openGroupFromSearch} store={store} />
-          </div>
-        </div>
-      </div>
-
       {/* 栏位网格（第三十四轮）：4 栏（平板 2 栏 / 手机 1 栏单列，第六十六轮），每张卡的占格由 placements 显式给出
           （gridColumn/gridRow 钉死），不走自动流——栏与栏互不挤占，空栏留空。
           手机单列时行高由 placements.rowTemplate 逐卡按内容估算（见 phoneHeights），不用固定 auto-rows。

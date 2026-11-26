@@ -99,8 +99,8 @@ h1{font-size:clamp(52px,6.4vw,88px);line-height:1.2;font-weight:900;margin:0 0 2
 .hero-tags{font-size:16px;letter-spacing:.08em;color:var(--ink2);margin:0 0 44px;font-weight:500}
 .hero-tags b{color:var(--ink);font-weight:700}
 .hero-btns{display:flex;gap:24px;flex-wrap:wrap;align-items:center}
-.hero-right{border-left:1px solid var(--line);position:relative;overflow:hidden;min-height:420px;transition:border-color .45s ease}
-.hero-right canvas{position:absolute;inset:0;width:100%;height:100%;display:block}
+.hero-right{border-left:1px solid var(--line);position:relative;overflow:hidden;min-height:420px;transition:border-color .45s ease;display:grid;place-items:center}
+.hero-logo{width:min(380px,76%);height:auto;display:block}
 .hero-right .cap{position:absolute;left:18px;bottom:14px;font-size:11px;letter-spacing:.16em;color:var(--ink3);z-index:2}
 
 /* 三个功能 — 只留词 */
@@ -227,7 +227,7 @@ footer .foot-grid{display:flex;gap:40px;flex-wrap:wrap;justify-content:space-bet
         </div>
       </div>
       <div class="hero-right">
-        <canvas id="halftone" aria-hidden="true"></canvas>
+        <img class="hero-logo" src="/logo.png" alt="杂盒 ZaBox">
         <span class="cap mono">FIG.01 — THE BOX</span>
       </div>
     </div>
@@ -339,129 +339,13 @@ footer .foot-grid{display:flex;gap:40px;flex-wrap:wrap;justify-content:space-bet
 (function(){
   var root=document.documentElement;
 
-  /* ---------- 盒子画布 ---------- */
-  var cv=document.getElementById('halftone'), ctx=cv.getContext('2d');
-  var CH=[' ','·','−','+','#'], STEP=17, W=0, H=0, cols=0, rows=0;
-  var ink='#101010', pointer={x:-9999,y:-9999}, hovering=false;
-  var reduced=matchMedia('(prefers-reduced-motion: reduce)').matches;
-  function readInk(){ ink=getComputedStyle(root).getPropertyValue('--ink').trim()||'#101010'; }
-  function sizeCanvas(){
-    var r=cv.parentElement.getBoundingClientRect();
-    W=Math.max(200,r.width); H=Math.max(200,r.height);
-    cv.width=W; cv.height=H; cols=Math.ceil(W/STEP); rows=Math.ceil(H/STEP);
-  }
-  function segDist(px,py,ax,ay,bx,by){
-    var dx=bx-ax,dy=by-ay,len2=dx*dx+dy*dy||1;
-    var u=Math.max(0,Math.min(1,((px-ax)*dx+(py-ay)*dy)/len2));
-    var ex=ax+u*dx-px,ey=ay+u*dy-py; return Math.sqrt(ex*ex+ey*ey);
-  }
-  function polyInfo(px,py,poly){
-    var inside=false,minD=1e9;
-    for(var k=0;k<poly.length;k++){
-      var a=poly[k],b=poly[(k+1)%poly.length];
-      var d=segDist(px,py,a[0],a[1],b[0],b[1]); if(d<minD)minD=d;
-      if((a[1]>py)!==(b[1]>py)&&px<(b[0]-a[0])*(py-a[1])/(b[1]-a[1])+a[0])inside=!inside;
-    }
-    return {inside:inside,edge:minD};
-  }
-  var boxParts=[];
-  function buildBox(cx,cy,s,openK,tt){
-    var hw=s, hh=s*.52, dep=s*.86;
-    var T=[cx,cy-hh], R=[cx+hw,cy], B=[cx,cy+hh], L=[cx-hw,cy];
-    var B2=[B[0],B[1]+dep], L2=[L[0],L[1]+dep], R2=[R[0],R[1]+dep];
-    var parts=[];
-    var la=Math.PI*(0.05+0.53*openK), lw=s*.92;
-    var ldx=-Math.cos(la)*lw, ldy=-Math.sin(la)*lw*.55;
-    var LT2=[T[0]+ldx,T[1]+ldy], LL2=[L[0]+ldx,L[1]+ldy];
-    parts.push({poly:[L,T,LT2,LL2],base:.30,edgeCh:'+'});
-    var ra=Math.PI*(0.05+0.53*openK);
-    var rdx=Math.cos(ra)*lw, rdy=-Math.sin(ra)*lw*.55;
-    var RT2=[T[0]+rdx,T[1]+rdy], RR2=[R[0]+rdx,R[1]+rdy];
-    parts.push({poly:[T,R,RR2,RT2],base:.42,edgeCh:'+'});
-    parts.push({poly:[T,R,B,L],base:.52,rim:true});
-    if(openK>0.04){
-      var inset=1-0.16*openK;
-      var iT=[cx+(T[0]-cx)*inset,cy+(T[1]-cy)*inset], iR=[cx+(R[0]-cx)*inset,cy+(R[1]-cy)*inset],
-          iB=[cx+(B[0]-cx)*inset,cy+(B[1]-cy)*inset], iL=[cx+(L[0]-cx)*inset,cy+(L[1]-cy)*inset];
-      parts.push({poly:[iT,iR,iB,iL],base:.16+0.10*Math.sin(tt*2.2),inner:true});
-    }
-    parts.push({poly:[L,B,B2,L2],base:.78});
-    parts.push({poly:[B,R,R2,B2],base:.58});
-    parts.push({shadow:true,y:B2[1]+STEP*.9,hw:hw*1.02});
-    return parts;
-  }
-  function draw(t){
-    ctx.clearRect(0,0,W,H);
-    ctx.fillStyle=ink; ctx.font='700 13px ui-monospace,Menlo,Consolas,monospace';
-    ctx.textAlign='center'; ctx.textBaseline='middle';
-    var tt=t*.0006;
-    var s=Math.min(W,H)*.30;
-    var cx=W/2, cy=H*.40+Math.sin(tt*1.4)*7;
-    var target=hovering?1:0.25;
-    draw._open=(draw._open===undefined?0.25:draw._open)+(target-(draw._open===undefined?0.25:draw._open))*.06;
-    boxParts=buildBox(cx,cy,s,draw._open,tt);
-    for(var j=0;j<rows;j++){
-      for(var i=0;i<cols;i++){
-        var x=i*STEP+STEP/2, y=j*STEP+STEP/2;
-        var ch=null;
-        for(var p=boxParts.length-1;p>=0;p--){
-          var part=boxParts[p];
-          if(part.shadow){
-            var sd=Math.abs(y-part.y), sx=Math.abs(x-cx);
-            if(sd<STEP*.55&&sx<part.hw){ ch=(sx% (STEP*2)<STEP)?'−':'·'; }
-            continue;
-          }
-          var info=polyInfo(x,y,part.poly);
-          if(!info.inside)continue;
-          if(info.edge<STEP*.62){ ch=part.edgeCh||'#'; }
-          else if(part.rim){ ch=null; continue; }
-          else{
-            var v=part.base+0.10*Math.sin(x*.03+tt*2)+0.07*Math.sin(y*.04-tt*1.5);
-            var pdx=x-pointer.x,pdy=y-pointer.y;
-            v+=Math.exp(-(pdx*pdx+pdy*pdy)/(2*110*110))*.55;
-            var idx=Math.max(1,Math.min(CH.length-1,Math.floor(v*(CH.length-1))));
-            ch=CH[idx];
-          }
-          break;
-        }
-        if(ch)ctx.fillText(ch,x,y);
-      }
-    }
-    var items=['■','▲','●','◆','✚'];
-    for(var n=0;n<5;n++){
-      var ph=((t*.00012)+(n*.23))%1;
-      var ix=cx+Math.sin(n*2.7)*s*.5*(1-ph*.6);
-      var iy=cy-s*1.55+ph*s*1.15;
-      ctx.globalAlpha=ph<.8?1:1-(ph-.8)*5;
-      ctx.fillText(items[n%items.length],ix,iy);
-    }
-    ctx.globalAlpha=1;
-  }
-  var running=false, rafId=null;
-  function loop(t){ draw(t); if(running)rafId=requestAnimationFrame(loop); }
-  function start(){ if(reduced||running)return; running=true; rafId=requestAnimationFrame(loop); }
-  function stop(){ running=false; if(rafId)cancelAnimationFrame(rafId); }
-  readInk(); sizeCanvas();
-  if(reduced){ draw(1400); } else { start(); }
-  addEventListener('resize',function(){ sizeCanvas(); if(reduced)draw(1400); });
-  new IntersectionObserver(function(es){ es.forEach(function(e){ if(e.isIntersecting)start(); else stop(); }); }).observe(cv);
-  cv.parentElement.addEventListener('mousemove',function(e){
-    var r=cv.getBoundingClientRect(); pointer.x=e.clientX-r.left; pointer.y=e.clientY-r.top;
-    hovering=true; if(reduced)draw(1400);
-  });
-  cv.parentElement.addEventListener('mouseleave',function(){ pointer.x=-9999; pointer.y=-9999; hovering=false; if(reduced)draw(1400); });
-  cv.parentElement.addEventListener('touchstart',function(){ hovering=true; },{passive:true});
-  cv.parentElement.addEventListener('touchend',function(){ hovering=false; },{passive:true});
-
   /* ---------- 明暗开关 ---------- */
   var mqDark=matchMedia('(prefers-color-scheme: dark)');
   document.getElementById('themeToggle').addEventListener('click',function(){
     var cur=root.getAttribute('data-theme');
     var isDark=cur==='dark'||(!cur&&mqDark.matches);
     root.setAttribute('data-theme',isDark?'light':'dark');
-    readInk(); if(reduced)draw(1400);
   });
-  if(mqDark.addEventListener)mqDark.addEventListener('change',function(){ readInk(); if(reduced)draw(1400); });
 
   /* ---------- 滚动显现 ---------- */
   var io=new IntersectionObserver(function(es){

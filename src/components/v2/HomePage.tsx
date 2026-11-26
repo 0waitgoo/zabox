@@ -1519,7 +1519,7 @@ export default function HomePage({ onNavigate, store }: { onNavigate: (page: str
           2026-11-27 用户反馈：不要 fixed 跟随（往下滚也贴顶）、不要底框、放在上面：
           回正常文档流，随页面一起滚走；挪到 wrapper 外面作 fragment 首个子元素，
           只留 pt-6 一点顶部间距，不再被 wrapper 的 pt-[16vh] 留白顶到 16vh 以下；
-          内层无底框（无 rounded-full/bg-black/backdrop-blur），与 LeftRail 一致；
+          内层无底框（无 rounded-full/bg-black/backdrop-blur）；宽屏 LeftRail 自 2026-11-27 起是满视口宽的固定通栏（有底色），与本行不同；
           只在非宽屏时渲染（宽屏由 LeftRail 固定悬浮组接管），避免两套同时挂载；
           z-50 保持在最上，预设弹窗不被顶栏盖住 */}
       {!wideRail && (

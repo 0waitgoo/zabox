@@ -10,6 +10,7 @@
  */
 
 import { API_BASE } from './apiBase';
+import { canUseAi, recordAiUse } from './aiDailyLimit';
 import { clampGroupName, type NavGroup } from '../data/groups';
 
 export type SiteAiProvider = 'deepseek' | 'openai' | 'custom';
@@ -89,8 +90,28 @@ function providerErrorText(status: number, text: string): string {
   return `服务商返回 ${status}${text ? `：${text.slice(0, 120)}` : ''}，请检查设置里的地址、模型与口令`;
 }
 
-/** 调一次 chat completions：直连优先，网络/跨域失败时走自家 /api 中转。HTTP 层面的服务商报错不兜底（换路也一样）。 */
+/** 每日限额已满时抛出的错误码（调用方据此展示友好提示；抛在发请求之前，不烧调用） */
+export const AI_DAILY_LIMIT_ERROR = 'AI_DAILY_LIMIT';
+
+/**
+ * 调一次 chat completions（每日限额守门）：限额满了直接抛 AI_DAILY_LIMIT，不发请求；
+ * 成功拿到有效内容后才计数（失败/空内容不计）；opts.countUsage=false 时不计（测试连接用）。
+ */
 export async function callSiteAi(
+  cfg: SiteAiConfig,
+  messages: ChatMessage[],
+  signal?: AbortSignal,
+  opts?: { countUsage?: boolean },
+): Promise<string> {
+  const countUsage = opts?.countUsage !== false;
+  if (countUsage && !canUseAi()) throw new Error(AI_DAILY_LIMIT_ERROR);
+  const content = await callSiteAiOnce(cfg, messages, signal);
+  if (countUsage) recordAiUse();
+  return content;
+}
+
+/** 调一次 chat completions：直连优先，网络/跨域失败时走自家 /api 中转。HTTP 层面的服务商报错不兜底（换路也一样）。 */
+async function callSiteAiOnce(
   cfg: SiteAiConfig,
   messages: ChatMessage[],
   signal?: AbortSignal,

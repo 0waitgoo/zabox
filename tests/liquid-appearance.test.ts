@@ -31,7 +31,7 @@ function buildSeedSnapshot(): CompositionSnapshot {
   };
 }
 
-test('liquid mode survives preferences and preset snapshot normalization', () => {
+test('liquid theme stays global and preset snapshots no longer carry theme', () => {
   const original = Object.getOwnPropertyDescriptor(globalThis, 'localStorage');
   try {
     Object.defineProperty(globalThis, 'localStorage', { configurable: true, value: {
@@ -39,9 +39,13 @@ test('liquid mode survives preferences and preset snapshot normalization', () =>
     } });
     assert.equal(loadDisplayPrefs().theme, 'liquid');
     const snapshot = buildSeedSnapshot();
-    snapshot.appearance.theme = 'liquid';
+    // 旧快照（暗夜下建的）里冻住的 theme='dark'：归一化时直接丢掉，不进新快照
+    (snapshot.appearance as unknown as { theme: string }).theme = 'dark';
     const data = validateStoreData({ ...snapshot, version: 1, background: { kind: 'preset', presetId: 'violet' }, myPreset: snapshot });
-    assert.equal(data?.myPreset?.appearance.theme, 'liquid');
+    assert.equal('theme' in (data?.myPreset?.appearance ?? {}), false);
+    assert.equal(data?.myPreset?.appearance.background.presetId, 'hazeglow');
+    // 显示偏好里的主题不受快照影响，仍是 liquid
+    assert.equal(loadDisplayPrefs().theme, 'liquid');
   } finally {
     if (original) Object.defineProperty(globalThis, 'localStorage', original);
     else delete (globalThis as { localStorage?: Storage }).localStorage;

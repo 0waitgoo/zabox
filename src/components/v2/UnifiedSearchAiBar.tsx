@@ -1,7 +1,7 @@
 /**
  * 顶栏一栏两模式（2026-10-30）：顶栏搜索栏与原 AI 整理条合并为一栏。
  * - 平时只显示一栏：分段开关点一下切模式，搜索 / AI 整理各点一下即切换；
- * - 搜索模式：原顶栏搜索（搜网站、编组，⌘K/Ctrl+K），默认模式；
+ * - 搜索模式：原顶栏搜索（搜网站、编组），默认模式；
  * - AI 整理模式：原 AI 整理条（一句话输入 + 一键分类 / 搜集网站 + 设置齿轮），
  *   接入方式、模型获取、结果先确认再落盘一律照旧；
  * - 状态一眼可见：分段开关当前模式高亮（白底深字 + 图标），容器带 data-topbar-mode；
@@ -88,7 +88,6 @@ export default function UnifiedSearchAiBar({
         onOpenGroup={onOpenGroup}
         store={store}
         active={mode === 'search'}
-        onRequestActivate={() => setMode('search')}
         bare
       />
       <SiteAiAssistant store={store} active={mode === 'ai'} compactBar bare />

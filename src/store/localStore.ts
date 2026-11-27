@@ -3440,6 +3440,22 @@ export function useLocalStore() {
     });
   }, []);
 
+  /** 改名自定义预设（2026-11-27 用户令）：只改该项的 name；空名/空白名不写。
+   *  直写 setData（不经 update）：改名本身不是「改动构成」，不翻预设、不刷新「我的」。
+   *  只针对自定义预设，「我的」不改名。 */
+  const renameCustomPreset = useCallback((presetId: string, name: string) => {
+    const trimmed = name.trim();
+    if (!trimmed) return;
+    setData((prevData) => {
+      const next = structuredClone(prevData);
+      next.customPresets = prevData.customPresets.map((p) =>
+        p.id === presetId ? { ...p, name: trimmed } : p
+      );
+      next.updatedAt = Date.now();
+      return next;
+    });
+  }, []);
+
   return {
     data,
     addSite,
@@ -3516,6 +3532,7 @@ export function useLocalStore() {
     createCustomPreset,
     applyCustomPreset,
     deleteCustomPreset,
+    renameCustomPreset,
     addDockSite,
     removeDockSite,
     setDockOrder,

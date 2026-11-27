@@ -209,7 +209,7 @@ export default function PresetMenu({ store, onNavigate }: { store: LocalStore; o
         )}
       </AnimatePresence>
 
-      {/* 自定义预设右键菜单（2026-11-27 用户令）：改名 / 删除。fixed 定位在光标处，
+      {/* 自定义预设右键菜单（2026-11-27 用户令）：改名 / 复制到我的 / 删除。fixed 定位在光标处，
           用 portal 挂到 body——宽屏时面板在 LeftRail 里（-translate-x-1/2 是 transform，
           会让后代 fixed 改相对祖先定位、菜单往右偏到屏缘），portal 脱离 transform 祖先后
           fixed 重新相对视口，位置才对。面板的点外关闭已认 ctxMenuRef，点菜单不关面板 */}
@@ -233,6 +233,18 @@ export default function PresetMenu({ store, onNavigate }: { store: LocalStore; o
             className="w-full px-3 py-1.5 text-left text-xs text-white/80 hover:bg-white/10"
           >
             {t('preset.rename')}
+          </button>
+          <button
+            data-preset-menu-copy-to-my
+            onClick={() => {
+              const id = ctxMenu.id;
+              const name = ctxMenu.name;
+              setCtxMenu(null);
+              if (window.confirm(t('preset.copyToMyConfirm', { name }))) store.copyCustomPresetToMy(id);
+            }}
+            className="w-full px-3 py-1.5 text-left text-xs text-white/80 hover:bg-white/10"
+          >
+            {t('preset.copyToMy')}
           </button>
           <button
             data-preset-menu-delete

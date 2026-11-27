@@ -35,7 +35,6 @@ export default function StickySearch({
   onOpenGroup,
   store,
   active = true,
-  onRequestActivate,
   bare = false,
 }: {
   groups: NavGroup[];
@@ -44,8 +43,6 @@ export default function StickySearch({
   store?: LocalStore;
   /** 是否当前模式；false 时藏起（不卸载，输入内容保留） */
   active?: boolean;
-  /** AI 模式下按 ⌘K/Ctrl+K 时回调：由统一栏切回搜索模式 */
-  onRequestActivate?: () => void;
   /** 一体式搜索栏（2026-11-27）：true 时不画自己的框体，只留输入行，
       外层与内层都不定位，下拉锚到统一栏容器（relative，整条同宽） */
   bare?: boolean;
@@ -60,8 +57,6 @@ export default function StickySearch({
   const containerRef = useRef<HTMLDivElement>(null);
   const activeRef = useRef(active);
   activeRef.current = active;
-  const onRequestActivateRef = useRef(onRequestActivate);
-  onRequestActivateRef.current = onRequestActivate;
   const prevActiveRef = useRef(active);
 
   /* 切到 AI 模式：关下拉；切回搜索模式：聚焦输入框（首渲染不聚焦） */
@@ -126,11 +121,7 @@ export default function StickySearch({
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
-      if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 'k') {
-        e.preventDefault();
-        if (activeRef.current) inputRef.current?.focus();
-        else onRequestActivateRef.current?.();
-      }
+      // 2026-11-27 用户令：Ctrl+K / Cmd+K 聚焦快捷键已删除；只保留 Esc 关闭下拉
       if (e.key === 'Escape' && !e.isComposing && activeRef.current) {
         setOpen(false);
         inputRef.current?.blur();
@@ -223,17 +214,14 @@ export default function StickySearch({
             placeholder={t('search.placeholder')}
             className="flex-1 bg-transparent outline-none text-sm sm:text-base placeholder:text-white/35 min-w-0"
           />
-          {query ? (
+          {/* 2026-11-27 用户令：⌘K 视觉提示与 Ctrl+K / Cmd+K 聚焦快捷键均已删除（快捷键逻辑一并去掉，只留 Esc 关闭下拉） */}
+          {query && (
             <button
               onClick={() => { setQuery(''); setActiveIndex(-1); inputRef.current?.focus(); }}
               className="text-white/40 hover:text-white text-xs shrink-0 px-1"
             >
               {t('search.clear')}
             </button>
-          ) : (
-            <kbd className="hidden sm:flex items-center gap-0.5 text-[10px] text-white/40 bg-white/5 border border-white/10 rounded-md px-1.5 py-0.5 shrink-0">
-              ⌘ K
-            </kbd>
           )}
         </div>
 

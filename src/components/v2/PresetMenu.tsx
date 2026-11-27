@@ -19,12 +19,16 @@ import AppearanceSection from './AppearanceSection';
  * 为 0 致面板全程不可见（2026-11-26 晚实测确认），已改回 1。
  * 2026-11-26 自定义预设（用户令）：网格加虚线框 + 号瓷砖新建预设，每人最多 4 个
  * （满 4 个时 + 号隐藏，网格正好 6 格＝2 行）；自定义预设是新建时拍下的固定快照，
- * 点按应用、右键删除；建/删不走 update，不翻「我的」存档。
+ * 点按应用并回主页、右键弹出小菜单（改名/删除）；建/删/改名不走 update，不翻「我的」存档。
+ * 2026-11-27 用户令：点「我的」或自定义预设都回到主页（从导航页点过来也不留在导航页）。
  * 面板形态与原 BackgroundMenu 同款：无底色图标触发 + 实色浮层 + 点外关闭。
  */
 export default function PresetMenu({ store, onNavigate }: { store: LocalStore; onNavigate: (page: string) => void }) {
   const { t } = useLang();
   const [open, setOpen] = useState(false);
+  // 自定义预设右键菜单（2026-11-27 用户令）：改名 / 删除。定位在光标处（fixed，不被面板裁掉）
+  const [ctxMenu, setCtxMenu] = useState<{ id: string; name: string; x: number; y: number } | null>(null);
+  const ctxMenuRef = useRef<HTMLDivElement>(null);
   // 面板横向平移（打开时按按钮位置算）：按钮在顶栏左组第三位，手机上从按钮左缘
   // 展开 288px 面板会溢出右缘——把面板往左平移进视口（两侧各留 12px），桌面不动
   const [panelShift, setPanelShift] = useState(0);
@@ -59,10 +63,31 @@ export default function PresetMenu({ store, onNavigate }: { store: LocalStore; o
     };
   }, []);
 
+  // 右键菜单：点菜单外任意处 / 按 Esc 关闭；面板关了菜单也关
+  useEffect(() => {
+    if (!ctxMenu) return;
+    const onPointerDown = (e: MouseEvent) => {
+      if (ctxMenuRef.current && !ctxMenuRef.current.contains(e.target as Node)) setCtxMenu(null);
+    };
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') setCtxMenu(null);
+    };
+    document.addEventListener('mousedown', onPointerDown);
+    document.addEventListener('keydown', onKey);
+    return () => {
+      document.removeEventListener('mousedown', onPointerDown);
+      document.removeEventListener('keydown', onKey);
+    };
+  }, [ctxMenu]);
+  useEffect(() => {
+    if (!open) setCtxMenu(null);
+  }, [open ]);
+
   const pickMy = () => {
     if (!hasMyArchive) return; // 暂无存档：无操作（按钮已呈禁用态）
     store.applyPreset('my');
     setOpen(false);
+    onNavigate('home'); // 2026-11-27 用户令：点预设回到主页（从导航页点过来也不留在导航页）
   };
 
   const sectionHeadCls = 'flex items-center gap-1.5 text-[10px] text-white/35';
@@ -133,16 +158,20 @@ export default function PresetMenu({ store, onNavigate }: { store: LocalStore; o
                 <span className="text-[10px] leading-none text-white/45">{t('topbar.navAi')}</span>
               </button>
               {/* 自定义预设（2026-11-26 用户令）：新建时拍下的固定快照，点按应用并关面板；
-                  当前激活的显示蓝勾；右键删（确认框）。顺序：我的、AI 导航、自定义（按创建时间）、+ 号 */}
+                  当前激活的显示蓝勾；2026-11-27 用户令：右键弹出小菜单（改名/删除），
+                  点按应用后回到主页。顺序：我的、AI 导航、自定义（按创建时间）、+ 号 */}
               {store.data.customPresets.map((p) => (
                 <button
                   key={p.id}
                   data-custom-preset={p.id}
                   title={p.name}
-                  onClick={() => { store.applyCustomPreset(p.id); setOpen(false); }}
+                  onClick={() => { store.applyCustomPreset(p.id); setOpen(false); onNavigate('home'); }}
                   onContextMenu={(e) => {
                     e.preventDefault();
-                    if (window.confirm(t('preset.deleteConfirm'))) store.deleteCustomPreset(p.id);
+                    // 菜单宽约 112px、高约 76px，贴着视口边收一下，不溢出
+                    const x = Math.max(8, Math.min(e.clientX, window.innerWidth - 120));
+                    const y = Math.max(8, Math.min(e.clientY, window.innerHeight - 84));
+                    setCtxMenu({ id: p.id, name: p.name || t('preset.customDefault'), x, y });
                   }}
                   className={tileClass(activePreset === p.id)}
                 >
@@ -175,6 +204,43 @@ export default function PresetMenu({ store, onNavigate }: { store: LocalStore; o
           </motion.div>
         )}
       </AnimatePresence>
+
+      {/* 自定义预设右键菜单（2026-11-27 用户令）：改名 / 删除。fixed 定位在光标处，
+          挂在容器内（面板的点外关闭只认容器外点击，点菜单不会把面板关掉） */}
+      {open && ctxMenu && (
+        <div
+          ref={ctxMenuRef}
+          data-preset-ctx-menu
+          className="fixed z-[60] w-28 rounded-xl bg-[#232329] border border-white/15 py-1 shadow-xl"
+          style={{ left: ctxMenu.x, top: ctxMenu.y }}
+        >
+          <button
+            data-preset-menu-rename
+            onClick={() => {
+              const next = window.prompt(t('preset.rename'), ctxMenu.name);
+              const id = ctxMenu.id;
+              setCtxMenu(null);
+              if (next === null) return;
+              if (!next.trim()) return;
+              store.renameCustomPreset(id, next);
+            }}
+            className="w-full px-3 py-1.5 text-left text-xs text-white/80 hover:bg-white/10"
+          >
+            {t('preset.rename')}
+          </button>
+          <button
+            data-preset-menu-delete
+            onClick={() => {
+              const id = ctxMenu.id;
+              setCtxMenu(null);
+              if (window.confirm(t('preset.deleteConfirm'))) store.deleteCustomPreset(id);
+            }}
+            className="w-full px-3 py-1.5 text-left text-xs text-red-300 hover:bg-white/10"
+          >
+            {t('menu.delete')}
+          </button>
+        </div>
+      )}
     </div>
     </>
   );

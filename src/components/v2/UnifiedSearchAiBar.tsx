@@ -8,6 +8,11 @@
  * - 输入不串模式：两栏都挂载不卸载，各自的输入 state 互不相干，切回时原内容还在；
  *   搜索栏切走时下拉关闭、切回时自动聚焦；AI 栏切回时同样聚焦。
  * 两栏都不参与卡片布局；模式只存本会话，不进同步数据。
+ * 一体式搜索栏（2026-11-27 用户令）：「搜索」「AI 整理」两钮放进搜索框里面，
+ * 整条是一个容器（card-glass-surface 圆角边框）：左侧两钮＋分隔线，右侧接当前模式
+ * 的输入行（搜索输入或 AI 输入，均为 bare 模式、无各自独立框体）；搜索下拉锚到
+ * 整条容器（left-0 right-0，与整条同宽）；AI 模式按钮多时容器可纵向长高（min-h），
+ * 仍是一个容器。窄屏/手机同样一体。
  */
 
 import { useState } from 'react';
@@ -38,12 +43,16 @@ export default function UnifiedSearchAiBar({
     }`;
 
   return (
-    <div data-topbar-mode={mode} className="flex flex-1 min-w-0 items-center gap-2">
+    <div
+      data-topbar-mode={mode}
+      className="relative flex flex-1 min-w-0 items-center gap-2 card-glass-surface rounded-2xl border border-white/10 min-h-12 sm:min-h-13 pl-2 pr-3 py-1 focus-within:border-indigo-400/40 transition-colors"
+    >
+      {/* 两模式钮放进框内左侧（扁平化，不再另套药丸容器），右侧分隔线后接输入行 */}
       <div
         role="tablist"
         aria-label={t('topbar.modeAria')}
         data-topbar-mode-switch
-        className="flex shrink-0 items-center gap-0.5 rounded-full border border-white/10 bg-white/5 p-0.5"
+        className="flex shrink-0 items-center gap-0.5"
       >
         <button
           type="button"
@@ -72,6 +81,7 @@ export default function UnifiedSearchAiBar({
           AI<span className="hidden sm:inline">{t('topbar.aiOrganize')}</span>
         </button>
       </div>
+      <span aria-hidden className="w-px self-stretch my-2 bg-white/10 shrink-0" />
 
       <StickySearch
         groups={groups}
@@ -79,8 +89,9 @@ export default function UnifiedSearchAiBar({
         store={store}
         active={mode === 'search'}
         onRequestActivate={() => setMode('search')}
+        bare
       />
-      <SiteAiAssistant store={store} active={mode === 'ai'} compactBar />
+      <SiteAiAssistant store={store} active={mode === 'ai'} compactBar bare />
     </div>
   );
 }

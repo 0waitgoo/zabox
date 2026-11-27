@@ -3473,6 +3473,21 @@ export function useLocalStore() {
     });
   }, []);
 
+  /** 复制自定义预设到「我的」（2026-11-27 用户令）：把该预设的快照深拷贝一份写进 myPreset，
+   *  覆盖「我的」现在的存档。直写 setData（不经 update）：复制本身不是「改动构成」，
+   *  不翻 activePreset、不动 customPresets、不动 live 构成（点「我的」应用后才看到效果）。 */
+  const copyCustomPresetToMy = useCallback((presetId: string) => {
+    const prev = dataRef.current;
+    const preset = prev.customPresets.find((p) => p.id === presetId);
+    if (!preset) return;
+    setData((prevData) => {
+      const next = structuredClone(prevData);
+      next.myPreset = structuredClone(preset.snapshot);
+      next.updatedAt = Date.now();
+      return next;
+    });
+  }, []);
+
   return {
     data,
     addSite,
@@ -3550,6 +3565,7 @@ export function useLocalStore() {
     applyCustomPreset,
     deleteCustomPreset,
     renameCustomPreset,
+    copyCustomPresetToMy,
     addDockSite,
     removeDockSite,
     setDockOrder,

@@ -1,4 +1,5 @@
 import React, { useEffect, useRef, useState } from 'react';
+import { createPortal } from 'react-dom';
 import { Check, Compass, LayoutTemplate, Palette, Plus, User } from 'lucide-react';
 import { MAX_CUSTOM_PRESETS } from '../../store/localStore';
 import { AnimatePresence, motion } from 'motion/react';
@@ -48,9 +49,11 @@ export default function PresetMenu({ store, onNavigate }: { store: LocalStore; o
 
   useEffect(() => {
     const onPointerDown = (e: MouseEvent) => {
-      if (containerRef.current && !containerRef.current.contains(e.target as Node)) {
-        setOpen(false);
-      }
+      const target = e.target as Node;
+      if (containerRef.current && containerRef.current.contains(target)) return;
+      // 右键菜单用 portal 挂在 body 下（不在容器内）：点菜单不关面板
+      if (ctxMenuRef.current && ctxMenuRef.current.contains(target)) return;
+      setOpen(false);
     };
     const onKey = (e: KeyboardEvent) => {
       if (e.key === 'Escape') setOpen(false);
@@ -207,8 +210,10 @@ export default function PresetMenu({ store, onNavigate }: { store: LocalStore; o
       </AnimatePresence>
 
       {/* 自定义预设右键菜单（2026-11-27 用户令）：改名 / 删除。fixed 定位在光标处，
-          挂在容器内（面板的点外关闭只认容器外点击，点菜单不会把面板关掉） */}
-      {open && ctxMenu && (
+          用 portal 挂到 body——宽屏时面板在 LeftRail 里（-translate-x-1/2 是 transform，
+          会让后代 fixed 改相对祖先定位、菜单往右偏到屏缘），portal 脱离 transform 祖先后
+          fixed 重新相对视口，位置才对。面板的点外关闭已认 ctxMenuRef，点菜单不关面板 */}
+      {open && ctxMenu && createPortal(
         <div
           ref={ctxMenuRef}
           data-preset-ctx-menu
@@ -240,7 +245,8 @@ export default function PresetMenu({ store, onNavigate }: { store: LocalStore; o
           >
             {t('menu.delete')}
           </button>
-        </div>
+        </div>,
+        document.body
       )}
     </div>
     </>

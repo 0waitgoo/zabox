@@ -157,7 +157,8 @@ export default function PresetMenu({ store, onNavigate }: { store: LocalStore; o
                 <Compass size={18} className="text-white/70" />
                 <span className="text-[10px] leading-none text-white/45">{t('topbar.navAi')}</span>
               </button>
-              {/* 自定义预设（2026-11-26 用户令）：新建时拍下的固定快照，点按应用并关面板；
+              {/* 自定义预设（2026-11-26 用户令）：独立存档槽（2026-11-27 存档语义）——新建时拍下当前构成，
+                  激活时改动自动写回自己的快照，不动「我的」；点按应用并关面板；
                   当前激活的显示蓝勾；2026-11-27 用户令：右键弹出小菜单（改名/删除），
                   点按应用后回到主页。顺序：我的、AI 导航、自定义（按创建时间）、+ 号 */}
               {store.data.customPresets.map((p) => (

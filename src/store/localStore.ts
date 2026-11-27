@@ -842,13 +842,15 @@ export interface StoreData {
   /**
    * 当前主页预设（第一百零六轮建、第一百零九轮改语义；2026-11-26 起只剩 'my'）：
    * 老存档无此字段、或存着已删的内置预设 id 时，归一化为 'my'：既有排版即用户的「我的」。
-   * 任一构成变更都经 update() 自动刷新存档——「我的」恒等于当前排版（见 update）。
+   * 2026-11-27 存档语义：预设即独立存档槽，任一构成变更都经 update() 自动写回当前激活的槽
+   * （见 update 与 refreshActiveSlot）——激活谁就存谁，不动另一槽。
    */
   activePreset: PresetId;
   /**
    * 「我的」预设存档（第一百零六轮建、第一百零九轮改语义）：用户自有构成的快照，
-   * 构成一变即由 update() 自动刷新（无需用户点任何东西）；null = 尚无存档
-   * （老存档/新装初期），面板上「我的」显示「暂无存档」、点击无操作，
+   * 只有「我的」激活时构成一变才由 update() 自动刷新（无需用户点任何东西）；
+   * 自定义预设激活时改动写进该预设自己的 snapshot，不碰这里（2026-11-27 存档语义）。
+   * null = 尚无存档（老存档/新装初期），面板上「我的」显示「暂无存档」、点击无操作，
    * 首次构成变更时自动生成。
    */
   myPreset: CompositionSnapshot | null;
@@ -902,9 +904,10 @@ export function dockSiteSnapshot(site: SiteEntry): DockSiteSnapshot {
  * 2026-11-26 自定义预设（用户令）：放宽到 'my' 或自定义预设 id（string） */
 export type PresetId = 'my' | string;
 
-/** 自定义预设（2026-11-26 用户令）：用户在外观面板点 + 号新建的预设快照。
- *  与「我的」不同：新建时拍下当前构成的快照，之后不再自动刷新；点按即恢复该快照。
- *  名字自动取「预设1/2/3/4」按已存在数量顺延；id 用 genId('p') 生成。 */
+/** 自定义预设（2026-11-26 用户令）：用户在外观面板点 + 号新建的预设快照，即独立存档槽
+ *  （2026-11-27 存档语义：与「我的」各一槽，互不污染）。新建时拍下当前构成的快照；
+ *  该预设激活时构成一变即自动写回自己的 snapshot（与「我的」同款自动保存，只写自己的槽）；
+ *  点按即恢复该快照。名字自动取「预设1/2/3/4」按已存在数量顺延；id 用 genId('p') 生成。 */
 export interface CustomPreset {
   id: string;
   name: string;
@@ -919,7 +922,7 @@ export const MAX_CUSTOM_PRESETS = 4;
  * 主页构成快照（第一百零六轮， 第一百一十一轮起含外观）：预设切换与「我的」存档的统一形态——
  * 主页构成（编组+站点、组件构成、布局尺寸/栏位/顺序、组合、摞、卡面样式与组件底色）+ 外观。
  * 明确不含：tasks/plans（计划数据独立，绝不随预设变）、dock（Dock 引用独立，绝不随预设变）。
- * 外观（背景预设/明暗/透明度/模糊）第一百一十一轮起随预设走：切换预设连同外观一起换，改外观同样自动存进「我的」。
+ * 外观（背景预设/明暗/透明度/模糊）第一百一十一轮起随预设走：切换预设连同外观一起换，改外观同样自动存进当前激活的槽（2026-11-27 存档语义）。
  */
 export interface CompositionSnapshot {
   groups: NavGroup[];
@@ -950,6 +953,19 @@ export function compositionOf(d: StoreData): CompositionSnapshot {
     widgetTints: d.widgetTints,
     appearance: appearanceOf(d, getDisplayPrefs()),
   };
+}
+
+/** 把当前构成写回当前激活的存档槽（2026-11-27 存档语义，用户令「预设等于存档1/存档2，
+ *  预设调整不要改变『我的』预设」）：激活「我的」时写 myPreset；激活自定义预设时写该预设
+ *  自己的 snapshot；activePreset 不动、另一槽不动。调用方须在 structuredClone 后的 next 上改。 */
+function refreshActiveSlot(next: StoreData): void {
+  const snap = structuredClone(compositionOf(next));
+  if (next.activePreset === 'my') {
+    next.myPreset = snap;
+    return;
+  }
+  const preset = next.customPresets.find((p) => p.id === next.activePreset);
+  if (preset) preset.snapshot = snap;
 }
 
 /**
@@ -1770,9 +1786,10 @@ export function useLocalStore() {
     return () => window.removeEventListener('storage', onStorage);
   }, []);
 
-  /* 显示偏好订阅桥接（第一百一十一轮）：偏好改动同样走自动保存语义——
-   * 恒为 'my'（内置预设已删，2026-11-26），改动即刷新「我的」存档；
-   * 与基线相等（点已激活项、无实际变化）不触发；计划内容不走此通道，永不触发。 */
+  /* 显示偏好订阅桥接（第一百一十一轮，2026-11-27 改存档语义）：偏好改动同样走自动保存语义——
+   * 改动即写回当前激活的槽（「我的」激活时刷新 myPreset，自定义预设激活时刷新该预设自己的
+   * snapshot，activePreset 不动、另一槽不动）；与基线相等（点已激活项、无实际变化）不触发；
+   * 计划内容不走此通道，永不触发。 */
   useEffect(() => {
     return subscribeDisplayPrefs((prefs) => {
       if (suppressAppearanceFlip || !lastAppearance) return;
@@ -1786,8 +1803,7 @@ export function useLocalStore() {
       lastAppearance = nextAppearance;
       setData((prev) => {
         const next = structuredClone(prev);
-        next.activePreset = 'my';
-        next.myPreset = structuredClone(compositionOf(next));
+        refreshActiveSlot(next);
         next.updatedAt = Date.now();
         return next;
       });
@@ -1804,15 +1820,16 @@ export function useLocalStore() {
       }
       // 每次用户变更都刷新时间戳：GitHub 同步靠它判断本地/云端谁更新
       next.updatedAt = Date.now();
-      /* 预设状态机（第一百零六轮建、第一百零九轮改语义：预设一有变化自动变「我的」，
-       * 并且自动保存「我的」；第一百一十一轮起外观同样触发）：任一经 update() 的构成
+      /* 预设状态机（第一百零六轮建、第一百零九轮改语义、2026-11-27 改存档语义：
+       * 预设即独立存档槽——「我的」与每个自定义预设各一槽）：任一经 update() 的构成
        * 或外观变更（增删改编组/站点、改尺寸、拖拽排序、合并/拆分、换背景等）都立即
-       * 刷新「我的」存档——「我的」恒等于当前排版。2026-11-26 起内置预设已删，
-       * 恒为 'my'，原内置预设期弹确认的覆盖流程随之退役。计划内容不改指纹，不触发。
-       * 静默写回（栏锚点补写/迁移、底色补抽走 setData 直写）不经此处，不会误翻误存。 */
+       * 写回当前激活的槽——激活「我的」时刷新 myPreset，激活自定义预设时刷新该预设
+       * 自己的 snapshot；activePreset 不动、另一槽不动（2026-11-27 前是恒翻回 'my'
+       * 并刷新「我的」，切到自定义预设上改排版会污染「我的」，已按用户令改掉）。
+       * 计划内容不改指纹，不触发。静默写回（栏锚点补写/迁移、底色补抽走 setData 直写）
+       * 不经此处，不会误翻误存。 */
       if (compositionFingerprint(next) !== compositionFingerprint(prev)) {
-        next.activePreset = 'my';
-        next.myPreset = structuredClone(compositionOf(next));
+        refreshActiveSlot(next);
       }
       lastAppearance = appearanceOf(next, getDisplayPrefs());
       return next;

@@ -23,6 +23,12 @@
     <link rel="manifest" href="/manifest.webmanifest" />
     <link rel="apple-touch-icon" href="/icons/pwa-192.png" />
     <link rel="icon" type="image/svg+xml" href="/logo.svg" />
+    <!-- 顶栏 LOGO 预加载（2026-11-27）：LOGO 在窄屏 LOGO 行与宽屏 LeftRail 两处条件挂载，
+         跨 1780px 断点时 React 会卸载一处、挂载另一处，产生全新的 <img> 元素；
+         /logo.svg 是非哈希公共资源，服务端发 no-cache/must-revalidate，新 img 每次都要
+         联网再验证才画得出，看起来就像重新加载。预加载让图片在页面打开时就进内存缓存，
+         之后无论哪处挂载都直接走缓存、不再发请求、不闪。只预加载，不改图片本身与 favicon。 -->
+    <link rel="preload" as="image" href="/logo.svg" />
     <title>杂盒 ZaBox - 网站导航、任务计划与日程管理</title>
     <script type="application/ld+json">
     {

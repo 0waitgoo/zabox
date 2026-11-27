@@ -36,6 +36,7 @@ export default function StickySearch({
   store,
   active = true,
   onRequestActivate,
+  bare = false,
 }: {
   groups: NavGroup[];
   onOpenGroup: (group: NavGroup) => void;
@@ -45,6 +46,9 @@ export default function StickySearch({
   active?: boolean;
   /** AI 模式下按 ⌘K/Ctrl+K 时回调：由统一栏切回搜索模式 */
   onRequestActivate?: () => void;
+  /** 一体式搜索栏（2026-11-27）：true 时不画自己的框体，只留输入行，
+      外层与内层都不定位，下拉锚到统一栏容器（relative，整条同宽） */
+  bare?: boolean;
 }) {
   const [query, setQuery] = useState('');
   const [open, setOpen] = useState(false);
@@ -174,14 +178,18 @@ export default function StickySearch({
       ref={containerRef}
       data-search-bar
       aria-hidden={!active}
-      className={`relative flex-1 min-w-0 ${active ? '' : 'hidden'}`}
+      className={`${bare ? '' : 'relative '}flex-1 min-w-0 ${active ? '' : 'hidden'}`}
     >
-      <div className="relative">
+      <div className={bare ? 'contents' : 'relative'}>
         {/* 底色与 C 卡卡面同源：.card-glass-surface 走 --group-card-rgb/alpha + 同款磨砂。
             主题口径（第五十八轮收敛）：白天**不**翻白——index.css 有专门规则把本面钉回暗夜深色值，
             故本面不再挂 .group-card-scope（白天翻深文字的作用域标记）。
-            下拉面板是本 div 的兄弟节点，不在作用域内，保持实色不动 */}
-        <div className="card-glass-surface flex items-center gap-2 sm:gap-3 h-12 sm:h-13 px-3 sm:px-4 rounded-2xl border border-white/10 focus-within:border-indigo-400/40 transition-colors">
+            下拉面板是本 div 的兄弟节点，不在作用域内，保持实色不动；
+            bare 模式下本行不画框（框体由统一栏提供），contents 让下拉锚到统一栏容器 */}
+        <div className={bare
+          ? 'flex items-center gap-2 sm:gap-3 min-w-0'
+          : 'card-glass-surface flex items-center gap-2 sm:gap-3 h-12 sm:h-13 px-3 sm:px-4 rounded-2xl border border-white/10 focus-within:border-indigo-400/40 transition-colors'}
+        >
           <Search size={18} className="text-white/40 shrink-0" />
           <input
             ref={inputRef}

@@ -288,9 +288,38 @@ export function resolveTagPlan(raw: unknown, knownIds: Set<string>): Map<string,
   return out;
 }
 
+/* ---------------- 补图标+补标签合并：一次 AI 调用同时补两样 ---------------- */
+
+/** 合并补齐的系统提示：一次调用同时要图标直链和标签；只回 JSON；不知道就别列 */
+const FILL_SYSTEM = `你是杂盒图标和标签补齐助手。用户会给两批网站：一批找不到品牌图标、一批没有可用标签。你只输出一个 JSON 对象，不要解释、不要 markdown。格式：{"logos":[{"id":"网站 id","urls":["https://…图标直链"]}],"tags":[{"id":"网站 id","tags":["VPN","APP"]}]}。图标规则：urls 只能是该网站官方的 Logo/图标文件直链（官网 favicon、logo.svg/png、官方 CDN 品牌图优先）；每个站最多 3 个，按把握从高到低排；不知道官方地址的站不要列出、不要猜、不要编；不要返回搜索引擎、截图服务或第三方聚合站的地址；不要返回 data: 地址。标签规则：tags 只能从 VPN、APP 里选；VPN = 该站在中国大陆无法直接访问、必须翻墙才能打开；APP = 该服务主要以手机/桌面 App 形态提供、官网主推 App 下载；拿不准的站不要列出、不要猜；MARK 是用户个人的重点标记，绝不要建议；每个站最多 2 个标签。某一批没有网站时对应数组为空。`;
+
+/**
+ * 合并补齐消息：图标站与标签站各列一批（为空的一批不列），一次调用同时问两样；
+ * 解析仍走 resolveIconLogoPlan / resolveTagPlan，缺失的一方自然为空表。
+ */
+export function buildFillMessages(logoSites: IconLogoSite[], tagSites: TagSite[]): ChatMessage[] {
+  const parts: string[] = [];
+  if (logoSites.length > 0) {
+    parts.push(
+      `找不到图标的网站：\n${logoSites.map((s) => `${s.name}（id:${s.id}）${s.url}`).join('\n')}`,
+    );
+  }
+  if (tagSites.length > 0) {
+    parts.push(
+      `需要补标签的网站：\n${tagSites
+        .map((s) => `${s.name}（id:${s.id}）${s.url}${s.description ? ` — ${s.description.slice(0, 30)}` : ''}`)
+        .join('\n')}`,
+    );
+  }
+  return [
+    { role: 'system', content: FILL_SYSTEM },
+    { role: 'user', content: parts.join('\n\n') },
+  ];
+}
+
 /* ---------------- 一键分类 ---------------- */
 
-const CATEGORIZE_SYSTEM = `你是杂盒网站整理助手。用户会给一句话意图和现有编组与站点清单。你只输出一个 JSON 对象，不要解释、不要 markdown。格式：{"newGroups":[{"name":"新组名"}],"moves":[{"siteId":"站点的 id","target":"目标组 id，或 new:新组名"}]}。规则：只移动与用户意图相关的站点，不相关的站点一个都不动、不列出；target 只能是清单里已有的组 id，或 new:新组名（新组名不超过 8 个字）；不要编造站点 id、组 id、站点名；不要删除任何组或站点；如果意图与现有分组无关或无法判断，返回空 moves（newGroups 也为空），不要硬凑。`;
+const CATEGORIZE_SYSTEM = `你是杂盒网站整理助手。用户会给一句话意图和现有编组与站点清单。你只输出一个 JSON 对象，不要解释、不要 markdown。格式：{"newGroups":[{"name":"新组名"}],"moves":[{"siteId":"站点的 id","target":"目标组 id，或 new:新组名"}]}。规则：只移动与用户意图相关的站点，不相关的站点一个都不动、不列出；优先用现有组，只有意图明确要求新分类时才新建组，最多新建 2 个组；一次最多移动 30 站；本来就在目标组的站不要列出；target 只能是清单里已有的组 id，或 new:新组名（新组名不超过 8 个字）；不要编造站点 id、组 id、站点名；不要删除任何组或站点；如果意图与现有分组无关或无法判断，返回空 moves（newGroups 也为空），不要硬凑。`;
 
 function compactSiteList(groups: NavGroup[]): { text: string; truncated: boolean } {
   const withDesc = groups
@@ -301,15 +330,15 @@ function compactSiteList(groups: NavGroup[]): { text: string; truncated: boolean
       return `组 ${g.name}（id:${g.id}，${g.display === 'stack' ? '文件夹式' : '详细列表'}）：${sites || '（空组）'}`;
     })
     .join('\n');
-  if (withDesc.length <= 20000) return { text: withDesc, truncated: false };
+  if (withDesc.length <= 12000) return { text: withDesc, truncated: false };
   const noDesc = groups
     .map((g) => {
       const sites = g.sites.map((s) => `${s.name}（id:${s.id}）${s.url}`).join('；');
       return `组 ${g.name}（id:${g.id}）：${sites || '（空组）'}`;
     })
     .join('\n');
-  if (noDesc.length <= 20000) return { text: noDesc, truncated: false };
-  return { text: `${noDesc.slice(0, 20000)}\n（站点太多，清单已截断，未列出的站点不会被移动）`, truncated: true };
+  if (noDesc.length <= 16000) return { text: noDesc, truncated: false };
+  return { text: `${noDesc.slice(0, 16000)}\n（站点太多，清单已截断，未列出的站点不会被移动）`, truncated: true };
 }
 
 export function buildCategorizeMessages(
@@ -344,8 +373,19 @@ export interface ResolvedCategorizePlan {
   totalSites: number;
 }
 
+/**
+ * 去重用归一化：去协议、去 www、去查询串与锚点、去尾斜杠、全小写。
+ * 同一站点的 www 版 / 带 ?utm 的分享链接 / 带 # 锚点的链接都算同一个站，
+ * 搜集去重不再把它们当成两个站。
+ */
 function normalizeUrl(u: string): string {
-  return u.replace(/^https?:\/\//i, '').replace(/\/+$/, '').toLowerCase();
+  let s = u.replace(/^https?:\/\//i, '').toLowerCase();
+  s = s.replace(/^www\./, '');
+  const q = s.indexOf('?');
+  if (q >= 0) s = s.slice(0, q);
+  const h = s.indexOf('#');
+  if (h >= 0) s = s.slice(0, h);
+  return s.replace(/\/+$/, '');
 }
 
 export function resolveCategorizePlan(raw: unknown, groups: NavGroup[]): ResolvedCategorizePlan {
@@ -487,12 +527,30 @@ export async function fetchSiteAiModels(cfg: SiteAiConfig, signal?: AbortSignal)
 
 /* ---------------- 一键搜集 ---------------- */
 
-const COLLECT_SYSTEM = `你是杂盒网站搜集助手。用户一句话说想要哪类网站，你返回真实存在的知名网站，不要编造。只输出一个 JSON 对象，不要解释、不要 markdown。格式：{"groupName":"建议的新组名（不超过 8 个字）","candidates":[{"name":"网站名","url":"https://…","description":"一句话介绍"}]}。规则：8–12 个候选；只要你有把握真实存在的网站，不确定的宁可少给；url 必须是完整 https 链接；不要返回用户没要的类别。`;
+const COLLECT_SYSTEM = `你是杂盒网站搜集助手。用户一句话说想要哪类网站，你返回真实存在的知名网站，不要编造。只输出一个 JSON 对象，不要解释、不要 markdown。格式：{"groupName":"建议的新组名（不超过 8 个字）","candidates":[{"name":"网站名","url":"https://…","description":"一句话介绍"}]}。规则：10–12 个候选；只要你有把握真实存在的网站，不确定的宁可少给；url 必须是完整 https 链接；下面「用户已有的网站域名」里的站不要推荐（用户已经有了）；不要返回用户没要的类别。`;
 
-export function buildCollectMessages(intent: string): ChatMessage[] {
+/**
+ * 搜集消息：除意图外，把用户已有的域名（去重去 www，上限 1500 字）一起发给 AI，
+ * 让模型直接避开已有站——以前 AI 不知道用户有什么，返回的候选里常有 3–5 个是
+ * 已有站，解析时才被丢掉，白白占了候选名额；现在一次返回基本都是新站。
+ */
+export function buildCollectMessages(intent: string, groups: NavGroup[]): ChatMessage[] {
+  const hosts = new Set<string>();
+  for (const g of groups) {
+    for (const s of g.sites) {
+      try {
+        hosts.add(new URL(s.url).hostname.toLowerCase().replace(/^www\./, ''));
+      } catch {
+        /* 坏链接跳过 */
+      }
+    }
+  }
+  const hostList = [...hosts].join('、');
+  const existing =
+    hostList.length > 0 ? `\n\n用户已有的网站域名（不要推荐这些）：\n${hostList.slice(0, 1500)}` : '';
   return [
     { role: 'system', content: COLLECT_SYSTEM },
-    { role: 'user', content: `用户想要：${intent}` },
+    { role: 'user', content: `用户想要：${intent}${existing}` },
   ];
 }
 

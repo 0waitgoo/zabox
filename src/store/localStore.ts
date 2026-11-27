@@ -15,7 +15,6 @@ import {
   getDisplayPrefs,
   setDisplayPrefs,
   subscribeDisplayPrefs,
-  type DisplayTheme,
 } from './displayPrefs';
 
 /**
@@ -138,12 +137,13 @@ function normalizeBackground(raw: unknown): BackgroundSetting {
 
 /**
  * 预设里的外观（第一百一十一轮）：外观设置并进预设、跟预设一起保存。
- * 只含预设背景与显示偏好——本地图片背景（kind='local'）不进预设：应用预设时
- * 一律回到预设背景（图片本体仍在 IndexedDB，之后可重选）。
+ * 只含预设背景与显示偏好（透明度/模糊/纯色）——本地图片背景（kind='local'）不进预设：
+ * 应用预设时一律回到预设背景（图片本体仍在 IndexedDB，之后可重选）。
+ * 主题（暗夜/白天/液态玻璃）不进预设（2026-11-27 A方案）：主题是全局设置，只走
+ * 显示偏好（ainav-display-prefs-v1），切任何预设都不动当前主题。
  */
 export interface PresetAppearance {
   background: { presetId: string; oceanColor: string };
-  theme: DisplayTheme;
   groupCardAlpha: number;
   widgetAlpha: number;
   bgBlur: number;
@@ -153,7 +153,6 @@ export interface PresetAppearance {
  *  （2026-11-22 用户令默认风格改为雾光＋液态玻璃；此前为星云紫＋液态玻璃） */
 export const DEFAULT_PRESET_APPEARANCE: PresetAppearance = {
   background: { presetId: 'hazeglow', oceanColor: OCEAN_DEFAULT_COLOR },
-  theme: 'liquid',
   groupCardAlpha: DEFAULT_DISPLAY_PREFS.groupCardAlpha,
   widgetAlpha: DEFAULT_DISPLAY_PREFS.widgetAlpha,
   bgBlur: DEFAULT_DISPLAY_PREFS.bgBlur,
@@ -163,12 +162,13 @@ function clamp01(v: number): number {
   return Math.min(1, Math.max(0, v));
 }
 
-/** 归一化外观：字段非法逐项回落默认；整体不是对象时返回 null（调用方按当前全局外观补齐） */
+/** 归一化外观：字段非法逐项回落默认；整体不是对象时返回 null（调用方按当前全局外观补齐）。
+ *  只管快照（显示偏好的主题归一化在 displayPrefs.ts 的 normalizePrefs 里，两边各管各的）。
+ *  旧快照里冻住的 theme 字段一律忽略、不读不写（2026-11-27 A方案：主题不再进预设）。 */
 function normalizeAppearance(raw: unknown): PresetAppearance | null {
   if (!raw || typeof raw !== 'object') return null;
   const a = raw as {
     background?: unknown;
-    theme?: unknown;
     groupCardAlpha?: unknown;
     widgetAlpha?: unknown;
     bgBlur?: unknown;
@@ -186,18 +186,16 @@ function normalizeAppearance(raw: unknown): PresetAppearance | null {
     typeof v === 'number' && Number.isFinite(v) ? clamp01(v) : fallback;
   return {
     background: { presetId, oceanColor },
-    theme: a.theme === 'light' || a.theme === 'liquid' ? a.theme : 'dark',
     groupCardAlpha: num(a.groupCardAlpha, DEFAULT_DISPLAY_PREFS.groupCardAlpha),
     widgetAlpha: num(a.widgetAlpha, DEFAULT_DISPLAY_PREFS.widgetAlpha),
     bgBlur: num(a.bgBlur, DEFAULT_DISPLAY_PREFS.bgBlur),
   };
 }
 
-/** 从一份 store 数据 + 当前全局显示偏好拼出完整外观（快照与指纹共用） */
-function appearanceOf(d: StoreData, prefs: { oceanColor: string; theme: DisplayTheme; groupCardAlpha: number; widgetAlpha: number; bgBlur: number }): PresetAppearance {
+/** 从一份 store 数据 + 当前全局显示偏好拼出完整外观（快照与指纹共用；不含主题） */
+function appearanceOf(d: StoreData, prefs: { oceanColor: string; groupCardAlpha: number; widgetAlpha: number; bgBlur: number }): PresetAppearance {
   return {
     background: { presetId: d.background.presetId, oceanColor: prefs.oceanColor },
-    theme: prefs.theme,
     groupCardAlpha: prefs.groupCardAlpha,
     widgetAlpha: prefs.widgetAlpha,
     bgBlur: prefs.bgBlur,
@@ -210,7 +208,6 @@ function fallbackAppearance(backgroundPresetId: string): PresetAppearance {
   const prefs = getDisplayPrefs();
   return {
     background: { presetId: backgroundPresetId, oceanColor: prefs.oceanColor },
-    theme: prefs.theme,
     groupCardAlpha: prefs.groupCardAlpha,
     widgetAlpha: prefs.widgetAlpha,
     bgBlur: prefs.bgBlur,
@@ -959,7 +956,8 @@ export function compositionOf(d: StoreData): CompositionSnapshot {
  * 构成指纹（第一百零六轮，预设状态机专用）：判断「构成是否被改动过」。
  * 只覆盖用户定版的构成口径（编组/站点、组件构成、布局、顺序/栏位、组合与摞的成员关系）；
  * 组合/摞的当前 tab、卡面样式与组件底色不算构成改动（切个 tab、换个底色不该把预设打回自定义）。
- * 第一百一十一轮起另含外观（背景预设 + 显示偏好五项）：背景走 update() 故指纹直接覆盖；
+ * 第一百一十一轮起另含外观（背景预设 + 显示偏好四项，不含主题：2026-11-27 A方案起
+ * 主题不再进快照，改主题不翻预设、不刷新「我的」存档）：背景走 update() 故指纹直接覆盖；
  * 显示偏好走 displayPrefs 独立通道，由 useLocalStore 的订阅桥接进同一翻转逻辑。
  */
 function compositionFingerprint(d: StoreData): string {
@@ -1780,7 +1778,6 @@ export function useLocalStore() {
       if (suppressAppearanceFlip || !lastAppearance) return;
       const nextAppearance: PresetAppearance = {
         background: { presetId: lastAppearance.background.presetId, oceanColor: prefs.oceanColor },
-        theme: prefs.theme,
         groupCardAlpha: prefs.groupCardAlpha,
         widgetAlpha: prefs.widgetAlpha,
         bgBlur: prefs.bgBlur,
@@ -3264,7 +3261,6 @@ export function useLocalStore() {
     const prefs = getDisplayPrefs();
     lastAppearance = {
       background: { presetId: DEFAULT_BACKGROUND.presetId, oceanColor: prefs.oceanColor },
-      theme: prefs.theme,
       groupCardAlpha: prefs.groupCardAlpha,
       widgetAlpha: prefs.widgetAlpha,
       bgBlur: prefs.bgBlur,
@@ -3380,8 +3376,9 @@ export function useLocalStore() {
     });
     suppressAppearanceFlip = true;
     try {
+      // 主题不再进预设（2026-11-27 A方案）：应用预设只写透明度/模糊/纯色，不碰当前主题；
+      // 旧快照里冻住的 theme 字段已在归一化时丢掉，这里也读不到。
       setDisplayPrefs({
-        theme: snap.appearance.theme,
         groupCardAlpha: snap.appearance.groupCardAlpha,
         widgetAlpha: snap.appearance.widgetAlpha,
         bgBlur: snap.appearance.bgBlur,

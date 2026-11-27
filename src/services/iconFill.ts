@@ -75,6 +75,14 @@ export interface IconFillHit {
   aiSuggested?: boolean;
 }
 
+export interface IconFillMissedSite {
+  groupId: string;
+  groupName: string;
+  siteId: string;
+  siteName: string;
+  url: string;
+}
+
 export interface IconFillScan {
   hits: IconFillHit[];
   /** 进入验证/补齐流程的站数 */
@@ -83,6 +91,8 @@ export interface IconFillScan {
   skipped: number;
   /** 候选全部加载失败的站数（含 AI 也没找到的） */
   notFound: number;
+  /** 探测失败的站（调用方可拿去走 AI 找图；scanIconFill 自带 AI 流程跑完后是仍未找到的站） */
+  missedSites: IconFillMissedSite[];
   /** 是否跑过 AI 找图（调用方给了 suggestLogos 且有站探测失败） */
   aiAttempted: boolean;
   /** AI 找图是否出错（出错时结果只含探测命中，调用方可提示） */
@@ -208,5 +218,57 @@ export async function scanIconFill(
       opts.onAiPhase?.(false);
     }
   }
-  return { hits, scanned: total, skipped, notFound: missed.length, aiAttempted, aiFailed };
+  return {
+    hits,
+    scanned: total,
+    skipped,
+    notFound: missed.length,
+    missedSites: missed.map((j) => ({
+      groupId: j.groupId,
+      groupName: j.groupName,
+      siteId: j.site.id as string,
+      siteName: j.site.name,
+      url: j.site.url,
+    })),
+    aiAttempted,
+    aiFailed,
+  };
+}
+
+/**
+ * 验证 AI 推荐的图标地址（2026-11-27 补图标+补标签合并用）：调用方在扫描之外
+ * 自己调一次 AI 拿回地址后，用本函数逐个加载验证，通过的才算命中（aiSuggested）。
+ * 与 scanIconFill 内的验证同一口径：每站按建议顺序试，第一个能加载的即命中。
+ */
+export async function verifySuggestedLogos(
+  sites: IconFillMissedSite[],
+  suggestions: Map<string, string[]>,
+  load: ImageLoader = probeImageUrl,
+  opts?: { timeoutMs?: number; concurrency?: number },
+): Promise<IconFillHit[]> {
+  const timeoutMs = opts?.timeoutMs ?? 4000;
+  const concurrency = Math.max(1, opts?.concurrency ?? 4);
+  const hits: IconFillHit[] = [];
+  let idx = 0;
+  const workers = Array.from({ length: Math.min(concurrency, Math.max(1, sites.length)) }, async () => {
+    while (idx < sites.length) {
+      const site = sites[idx++];
+      const urls = suggestions.get(site.siteId) ?? [];
+      for (const cand of urls) {
+        if (await load(cand, timeoutMs)) {
+          hits.push({
+            groupId: site.groupId,
+            groupName: site.groupName,
+            siteId: site.siteId,
+            siteName: site.siteName,
+            logo: cand,
+            aiSuggested: true,
+          });
+          break;
+        }
+      }
+    }
+  });
+  await Promise.all(workers);
+  return hits;
 }

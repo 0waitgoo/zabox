@@ -73,12 +73,16 @@ export default function SiteAiAssistant({
   store,
   active = true,
   compactBar = false,
+  bare = false,
 }: {
   store: LocalStore;
   /** 是否当前模式；false 时只藏起整理条（不卸载，输入内容保留） */
   active?: boolean;
   /** 在统一顶栏里用紧凑单行条：去掉 mt-4 与左侧标题块，省出切换开关的宽度 */
   compactBar?: boolean;
+  /** 一体式搜索栏（2026-11-27）：true 时不画自己的框体，只留输入行，
+      框体由统一栏提供；输入框改透明，与搜索输入同款 */
+  bare?: boolean;
 }) {
   const [input, setInput] = useState('');
   const barInputRef = useRef<HTMLInputElement>(null);
@@ -520,7 +524,9 @@ export default function SiteAiAssistant({
         aria-hidden={!active}
         className={
           compactBar
-            ? `flex-1 min-w-0 rounded-[22px] border border-indigo-400/30 bg-indigo-500/10 px-3 py-2 flex flex-wrap items-center gap-2 ${active ? '' : 'hidden'}`
+            ? bare
+              ? `flex-1 min-w-0 flex flex-wrap items-center gap-2 ${active ? '' : 'hidden'}`
+              : `flex-1 min-w-0 rounded-[22px] border border-indigo-400/30 bg-indigo-500/10 px-3 py-2 flex flex-wrap items-center gap-2 ${active ? '' : 'hidden'}`
             : `mt-4 rounded-[22px] border border-indigo-400/30 bg-indigo-500/10 px-3 py-3 sm:px-4 flex flex-col sm:flex-row items-stretch sm:items-center gap-2.5 ${active ? '' : 'hidden'}`
         }
       >
@@ -539,7 +545,9 @@ export default function SiteAiAssistant({
             if (e.key === 'Enter') openPanel('categorize');
           }}
           placeholder={t('ai.placeholder')}
-          className={`${inputCls} ${compactBar ? 'flex-[1_1_140px] min-w-0' : 'flex-1'}`}
+          className={compactBar && bare
+            ? 'flex-[1_1_140px] min-w-0 bg-transparent outline-none text-sm placeholder:text-white/30 px-1 py-1.5'
+            : `${inputCls} ${compactBar ? 'flex-[1_1_140px] min-w-0' : 'flex-1'}`}
         />
         <div className="flex gap-2 shrink-0">
           <button
